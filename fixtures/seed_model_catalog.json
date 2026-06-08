@@ -1,0 +1,52 @@
+[
+  {
+    "id": "gpt-5.5-pro",
+    "provider": "openai",
+    "display_name": "GPT-5.5 Pro",
+    "input_cost_per_1m": 15,
+    "output_cost_per_1m": 90,
+    "default_latency_ms": 1800,
+    "deployment_type": "closed_managed",
+    "quality_tier": "strong"
+  },
+  {
+    "id": "claude-opus-4.8",
+    "provider": "anthropic",
+    "display_name": "Claude Opus 4.8",
+    "input_cost_per_1m": 5,
+    "output_cost_per_1m": 25,
+    "default_latency_ms": 1450,
+    "deployment_type": "closed_managed",
+    "quality_tier": "strong"
+  },
+  {
+    "id": "deepseek-v4-pro",
+    "provider": "deepseek",
+    "display_name": "DeepSeek V4 Pro",
+    "input_cost_per_1m": 0.72,
+    "output_cost_per_1m": 4.5,
+    "default_latency_ms": 900,
+    "deployment_type": "managed_open",
+    "quality_tier": "balanced"
+  },
+  {
+    "id": "deepseek-r1",
+    "provider": "deepseek",
+    "display_name": "DeepSeek R1",
+    "input_cost_per_1m": 0.14,
+    "output_cost_per_1m": 2.6,
+    "default_latency_ms": 680,
+    "deployment_type": "managed_open",
+    "quality_tier": "balanced"
+  },
+  {
+    "id": "local-qwen-14b",
+    "provider": "local",
+    "display_name": "Local Qwen 14B",
+    "input_cost_per_1m": 0,
+    "output_cost_per_1m": 0,
+    "default_latency_ms": 420,
+    "deployment_type": "local",
+    "quality_tier": "cheap"
+  }
+]
