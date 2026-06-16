@@ -1,0 +1,146 @@
+{
+  "last_updated": "2026-06-12",
+  "benchmark_families": [
+    {
+      "id": "swe_bench_verified",
+      "name": "SWE-bench Verified",
+      "description": "Repo-wide software engineering, bug fixing, and agentic coding tasks.",
+      "best_for": ["repo-wide bug fixing", "software engineering agents", "code editing"],
+      "weak_for": ["customer support", "browser workflows", "pure math"],
+      "source_url": "https://www.swebench.com/",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "terminal_bench",
+      "name": "Terminal-Bench",
+      "description": "Terminal, CLI, DevOps, shell, and command-line agent workflows.",
+      "best_for": ["terminal operations", "CLI workflows", "DevOps tasks"],
+      "weak_for": ["policy support", "visual desktop workflows"],
+      "source_url": "https://www.tbench.ai/",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "tau_bench",
+      "name": "τ-Bench / τ² / τ³-Bench",
+      "description": "Customer support, policy-following agents, and tool-using customer workflows.",
+      "best_for": ["customer support", "policy adherence", "tool-using support agents", "retail and banking support"],
+      "weak_for": ["repo-wide coding", "desktop control"],
+      "source_url": "https://github.com/sierra-research/tau-bench",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "bfcl",
+      "name": "Berkeley Function Calling Leaderboard",
+      "description": "Function calling, tool calling, API argument generation, and schema correctness.",
+      "best_for": ["tool calls", "function arguments", "JSON tool schemas", "API calling"],
+      "weak_for": ["freeform writing", "visual desktop workflows"],
+      "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "webarena_webvoyager",
+      "name": "WebArena / WebVoyager",
+      "description": "Browser navigation, web workflows, forms, and web agent tasks.",
+      "best_for": ["browser navigation", "form completion", "web automation"],
+      "weak_for": ["repo-wide coding", "offline document QA"],
+      "source_url": "https://webarena.dev/",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "osworld",
+      "name": "OSWorld",
+      "description": "Desktop and computer-use agents across applications.",
+      "best_for": ["desktop control", "computer use", "spreadsheet apps", "presentation apps"],
+      "weak_for": ["pure text extraction", "math"],
+      "source_url": "https://os-world.github.io/",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "expert_reasoning",
+      "name": "GPQA / HLE / MMLU-Pro",
+      "description": "Research, expert reasoning, technical QA, and difficult knowledge work.",
+      "best_for": ["research", "technical QA", "expert reasoning"],
+      "weak_for": ["tool API correctness", "browser action execution"],
+      "source_url": "https://huggingface.co/spaces/opencompass/open_llm_leaderboard",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "math_reasoning",
+      "name": "AIME / Math Benchmarks",
+      "description": "Quantitative and mathematical reasoning.",
+      "best_for": ["math", "quantitative reasoning", "competition math"],
+      "weak_for": ["customer policy agents", "tool recovery"],
+      "source_url": "https://github.com/openai/simple-evals",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "long_context",
+      "name": "Long-context / Needle / MRCR",
+      "description": "Long-context retrieval, document QA, RAG, and context recall.",
+      "best_for": ["document QA", "RAG", "long context", "needle-in-haystack retrieval"],
+      "weak_for": ["short support answers", "terminal operations"],
+      "source_url": "https://github.com/openai/simple-evals",
+      "freshness_date": "2026-06-12"
+    },
+    {
+      "id": "custom_signaleval",
+      "name": "Custom SignalEval traces",
+      "description": "User-specific evaluation traces when public benchmarks weakly predict the workload.",
+      "best_for": ["PM strategy", "executive writing", "product judgment", "company-specific preferences"],
+      "weak_for": [],
+      "source_url": "local://signaleval/custom-traces",
+      "freshness_date": "2026-06-12"
+    }
+  ],
+  "mapping_rules": [
+    { "benchmark_id": "swe_bench_verified", "alignment_score": 0.94, "confidence": 5, "weight": 1, "rationale": "Repo-wide coding, bug fixing, and code review align closely with SWE-bench Verified.", "task_type_any": ["code_generation", "code_review_debugging"], "output_format_any": ["code"] },
+    { "benchmark_id": "terminal_bench", "alignment_score": 0.72, "confidence": 4, "weight": 0.65, "rationale": "Coding agents often need shell, CLI, and terminal workflows after code generation.", "task_type_any": ["code_generation", "code_review_debugging"] },
+    { "benchmark_id": "terminal_bench", "alignment_score": 0.94, "confidence": 5, "weight": 1, "rationale": "Terminal, CLI, DevOps, and shell workflows align closely with Terminal-Bench.", "task_type_any": ["tool_use_function_calling"], "domain_any": ["operations", "engineering"] },
+    { "benchmark_id": "swe_bench_verified", "alignment_score": 0.65, "confidence": 3, "weight": 0.5, "rationale": "Engineering terminal workflows may include repo-level software changes.", "domain_any": ["engineering"], "tool_use": true },
+    { "benchmark_id": "tau_bench", "alignment_score": 0.92, "confidence": 5, "weight": 1, "rationale": "Customer-support agent with tools and policy constraints closely matches τ-Bench-style tasks.", "task_type_any": ["customer_support_responses"], "domain_any": ["customer_support", "billing", "finance"] },
+    { "benchmark_id": "bfcl", "alignment_score": 0.72, "confidence": 4, "weight": 0.6, "rationale": "Support agents with tools need reliable API and argument generation.", "task_type_any": ["customer_support_responses"], "tool_use": true },
+    { "benchmark_id": "tau_bench", "alignment_score": 0.96, "confidence": 5, "weight": 1, "rationale": "Banking, billing, and fintech support combines policy adherence, tools, and customer-facing risk.", "domain_any": ["billing", "finance"] },
+    { "benchmark_id": "long_context", "alignment_score": 0.65, "confidence": 3, "weight": 0.45, "rationale": "Grounded fintech or banking support may require long policy context recall.", "domain_any": ["billing", "finance"], "grounding_any": ["retrieval_augmented", "source_citation_required", "policy_grounded"] },
+    { "benchmark_id": "bfcl", "alignment_score": 0.9, "confidence": 5, "weight": 1, "rationale": "Tool calling requires function-call and argument-correctness evidence.", "tool_use": true },
+    { "benchmark_id": "bfcl", "alignment_score": 0.9, "confidence": 5, "weight": 1, "rationale": "JSON or tool-call outputs map directly to schema and function-calling benchmarks.", "output_format_any": ["json", "tool_call"] },
+    { "benchmark_id": "webarena_webvoyager", "alignment_score": 0.95, "confidence": 4, "weight": 1, "rationale": "Browser and form workflow automation aligns with WebArena/WebVoyager.", "task_type_any": ["tool_use_function_calling"], "domain_any": ["sales", "operations", "general"] },
+    { "benchmark_id": "osworld", "alignment_score": 0.88, "confidence": 4, "weight": 1, "rationale": "Desktop and computer-use workflows align with OSWorld.", "domain_any": ["operations", "product"], "metadata_keywords_any": ["desktop", "computer_use", "spreadsheet", "presentation"] },
+    { "benchmark_id": "expert_reasoning", "alignment_score": 0.82, "confidence": 4, "weight": 0.8, "rationale": "Research, expert reasoning, and technical QA align with GPQA/HLE/MMLU-Pro-style tests.", "task_type_any": ["question_answering", "data_analysis_insight_generation"], "domain_any": ["engineering", "data", "finance", "healthcare", "security"] },
+    { "benchmark_id": "math_reasoning", "alignment_score": 0.88, "confidence": 4, "weight": 0.9, "rationale": "Quantitative and math-heavy tasks align with AIME/math benchmarks.", "task_type_any": ["data_analysis_insight_generation", "sql_data_query_generation"], "metadata_keywords_any": ["math", "quantitative", "calculate", "aime"] },
+    { "benchmark_id": "long_context", "alignment_score": 0.9, "confidence": 4, "weight": 1, "rationale": "RAG, document QA, and source-citation tasks require long-context retrieval priors.", "task_type_any": ["rag_grounded_answers"], "grounding_any": ["retrieval_augmented", "source_citation_required", "provided_context"] },
+    { "benchmark_id": "long_context", "alignment_score": 0.84, "confidence": 4, "weight": 0.85, "rationale": "Legal document review and multimodal document understanding often depend on long source context and evidence recall.", "task_type_any": ["document_review_legal_analysis", "multimodal_document_image_understanding"], "grounding_any": ["retrieval_augmented", "source_citation_required", "provided_context", "policy_grounded"] },
+    { "benchmark_id": "expert_reasoning", "alignment_score": 0.8, "confidence": 4, "weight": 0.8, "rationale": "Policy, compliance, legal analysis, and safety review require careful expert-style reasoning.", "task_type_any": ["policy_compliance_reasoning", "document_review_legal_analysis", "moderation_safety_review"], "domain_any": ["legal", "compliance", "security", "healthcare", "finance"] },
+    { "benchmark_id": "expert_reasoning", "alignment_score": 0.55, "confidence": 2, "weight": 0.35, "rationale": "Technical long-context QA may benefit from expert-reasoning priors, but workload-specific SignalEval traces should dominate.", "task_type_any": ["rag_grounded_answers"], "domain_any": ["engineering", "security", "finance", "healthcare", "data"] },
+    { "benchmark_id": "long_context", "alignment_score": 0.82, "confidence": 4, "weight": 0.85, "rationale": "High grounding requirements need long-context and retrieval evidence.", "grounding_any": ["retrieval_augmented", "source_citation_required", "provided_context"] },
+    { "benchmark_id": "bfcl", "alignment_score": 0.86, "confidence": 5, "weight": 0.9, "rationale": "Tool-use and agentic workflows need reliable function selection and argument generation.", "task_type_any": ["tool_use_function_calling", "agentic_workflow_execution"] },
+    { "benchmark_id": "webarena_webvoyager", "alignment_score": 0.82, "confidence": 4, "weight": 0.8, "rationale": "Agentic workflows with web research, forms, and browser actions align with web-agent benchmarks.", "task_type_any": ["agentic_workflow_execution"], "domain_any": ["sales", "marketing", "operations", "product", "general"] },
+    { "benchmark_id": "custom_signaleval", "alignment_score": 0.76, "confidence": 5, "weight": 1, "rationale": "Summarization, writing, marketing, translation, and extraction quality is usually most predictive when measured on local examples and style rules.", "task_type_any": ["summarization", "extraction", "writing_editing", "sales_marketing_content", "translation_localization", "classification_tagging"], "domain_any": ["general", "sales", "marketing", "customer_support"] },
+    { "benchmark_id": "expert_reasoning", "alignment_score": 0.48, "confidence": 2, "weight": 0.35, "rationale": "Expert reasoning benchmarks weakly proxy PM strategy and executive judgment.", "task_type_any": ["planning_strategy_recommendations", "writing_editing"], "domain_any": ["product", "marketing"] },
+    { "benchmark_id": "custom_signaleval", "alignment_score": 0.78, "confidence": 5, "weight": 1, "rationale": "PM strategy, executive writing, and product judgment should be dominated by custom SignalEval traces.", "task_type_any": ["planning_strategy_recommendations", "writing_editing", "sales_marketing_content"], "domain_any": ["product", "marketing", "general"] }
+  ],
+  "model_scores": [
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "swe_bench_verified", "rank": 1, "source_url": "https://www.swebench.com/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "swe_bench_verified", "rank": 2, "source_url": "https://www.swebench.com/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "gpt-5.4", "model_name": "GPT-5.4", "benchmark_id": "swe_bench_verified", "rank": 3, "source_url": "https://www.swebench.com/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "terminal_bench", "rank": 1, "source_url": "https://www.tbench.ai/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "terminal_bench", "rank": 2, "source_url": "https://www.tbench.ai/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "tau_bench", "rank": 1, "source_url": "https://github.com/sierra-research/tau-bench", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "tau_bench", "rank": 2, "source_url": "https://github.com/sierra-research/tau-bench", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "gpt-5.4", "model_name": "GPT-5.4", "benchmark_id": "tau_bench", "rank": 3, "source_url": "https://github.com/sierra-research/tau-bench", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "bfcl", "rank": 1, "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "claude-sonnet-4.8", "model_name": "Claude Sonnet 4.8", "benchmark_id": "bfcl", "rank": 2, "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
+    { "model_id": "gemini-3-pro", "model_name": "Gemini 3 Pro", "benchmark_id": "bfcl", "rank": 3, "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "webarena_webvoyager", "rank": 1, "source_url": "https://webarena.dev/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "webarena_webvoyager", "rank": 2, "source_url": "https://webarena.dev/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "osworld", "rank": 1, "source_url": "https://os-world.github.io/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "expert_reasoning", "rank": 1, "source_url": "https://huggingface.co/spaces/opencompass/open_llm_leaderboard", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "expert_reasoning", "rank": 2, "source_url": "https://huggingface.co/spaces/opencompass/open_llm_leaderboard", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "math_reasoning", "rank": 1, "source_url": "https://github.com/openai/simple-evals", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gemini-3-pro", "model_name": "Gemini 3 Pro", "benchmark_id": "long_context", "rank": 1, "source_url": "https://github.com/openai/simple-evals", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "long_context", "rank": 2, "source_url": "https://github.com/openai/simple-evals", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "custom_signaleval", "rank": 1, "source_url": "local://signaleval/custom-traces", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 1 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "custom_signaleval", "rank": 2, "source_url": "local://signaleval/custom-traces", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 1 },
+    { "model_id": "gemini-3-pro", "model_name": "Gemini 3 Pro", "benchmark_id": "custom_signaleval", "rank": 3, "source_url": "local://signaleval/custom-traces", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 1 }
+  ],
+  "fallback_models": ["gpt-5.5-pro", "claude-opus-4.8", "gemini-3-pro", "claude-sonnet-4.8", "gpt-5.4"]
+}
