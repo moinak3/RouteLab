@@ -111,15 +111,20 @@ describe("simulation and recommendations", () => {
     expect(result.byDistinctTask.reduce((sum, row) => sum + row.savings, 0)).toBeCloseTo(result.estimated_savings_usd);
   });
   it("supports Distinct Task-scoped simulations and expensive candidates", () => {
-    const legal = distinctTaskBuckets.find((bucket) => bucket.task.domain === "legal")!;
-    const legalTraces = traces.filter((trace) => legal.traces.includes(trace.id));
-    const scoped = replay(legalTraces, "claude-opus-4.8");
+    const supportLegalReview = distinctTaskBuckets.find((bucket) => bucket.task.task_type === "document_review_legal_analysis")!;
+    const legalReviewTraces = traces.filter((trace) => supportLegalReview.traces.includes(trace.id));
+    const scoped = replay(legalReviewTraces, "claude-opus-4.8");
     const expensive = costOnly(traces, "gpt-5.5-pro", distinctTaskBuckets);
-    expect(scoped.runs).toHaveLength(legal.trace_count);
+    expect(scoped.runs).toHaveLength(supportLegalReview.trace_count);
     expect(scoped.summary.pass_rate).toBe(1);
-    expect(scoped.summary.baseline_cost_usd).toBeCloseTo(legal.total_cost_usd);
+    expect(scoped.summary.baseline_cost_usd).toBeCloseTo(supportLegalReview.total_cost_usd);
     expect(expensive.simulated_cost_usd).toBeGreaterThan(0);
     expect(expensive.byDistinctTask).toHaveLength(distinctTaskBuckets.length);
+  });
+  it("regenerates seed traces as customer support agent work across all task categories", () => {
+    expect(new Set(distinctTaskBuckets.map((bucket) => bucket.task.domain))).toEqual(new Set(["customer_support"]));
+    expect(new Set(distinctTaskBuckets.map((bucket) => bucket.task.task_type)).size).toBe(20);
+    expect(traces.every((trace) => trace.prompt_text.startsWith("As an AI customer support agent,"))).toBe(true);
   });
   it("prices premium strong-model routing against the mixed baseline", () => {
     for (const model of ["claude-opus-4.8", "gpt-5.5-pro"]) {

@@ -21,6 +21,7 @@ const validJson = (text: string) => { try { JSON.parse(text); return true; } cat
 const average = (values: number[]) => values.length ? values.reduce((sum,value)=>sum+value,0)/values.length : 0;
 const distinctTaskFields: DistinctTaskField[] = ["task_type","domain","complexity","temporal_context","tool_use","output_uncertainty","output_format","grounding_requirement"];
 const taskTypes:TaskType[]=["summarization","extraction","classification_tagging","question_answering","rag_grounded_answers","customer_support_responses","policy_compliance_reasoning","code_generation","code_review_debugging","sql_data_query_generation","data_analysis_insight_generation","writing_editing","sales_marketing_content","translation_localization","document_review_legal_analysis","planning_strategy_recommendations","tool_use_function_calling","agentic_workflow_execution","moderation_safety_review","multimodal_document_image_understanding"];
+const domains:Domain[]=["general","customer_support","billing","legal","compliance","finance","healthcare","sales","marketing","engineering","data","hr","education","operations","security","product","unknown"];
 const numericMetadata = (trace:NormalizedTrace,keys:string[]) => {
   for(const key of keys){const value=Number(trace.metadata?.[key]);if(Number.isFinite(value))return value>1?Math.min(1,value/100):Math.max(0,value)}
   return undefined;
@@ -109,7 +110,9 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
     else if(format.value==="json"&&taskType.confidence<.6) taskType={value:"extraction",confidence:.8,evidence:["Structured JSON output suggests extraction"]};
     else if(format.value==="sql") taskType={value:"sql_data_query_generation",confidence:.97,evidence:["SQL output detected"]};
     else if(format.value==="code"&&taskType.confidence<.6) taskType={value:"code_generation",confidence:.85,evidence:["Code output detected"]};
-    const domain=inferByKeywords<Domain>(text,[
+    const domain:Inference<Domain>=domains.includes(trace.metadata?.domain as Domain)
+      ? {value:trace.metadata?.domain as Domain,confidence:.99,evidence:[`Explicit domain: ${trace.metadata?.domain}`]}
+      : inferByKeywords<Domain>(text,[
       ["healthcare",["diagnosis","symptoms","medication","patient","clinical","hipaa"]],
       ["security",["vulnerability","incident","authentication","permission","secret"]],
       ["legal",["contract","clause","legal","liability","terms of service"]],
@@ -138,7 +141,7 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
     const internalMatches=has(text,["internal summary","internal classification","backoffice","developer tooling","internal analytics"]);
     const visibility:Inference<boolean>=visibleMatches.length?{value:true,confidence:.93,evidence:[`Customer-facing signal: ${visibleMatches.join(", ")}`]}:trace.metadata?.internal?{value:false,confidence:.94,evidence:["Metadata marks trace as internal"]}:internalMatches.length?{value:false,confidence:.93,evidence:[`Internal signal: ${internalMatches.join(", ")}`]}:{value:false,confidence:.48,evidence:["No explicit user-visibility signal; defaulted to internal"]};
     let risk:Inference<Risk>;
-    if(["legal","compliance","healthcare","security"].includes(domain.value)||domain.value==="hr"&&has(text,["decision","termination","candidate"]).length||taskType.value==="rag_grounded_answers"&&grounding.value==="source_citation_required") risk={value:"high",confidence:.94,evidence:[domain.value==="general"?"Source-cited grounded answer is treated as high risk":`${domain.value} is treated as high risk`]};
+    if(["legal","compliance","healthcare","security"].includes(domain.value)||domain.value==="hr"&&has(text,["decision","termination","candidate"]).length||["policy_compliance_reasoning","document_review_legal_analysis","moderation_safety_review"].includes(taskType.value)||taskType.value==="rag_grounded_answers"&&grounding.value==="source_citation_required") risk={value:"high",confidence:.94,evidence:[["policy_compliance_reasoning","document_review_legal_analysis","moderation_safety_review"].includes(taskType.value)?"High-stakes support task category":domain.value==="general"?"Source-cited grounded answer is treated as high risk":`${domain.value} is treated as high risk`]};
     else if(visibility.value||["billing","customer_support"].includes(domain.value)||["code_review_debugging","code_generation","data_analysis_insight_generation"].includes(taskType.value)||grounding.value==="policy_grounded") risk={value:"medium",confidence:.82,evidence:["Customer-facing, policy-grounded, production, or decision-impacting workload"]};
     else if(["summarization","extraction","classification_tagging","writing_editing","sales_marketing_content","translation_localization"].includes(taskType.value)) risk={value:"low",confidence:.82,evidence:["Low-stakes internal or deterministic workload"]};
     else risk={value:"medium",confidence:.52,evidence:["Conservative medium-risk fallback"]};
@@ -148,7 +151,8 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
     else if(total>=1500){complexityScore+=1;complexityEvidence.push(`${total.toLocaleString()} tokens add moderate context load`)}
     else complexityEvidence.push(`${total.toLocaleString()} tokens add little context load`);
     if(["legal","compliance","healthcare","security","finance"].includes(domain.value)){complexityScore+=2;complexityEvidence.push(`${domain.value} language is dense and precision-sensitive`)}
-    if(["rag_grounded_answers","code_generation","code_review_debugging","sql_data_query_generation","data_analysis_insight_generation","planning_strategy_recommendations","tool_use_function_calling","agentic_workflow_execution","document_review_legal_analysis","policy_compliance_reasoning","multimodal_document_image_understanding"].includes(taskType.value)){complexityScore+=1;complexityEvidence.push(`${taskType.value.replaceAll("_"," ")} requires multi-step reasoning or verification`)}
+    if(["document_review_legal_analysis","policy_compliance_reasoning"].includes(taskType.value)){complexityScore+=3;complexityEvidence.push(`${taskType.value.replaceAll("_"," ")} requires high-precision support reasoning`)}
+    else if(["rag_grounded_answers","code_generation","code_review_debugging","sql_data_query_generation","data_analysis_insight_generation","planning_strategy_recommendations","tool_use_function_calling","agentic_workflow_execution","multimodal_document_image_understanding"].includes(taskType.value)){complexityScore+=1;complexityEvidence.push(`${taskType.value.replaceAll("_"," ")} requires multi-step reasoning or verification`)}
     if(tool.value||grounding.value!=="none"){complexityScore+=1;complexityEvidence.push(`${tool.value?"Tool use":grounding.value.replaceAll("_"," ")} increases dependency complexity`)}
     const constraintMatches=has(text,["cite","cite sources","exactly","strict","schema","severe bugs","compliance","liability","calculate","multi-step"]);
     if(constraintMatches.length){complexityScore+=1;complexityEvidence.push(`Constraint signals: ${constraintMatches.slice(0,3).join(", ")}`)}

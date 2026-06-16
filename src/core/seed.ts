@@ -24,8 +24,8 @@ const groups: SeedGroup[] = [
     easyRate: .94,
     currentModels: ["claude-opus-4.8", "claude-opus-4.8", "deepseek-v4-pro", "deepseek-r1"],
     examples: [
-      { prompt: "Summarize these meeting notes: launch moved to Friday, API bug fixed, onboarding email still blocked.", response: pass("Launch moved to Friday; the API blocker is fixed; onboarding email remains the only open issue.") },
-      { prompt: "Condense this customer call transcript into three bullets for the account team.", response: pass("Customer needs SSO by July, is worried about migration effort, and wants a pricing follow-up.") },
+      { prompt: "As an AI customer support agent, summarize this escalated support thread: customer cannot export data, billing is current, engineering says the export job timed out.", response: pass("The customer cannot export data despite an active billing status; engineering traced the issue to an export job timeout.") },
+      { prompt: "As an AI customer support agent, condense this customer call transcript into three bullets for the support handoff.", response: pass("Customer needs SSO by July, is worried about migration effort, and wants a pricing follow-up.") },
     ],
   },
   {
@@ -35,8 +35,8 @@ const groups: SeedGroup[] = [
     easyRate: .98,
     currentModels: ["claude-opus-4.8", "deepseek-v4-pro", "local-qwen-14b", "deepseek-r1"],
     examples: [
-      { prompt: "Extract invoice_id, due_date, total, and currency from: Invoice INV-2048 is due 2026-07-01 for USD 418.25.", response: JSON.stringify({ invoice_id: "INV-2048", due_date: "2026-07-01", total: 418.25, currency: "USD" }) },
-      { prompt: "Pull name, company, and renewal date from: Priya Shah at Northstar renews on March 14, 2027.", response: JSON.stringify({ name: "Priya Shah", company: "Northstar", renewal_date: "2027-03-14" }) },
+      { prompt: "As an AI customer support agent, extract invoice_id, due_date, total, and currency from the customer's billing attachment: Invoice INV-2048 is due 2026-07-01 for USD 418.25.", response: JSON.stringify({ invoice_id: "INV-2048", due_date: "2026-07-01", total: 418.25, currency: "USD" }) },
+      { prompt: "As an AI customer support agent, pull name, company, and renewal date from this support note: Priya Shah at Northstar renews on March 14, 2027.", response: JSON.stringify({ name: "Priya Shah", company: "Northstar", renewal_date: "2027-03-14" }) },
     ],
   },
   {
@@ -46,8 +46,8 @@ const groups: SeedGroup[] = [
     easyRate: .96,
     currentModels: ["deepseek-v4-pro", "deepseek-r1", "claude-opus-4.8", "local-qwen-14b"],
     examples: [
-      { prompt: "Classify this ticket intent and priority: I was charged twice after upgrading yesterday.", response: pass("intent=billing_dispute; priority=high; sentiment=frustrated") },
-      { prompt: "Tag this lead note: VP of Sales asked for enterprise security docs and pricing.", response: pass("tags=enterprise,security_review,pricing; stage=qualified") },
+      { prompt: "As an AI customer support agent, classify this ticket intent and priority: I was charged twice after upgrading yesterday.", response: pass("intent=billing_dispute; priority=high; sentiment=frustrated") },
+      { prompt: "As an AI customer support agent, tag this support conversation: enterprise admin asks for security docs before enabling SSO.", response: pass("tags=enterprise,sso,security_review; priority=medium") },
     ],
   },
   {
@@ -57,8 +57,8 @@ const groups: SeedGroup[] = [
     easyRate: .86,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro", "deepseek-r1"],
     examples: [
-      { prompt: "What is the difference between latency and throughput in an API?", response: pass("Latency is time per request; throughput is how many requests the system handles per unit time.") },
-      { prompt: "Why might a model with lower token cost still be more expensive for a workflow?", response: pass("It may require retries, longer outputs, slower cascades, or more human review, raising total workflow cost.") },
+      { prompt: "As an AI customer support agent, answer the customer's question: what is the difference between API latency and throughput?", response: pass("Latency is time per request; throughput is how many requests the system handles per unit time.") },
+      { prompt: "As an AI customer support agent, answer why a lower-priced plan can still have a higher monthly bill after usage spikes.", response: pass("The plan price can be lower, but higher usage, add-ons, or overage charges can increase the total monthly bill.") },
     ],
   },
   {
@@ -68,8 +68,8 @@ const groups: SeedGroup[] = [
     easyRate: .72,
     currentModels: ["claude-opus-4.8", "claude-opus-4.8", "gpt-5.5-pro", "gpt-5.4"],
     examples: [
-      { prompt: "Using retrieved policy excerpt 'refunds are allowed within 30 days for annual plans', answer whether the customer qualifies and cite the excerpt.", response: pass("Yes. The customer qualifies if the annual plan purchase was within 30 days, per the refund policy excerpt.") },
-      { prompt: "Based on the retrieved contract clause, what is the liability cap?", response: pass("The liability cap is fees paid in the prior 12 months, according to the retrieved contract clause.") },
+      { prompt: "As an AI customer support agent, using retrieved policy excerpt 'refunds are allowed within 30 days for annual plans', answer whether the customer qualifies and cite the excerpt.", response: pass("Yes. The customer qualifies if the annual plan purchase was within 30 days, per the refund policy excerpt.") },
+      { prompt: "As an AI customer support agent, based on the retrieved SLA article, answer whether the customer's outage qualifies for a service credit.", response: pass("The outage qualifies if it exceeded the SLA downtime threshold and was not caused by excluded maintenance.") },
     ],
   },
   {
@@ -79,8 +79,8 @@ const groups: SeedGroup[] = [
     easyRate: .9,
     currentModels: ["claude-opus-4.8", "deepseek-r1", "deepseek-v4-pro", "claude-opus-4.8"],
     examples: [
-      { prompt: "Draft a reply to a customer asking how to reset their password.", response: pass("You can reset your password from Account Settings > Security. I can also send a reset link if needed.") },
-      { prompt: "Respond to a customer disputing a subscription charge and explain the refund review process.", response: pass("I can help review the charge. Please share the billing email and charge date so we can check refund eligibility.") },
+      { prompt: "As an AI customer support agent, draft a reply to a customer asking how to reset their password.", response: pass("You can reset your password from Account Settings > Security. I can also send a reset link if needed.") },
+      { prompt: "As an AI customer support agent, respond to a customer disputing a subscription charge and explain the refund review process.", response: pass("I can help review the charge. Please share the billing email and charge date so we can check refund eligibility.") },
     ],
   },
   {
@@ -90,8 +90,8 @@ const groups: SeedGroup[] = [
     easyRate: .52,
     currentModels: ["claude-opus-4.8", "gpt-5.5-pro", "claude-opus-4.8", "gpt-5.4"],
     examples: [
-      { prompt: "Check whether this outbound email complies with the policy requiring an unsubscribe link and no misleading subject lines.", response: pass("Non-compliant: it lacks an unsubscribe link. The subject line is acceptable.") },
-      { prompt: "Assess whether sharing this customer export violates the internal data handling policy.", response: pass("It requires approval because the export contains personal data and would leave the approved workspace.") },
+      { prompt: "As an AI customer support agent, check whether this customer reply complies with the refund policy and avoids promising approval before review.", response: pass("Compliant if it says the team will review eligibility; non-compliant if it guarantees a refund before verification.") },
+      { prompt: "As an AI customer support agent, assess whether sharing this customer export in a ticket violates the internal data handling policy.", response: pass("It requires approval because the export contains personal data and would leave the approved workspace.") },
     ],
   },
   {
@@ -101,8 +101,8 @@ const groups: SeedGroup[] = [
     easyRate: .7,
     currentModels: ["claude-opus-4.8", "deepseek-v4-pro", "gpt-5.4", "claude-opus-4.8"],
     examples: [
-      { prompt: "Write a TypeScript retry helper that retries an async function three times with backoff.", response: "```ts\nexport async function retry<T>(fn:()=>Promise<T>, attempts=3){let last;for(let i=0;i<attempts;i++){try{return await fn()}catch(err){last=err;await new Promise(r=>setTimeout(r,100*(i+1)))}}throw last}\n```" },
-      { prompt: "Create a Jest test for a function that formats cents as dollars.", response: "```ts\nexpect(formatDollars(1234)).toBe('$12.34');\nexpect(formatDollars(0)).toBe('$0.00');\n```" },
+      { prompt: "As an AI customer support agent, write a TypeScript helper that retries a failed support-ticket lookup three times with backoff.", response: "```ts\nexport async function retry<T>(fn:()=>Promise<T>, attempts=3){let last;for(let i=0;i<attempts;i++){try{return await fn()}catch(err){last=err;await new Promise(r=>setTimeout(r,100*(i+1)))}}throw last}\n```" },
+      { prompt: "As an AI customer support agent, create a Jest test for a support billing helper that formats cents as dollars in customer replies.", response: "```ts\nexpect(formatDollars(1234)).toBe('$12.34');\nexpect(formatDollars(0)).toBe('$0.00');\n```" },
     ],
   },
   {
@@ -112,8 +112,8 @@ const groups: SeedGroup[] = [
     easyRate: .42,
     currentModels: ["claude-opus-4.8", "deepseek-v4-pro", "claude-opus-4.8", "gpt-5.4"],
     examples: [
-      { prompt: "Review this diff: the API writes the order before checking idempotency. Find the bug.", response: pass("The handler can create duplicate orders on retries. Check idempotency before writing and make the insert conditional.") },
-      { prompt: "Explain why this React effect loops forever: it sets state and depends on that state.", response: pass("The effect updates a dependency on every run, retriggering itself. Use a narrower dependency or functional update.") },
+      { prompt: "As an AI customer support agent, review this support automation diff: the refund API writes the credit before checking idempotency. Find the bug.", response: pass("The handler can create duplicate credits on retries. Check idempotency before writing and make the insert conditional.") },
+      { prompt: "As an AI customer support agent, explain why this support dashboard React effect loops forever: it sets ticket state and depends on that state.", response: pass("The effect updates a dependency on every run, retriggering itself. Use a narrower dependency or functional update.") },
     ],
   },
   {
@@ -123,8 +123,8 @@ const groups: SeedGroup[] = [
     easyRate: .72,
     currentModels: ["claude-opus-4.8", "deepseek-v4-pro", "deepseek-r1", "gpt-5.4"],
     examples: [
-      { prompt: "Write SQL to calculate weekly active users from events(user_id, created_at).", response: "SELECT date_trunc('week', created_at) AS week, count(DISTINCT user_id) AS wau FROM events GROUP BY 1 ORDER BY 1;" },
-      { prompt: "Write a query for conversion rate by campaign from sessions and signups tables.", response: "SELECT s.campaign, count(DISTINCT u.user_id)::float / count(DISTINCT s.session_id) AS conversion_rate FROM sessions s LEFT JOIN signups u ON u.session_id=s.session_id GROUP BY 1;" },
+      { prompt: "As an AI customer support agent, write SQL to calculate weekly support tickets by issue category from tickets(category, created_at).", response: "SELECT date_trunc('week', created_at) AS week, category, count(*) AS ticket_count FROM tickets GROUP BY 1, 2 ORDER BY 1, 2;" },
+      { prompt: "As an AI customer support agent, write a query for refund approval rate by support queue from tickets and refunds tables.", response: "SELECT t.queue, count(r.id)::float / count(t.id) AS refund_approval_rate FROM tickets t LEFT JOIN refunds r ON r.ticket_id=t.id AND r.status='approved' GROUP BY 1;" },
     ],
   },
   {
@@ -134,8 +134,8 @@ const groups: SeedGroup[] = [
     easyRate: .66,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro", "mistral-large-3"],
     examples: [
-      { prompt: "Analyze this dashboard: activation rose 8%, retention fell 3%, support tickets doubled.", response: pass("Activation improved, but retention and support load indicate onboarding quality or product reliability may have regressed.") },
-      { prompt: "Interpret an A/B test with 10.2% conversion in control and 11.1% in variant over 40k visits.", response: pass("The variant shows a 0.9 point lift; verify statistical significance and segment effects before rollout.") },
+      { prompt: "As an AI customer support agent, analyze this support dashboard: password-reset tickets fell 8%, refund tickets rose 3%, and SLA breaches doubled.", response: pass("Password-reset volume improved, but refund volume and SLA breaches indicate billing friction or staffing issues may have regressed.") },
+      { prompt: "As an AI customer support agent, interpret a help-center A/B test with 10.2% ticket deflection in control and 11.1% in variant over 40k visits.", response: pass("The variant shows a 0.9 point lift; verify statistical significance and check whether escalations increased before rollout.") },
     ],
   },
   {
@@ -145,8 +145,8 @@ const groups: SeedGroup[] = [
     easyRate: .88,
     currentModels: ["claude-opus-4.8", "deepseek-r1", "gpt-5.4", "local-qwen-14b"],
     examples: [
-      { prompt: "Rewrite this update to be clearer and shorter: We are experiencing some delay on account of a dependency.", response: pass("We are delayed because a dependency is not ready yet.") },
-      { prompt: "Edit this paragraph for a calmer executive tone.", response: pass("The launch remains on track, with one dependency under active review.") },
+      { prompt: "As an AI customer support agent, rewrite this customer update to be clearer and shorter: We are experiencing some delay on account of a dependency.", response: pass("We are delayed because a dependency is not ready yet.") },
+      { prompt: "As an AI customer support agent, edit this escalation note for a calmer customer-facing tone.", response: pass("The case remains active, and one dependency is under review.") },
     ],
   },
   {
@@ -156,8 +156,8 @@ const groups: SeedGroup[] = [
     easyRate: .82,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-r1", "mistral-large-3"],
     examples: [
-      { prompt: "Write three outbound email subject lines for a CFO audience about reducing LLM spend.", response: pass("1. Cut LLM spend without slowing teams 2. Find hidden AI routing waste 3. Lower model costs with eval-backed routing") },
-      { prompt: "Create landing page copy for a routing observability product.", response: pass("See where every model dollar goes, simulate safer routing changes, and ship policies backed by evals.") },
+      { prompt: "As an AI customer support agent, write three proactive support email subject lines for customers who may exceed plan limits.", response: pass("1. Heads up: your usage is nearing its limit 2. Avoid overages with a quick plan check 3. Review your usage before the next billing cycle") },
+      { prompt: "As an AI customer support agent, create short in-app help copy promoting the new self-serve refund status page.", response: pass("Track your refund review in one place, see the latest status, and find any next steps without opening a new ticket.") },
     ],
   },
   {
@@ -167,8 +167,8 @@ const groups: SeedGroup[] = [
     easyRate: .9,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro", "local-qwen-14b"],
     examples: [
-      { prompt: "Translate to Spanish for a friendly support email: Your refund request is under review.", response: pass("Tu solicitud de reembolso está en revisión.") },
-      { prompt: "Localize this US marketing headline for UK English: Organize your work in one place.", response: pass("Organise your work in one place.") },
+      { prompt: "As an AI customer support agent, translate to Spanish for a friendly support email: Your refund request is under review.", response: pass("Tu solicitud de reembolso está en revisión.") },
+      { prompt: "As an AI customer support agent, localize this US support message for UK English: We are organizing your case history before escalating.", response: pass("We are organising your case history before escalating.") },
     ],
   },
   {
@@ -178,8 +178,8 @@ const groups: SeedGroup[] = [
     easyRate: .3,
     currentModels: ["claude-opus-4.8", "gpt-5.5-pro", "claude-opus-4.8", "gpt-5.4"],
     examples: [
-      { prompt: "Review this contract clause for unusual termination obligations.", response: pass("The clause allows termination for convenience but requires 60 days notice and payment of committed fees.") },
-      { prompt: "Identify risk in this indemnity clause for a vendor agreement.", response: pass("Risk: indemnity is uncapped and covers third-party claims caused by customer modifications.") },
+      { prompt: "As an AI customer support agent, review this enterprise support agreement clause for unusual termination obligations before escalating to legal.", response: pass("The clause allows termination for convenience but requires 60 days notice and payment of committed fees.") },
+      { prompt: "As an AI customer support agent, identify risk in this customer indemnity clause before summarizing it for the account team.", response: pass("Risk: indemnity is uncapped and covers third-party claims caused by customer modifications.") },
     ],
   },
   {
@@ -189,8 +189,8 @@ const groups: SeedGroup[] = [
     easyRate: .68,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "mistral-large-3", "deepseek-v4-pro"],
     examples: [
-      { prompt: "Create a 30-day rollout plan for model routing changes across support traffic.", response: pass("Week 1 baseline evals, week 2 low-risk shadow routing, week 3 support pilot, week 4 monitored rollout with rollback thresholds.") },
-      { prompt: "Recommend next steps after a failed pricing experiment.", response: pass("Segment results, interview lost deals, test packaging before discounting, and rerun with a smaller targeted cohort.") },
+      { prompt: "As an AI customer support agent, create a 30-day rollout plan for new refund macros across support traffic.", response: pass("Week 1 baseline quality review, week 2 low-risk shadow use, week 3 support pilot, week 4 monitored rollout with rollback thresholds.") },
+      { prompt: "As an AI customer support agent, recommend next steps after a failed help-center deflection experiment.", response: pass("Segment failed searches, interview support agents, revise article structure, and rerun with a smaller targeted cohort.") },
     ],
   },
   {
@@ -200,8 +200,8 @@ const groups: SeedGroup[] = [
     easyRate: .76,
     currentModels: ["claude-opus-4.8", "deepseek-v4-pro", "gpt-5.4", "deepseek-r1"],
     examples: [
-      { prompt: "Use the inventory API and shipping calculator to confirm whether order SO-781 can ship today.", response: JSON.stringify({ order_id: "SO-781", inventory_available: true, shipping_window: "today" }) },
-      { prompt: "Call the CRM lookup tool for account Acme and return renewal owner and ARR.", response: JSON.stringify({ account: "Acme", renewal_owner: "Jordan Lee", arr: 84000 }) },
+      { prompt: "As an AI customer support agent, use the order API and shipping calculator to confirm whether order SO-781 can ship today.", response: JSON.stringify({ order_id: "SO-781", inventory_available: true, shipping_window: "today" }) },
+      { prompt: "As an AI customer support agent, call the CRM lookup tool for account Acme and return support owner and ARR.", response: JSON.stringify({ account: "Acme", support_owner: "Jordan Lee", arr: 84000 }) },
     ],
   },
   {
@@ -211,8 +211,8 @@ const groups: SeedGroup[] = [
     easyRate: .58,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro", "mistral-large-3"],
     examples: [
-      { prompt: "Research competitors, draft a positioning brief, create follow-up tasks, and report status.", response: pass("Completed: gathered three competitor notes, drafted positioning themes, created launch tasks, and flagged pricing as unresolved.") },
-      { prompt: "Plan, execute, verify, and summarize a CRM cleanup for duplicate leads.", response: pass("Found duplicates, merged safe matches, left ambiguous records for review, and summarized the cleanup log.") },
+      { prompt: "As an AI customer support agent, research the customer's outage history, draft an escalation brief, create follow-up tasks, and report status.", response: pass("Completed: reviewed outage history, drafted escalation themes, created follow-up tasks, and flagged SLA eligibility as unresolved.") },
+      { prompt: "As an AI customer support agent, plan, execute, verify, and summarize a CRM cleanup for duplicate support contacts.", response: pass("Found duplicates, merged safe matches, left ambiguous records for review, and summarized the cleanup log.") },
     ],
   },
   {
@@ -222,8 +222,8 @@ const groups: SeedGroup[] = [
     easyRate: .8,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro", "claude-opus-4.8"],
     examples: [
-      { prompt: "Review this user message for harassment and self-harm risk: 'You are worthless and should disappear.'", response: pass("harassment=true; self_harm_reference=false; action=block_or_warn") },
-      { prompt: "Moderate this upload for sensitive personal data exposure.", response: pass("Contains personal data. Redact email addresses and account numbers before sharing.") },
+      { prompt: "As an AI customer support agent, review this customer message for harassment and self-harm risk: 'You are worthless and should disappear.'", response: pass("harassment=true; self_harm_reference=false; action=block_or_warn") },
+      { prompt: "As an AI customer support agent, moderate this customer upload for sensitive personal data exposure before attaching it to a ticket.", response: pass("Contains personal data. Redact email addresses and account numbers before sharing.") },
     ],
   },
   {
@@ -233,8 +233,8 @@ const groups: SeedGroup[] = [
     easyRate: .64,
     currentModels: ["claude-opus-4.8", "gpt-5.4", "gemini-3-pro", "mistral-large-3"],
     examples: [
-      { prompt: "Interpret this screenshot of a checkout error and identify the likely failed field.", response: pass("The card ZIP field is highlighted, so the likely failure is postal code validation.") },
-      { prompt: "Read this PDF invoice image and summarize vendor, total, and due date.", response: pass("Vendor: Northwind Services. Total: $1,284.50. Due date: 2026-07-15.") },
+      { prompt: "As an AI customer support agent, interpret this customer screenshot of a checkout error and identify the likely failed field.", response: pass("The card ZIP field is highlighted, so the likely failure is postal code validation.") },
+      { prompt: "As an AI customer support agent, read this customer PDF invoice image and summarize vendor, total, and due date.", response: pass("Vendor: Northwind Services. Total: $1,284.50. Due date: 2026-07-15.") },
     ],
   },
 ];
@@ -278,6 +278,7 @@ export function createSeedTraces(): Trace[] {
         expected_answer: expected,
         mock_difficulty: index / SEED_TRACES_PER_GROUP < group.easyRate ? "easy" : "hard",
         task_type: group.key,
+        domain: "customer_support",
         risk_level: group.risk,
         mock_slow_candidate: group.key === "customer_support_responses",
       },
