@@ -9,6 +9,7 @@
     "test": "vitest run",
     "eval": "npm run test && npm run build",
     "eval:golden": "vitest run tests/golden.test.ts",
+    "eval:distinct-tasks": "node --import tsx scripts/eval-distinct-tasks.ts",
     "seed": "node --import tsx scripts/export-seed.ts"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
-import { calculateCost, getModel, modelCatalog } from "./catalog";
+import { calculateCost, getModel, isModelEnabled, modelCatalog } from "./catalog";
 import { evaluateTrace } from "./evaluators";
-import type { CandidateRun, Cluster, EvalResult, Trace } from "../types";
+import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket } from "../types";
 
 export type SimulationSummary = {
   baseline_cost_usd: number; simulated_cost_usd: number; estimated_savings_usd: number; estimated_savings_pct: number;
@@ -24,18 +24,18 @@ const summarize = (traces: Trace[], runs: CandidateRun[], evals: EvalResult[], e
     severe_failure_rate: evals.filter((item) => item.severity === "critical").length / (evals.length || 1), escalation_rate: escalationRate,
   };
 };
-export function costOnly(traces: Trace[], candidateId: string, clusters: Cluster[] = []) {
+export function costOnly(traces: Trace[], candidateId: string, buckets: DistinctTaskBucket[] = []) {
   const candidate = getModel(candidateId)!;
   const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
   const baseline = traces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
   const simulated = traces.reduce((sum, trace) => sum + calculateCost(trace.input_tokens, trace.output_tokens, candidate), 0);
-  const byCluster = clusters.map((cluster) => {
-    const selected = cluster.trace_ids.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
+  const byDistinctTask = buckets.map((bucket) => {
+    const selected = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
     const actual = selected.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
     const next = selected.reduce((sum, trace) => sum + calculateCost(trace.input_tokens, trace.output_tokens, candidate), 0);
-    return { cluster_id: cluster.id, savings: actual - next };
+    return { distinct_task_bucket_id: bucket.bucket_id, savings: actual - next };
   });
-  return { baseline_cost_usd: baseline, simulated_cost_usd: simulated, estimated_savings_usd: baseline - simulated, estimated_savings_pct: (baseline - simulated) / baseline * 100, byCluster };
+  return { baseline_cost_usd: baseline, simulated_cost_usd: simulated, estimated_savings_usd: baseline - simulated, estimated_savings_pct: (baseline - simulated) / baseline * 100, byDistinctTask };
 }
 export function mockGenerate(trace: Trace, modelId: string): CandidateRun {
   const model = getModel(modelId)!;
@@ -72,7 +72,7 @@ export function familyCascade(traces: Trace[], selectedModelId: string): ReplayR
   const selected = getModel(selectedModelId);
   const tierOrder = { cheapest: 0, mid: 1, top: 2 };
   const familyModels = modelCatalog
-    .filter((model) => model.family === selected?.family)
+    .filter((model) => model.family === selected?.family && isModelEnabled(model))
     .sort((a, b) => tierOrder[a.family_tier] - tierOrder[b.family_tier]);
   const models = familyModels.length ? familyModels : [getModel(selectedModelId)!];
   const runs: CandidateRun[] = []; const evals: EvalResult[] = []; let escalations = 0;
@@ -91,14 +91,14 @@ export function familyCascade(traces: Trace[], selectedModelId: string): ReplayR
   });
   return { runs, evals, summary: summarize(traces, runs, evals, escalations / Math.max(traces.length, 1)) };
 }
-export function monthlyClusterBreakdown(traces: Trace[], clusters: Cluster[], candidateId: string, strategy: "direct" | "cascade" | "family_cascade", fallbackId = "claude-opus-4.8") {
+export function monthlyDistinctTaskBreakdown(traces: Trace[], buckets: DistinctTaskBucket[], candidateId: string, strategy: "direct" | "cascade" | "family_cascade", fallbackId = "claude-opus-4.8") {
   const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
-  return clusters.map((cluster) => {
-    const selected = cluster.trace_ids.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
+  return buckets.map((bucket) => {
+    const selected = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
     const result = strategy === "direct" ? replay(selected, candidateId) : strategy === "family_cascade" ? familyCascade(selected, candidateId) : cascade(selected, candidateId, fallbackId);
     return {
-      cluster_id: cluster.id,
-      name: cluster.name,
+      distinct_task_bucket_id: bucket.bucket_id,
+      name: bucket.bucket_name,
       current_monthly_cost_usd: result.summary.baseline_cost_usd * MONTHLY_MULTIPLIER,
       simulated_monthly_cost_usd: result.summary.simulated_cost_usd * MONTHLY_MULTIPLIER,
       monthly_savings_usd: result.summary.estimated_savings_usd * MONTHLY_MULTIPLIER,

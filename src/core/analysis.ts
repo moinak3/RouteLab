@@ -1,4 +1,4 @@
-import type { Cluster, Risk, Trace } from "../types";
+import type { Risk, Trace } from "../types";
 
 export const riskKeywords: Record<Risk, string[]> = {
   high: ["legal", "medical", "health", "finance", "tax", "compliance", "contract", "diagnosis", "investment", "hr", "termination", "pii"],
@@ -46,35 +46,4 @@ export function dashboardMetrics(traces: Trace[]) {
     totalCost: traces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
     averageLatency: average(latencies), p50Latency: percentile(latencies, .5), p95Latency: percentile(latencies, .95), byModel,
   };
-}
-export function clusterTraces(traces: Trace[]): Cluster[] {
-  const groups = new Map<string, Trace[]>();
-  traces.forEach((trace) => {
-    const task = String(trace.metadata?.task_type ?? "other");
-    const group = groups.get(task);
-    if (group) group.push(trace);
-    else groups.set(task, [trace]);
-  });
-  return [...groups.entries()].map(([task, items], index) => {
-    const models = items.reduce<Record<string, number>>((acc, trace) => ({ ...acc, [trace.model]: (acc[trace.model] ?? 0) + 1 }), {});
-    const combinedPrompts = items.map((item) => item.prompt_text).join(" ");
-    const explicitRisk = items[0].metadata?.risk_level as Risk | undefined;
-    const riskExplanation = explainRisk(combinedPrompts, explicitRisk);
-    const risk = riskExplanation.risk;
-    return {
-      id: `cluster_${task}`, name: task.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" "),
-      description: `${risk} risk workload identified from repeated task patterns`, trace_ids: items.map((item) => item.id),
-      representative_trace_ids: items.slice(0, 3).map((item) => item.id), volume: items.length,
-      actual_cost_usd: items.reduce((sum, item) => sum + (item.cost_usd ?? 0), 0),
-      average_latency_ms: average(items.map((item) => item.latency_ms ?? 0)),
-      average_input_tokens: average(items.map((item) => item.input_tokens)), average_output_tokens: average(items.map((item) => item.output_tokens)),
-      dominant_model: Object.entries(models).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "",
-      inferred_task_type: task || `cluster_${index + 1}`, risk_level: risk,
-      clustering_reason: task === "other"
-        ? `Grouped into the fallback “other” cluster because these ${items.length} traces do not provide metadata.task_type.`
-        : `Grouped because all ${items.length} traces share metadata.task_type = “${task}”.`,
-      risk_reason: riskExplanation.reason,
-      risk_signals: riskExplanation.signals,
-    };
-  });
 }

@@ -24,5 +24,6 @@ export function mockJudge(candidate: string) {
 }
 export function evaluateTrace(trace: Trace, candidate: string) {
   const expected = String(trace.metadata?.expected_answer ?? trace.response_text ?? "");
-  return trace.metadata?.task_type === "json_extraction" ? exactMatch(candidate, expected) : mockJudge(candidate);
+  if (normalize(candidate) === normalize(expected)) return result("exact_match", true, 1);
+  return trace.metadata?.task_type === "extraction" ? exactMatch(candidate, expected) : mockJudge(candidate);
 }

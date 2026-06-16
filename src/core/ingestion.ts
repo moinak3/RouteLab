@@ -34,6 +34,8 @@ export function normalizeTrace(raw: Record<string, unknown>, row = 1): Trace {
     parent_node_id: optionalString(raw.parent_node_id ?? raw.parentNodeId ?? raw.parent_span_id ?? raw.parentSpanId),
     workflow_role: parseRole(raw.workflow_role ?? raw.workflowRole ?? raw.role_type ?? raw.node_role),
     span_name: optionalString(raw.span_name ?? raw.spanName ?? raw.operation_name),
+    source: optionalString(raw.source) as Trace["source"],
+    spans: Array.isArray(raw.spans) ? raw.spans as Trace["spans"] : undefined,
     metadata: typeof raw.metadata === "string" ? JSON.parse(raw.metadata) as Record<string, unknown> : raw.metadata as Record<string, unknown> | undefined,
   };
 }

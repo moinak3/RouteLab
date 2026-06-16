@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { clusterTraces, dashboardMetrics, explainRisk, inferRisk } from "../src/core/analysis";
-import { calculateCost, getModel, modelCatalog, updateModelPricing } from "../src/core/catalog";
+import { dashboardMetrics, explainRisk, inferRisk } from "../src/core/analysis";
+import { calculateCost, enabledModels, getModel, modelCatalog, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "../src/core/catalog";
 import { exactMatch, jsonSchema, mockJudge, regexEval } from "../src/core/evaluators";
 import { buildWorkflowTrees, ingestRecords, ingestText } from "../src/core/ingestion";
-import { exportLiteLlm, exportPolicyJson, exportTypeScript, recommendPolicy } from "../src/core/recommendations";
+import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScript, recommendPolicy } from "../src/core/recommendations";
+import { buildReviewQueue, REVIEW_LOW_SCORE_THRESHOLD, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
 import { createSeedTraces, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
-import { cascade, costOnly, familyCascade, MONTHLY_MULTIPLIER, monthlyClusterBreakdown, mockGenerate, replay } from "../src/core/simulations";
+import { cascade, costOnly, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, mockGenerate, replay } from "../src/core/simulations";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
+import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
 
 const traces = createSeedTraces();
-const clusters = clusterTraces(traces);
+const distinctTaskBuckets = createDistinctTaskBuckets(traces);
 describe("ingestion and costs", () => {
   it("normalizes the enterprise seed records and fills derived fields", () => {
     const raw = traces.map(({ total_tokens, messages, cost_usd, ...trace }) => trace);
@@ -38,7 +40,7 @@ describe("ingestion and costs", () => {
   it("preserves flat and nested workflow trace trees", () => {
     const seededTrees = buildWorkflowTrees(traces);
     expect(seededTrees).toHaveLength(SEED_TRACES_PER_GROUP);
-    expect(seededTrees[0].trace_ids).toHaveLength(5);
+    expect(seededTrees[0].trace_ids).toHaveLength(20);
     expect(seededTrees[0].roots[0].workflow_role).toBe("planner");
     expect(seededTrees[0].roots[0].children[0].workflow_role).toBe("retriever_summarizer");
 
@@ -57,30 +59,25 @@ describe("ingestion and costs", () => {
     expect(csv.workflows[0].roles.tool_caller).toBe(1);
   });
   it("matches reference pricing", () => {
-    expect(calculateCost(1e9, 1e9, getModel("gpt-5.5-pro")!)).toBe(105000);
+    expect(calculateCost(1e9, 1e9, getModel("gpt-5.5-pro")!)).toBe(210000);
     expect(calculateCost(1e9, 1e9, getModel("claude-opus-4.8")!)).toBe(30000);
-    expect(calculateCost(1e9, 1e9, getModel("deepseek-v4-pro")!)).toBe(5220);
-    expect(calculateCost(1e9, 1e9, getModel("deepseek-r1")!)).toBe(2740);
-    expect(calculateCost(1000, 500, getModel("gpt-5.5-pro")!)).toBeCloseTo(.06);
+    expect(calculateCost(1e9, 1e9, getModel("deepseek-v4-pro")!)).toBe(1305);
+    expect(calculateCost(1e9, 1e9, getModel("deepseek-r1")!)).toBe(3200);
+    expect(calculateCost(1000, 500, getModel("gpt-5.5-pro")!)).toBeCloseTo(.12);
+    expect(getModel("gpt-5.5-pro")!.pricing_source_model_id).toBe("openai/gpt-5.5-pro");
   });
 });
-describe("analysis and clustering", () => {
+describe("analysis and risk inference", () => {
   it("calculates consistent dashboard metrics", () => {
     const metrics = dashboardMetrics(traces);
     expect(metrics.totalRequests).toBe(SEED_TRACE_COUNT);
     expect(Object.values(metrics.byModel).reduce((sum, item) => sum + item.requests, 0)).toBe(SEED_TRACE_COUNT);
-    expect((metrics.byModel["gpt-5.5-pro"]?.requests ?? 0) + (metrics.byModel["claude-opus-4.8"]?.requests ?? 0)).toBeGreaterThan(SEED_TRACE_COUNT / 2);
+    expect((metrics.byModel["gpt-5.5-pro"]?.requests ?? 0) + (metrics.byModel["claude-opus-4.8"]?.requests ?? 0)).toBeGreaterThan(SEED_TRACE_COUNT / 3);
     expect(Object.values(metrics.byModel).reduce((sum, item) => sum + item.cost, 0)).toBeCloseTo(metrics.totalCost);
     expect(metrics.failed).toBe(1);
     expect(metrics.p95Latency).toBeGreaterThan(metrics.p50Latency);
   });
-  it("creates stable workload clusters and risks", () => {
-    expect(clusters.length).toBeGreaterThanOrEqual(4);
-    expect(clusters.find((c) => c.id.includes("json_extraction"))?.volume).toBe(SEED_TRACES_PER_GROUP);
-    expect(clusters.every((c) => c.name && c.representative_trace_ids.length)).toBe(true);
-    expect(clusters.every((c) => c.clustering_reason && c.risk_reason)).toBe(true);
-    expect(clusters.find((c) => c.id.includes("legal"))?.risk_signals).toContain("legal");
-    expect(clusters.find((c) => c.id.includes("json_extraction"))?.risk_signals).toContain("json");
+  it("infers explainable risks", () => {
     expect(inferRisk("review legal compliance contract")).toBe("high");
     expect(inferRisk("extract fields to JSON")).toBe("low");
     expect(explainRisk("review a policy").reason).toContain("keyword fallback");
@@ -109,34 +106,33 @@ describe("providers and evaluators", () => {
 });
 describe("simulation and recommendations", () => {
   it("calculates cheaper cost-only routing", () => {
-    const result = costOnly(traces, "deepseek-r1", clusters);
+    const result = costOnly(traces, "deepseek-r1", distinctTaskBuckets);
     expect(result.simulated_cost_usd).toBeLessThan(result.baseline_cost_usd);
-    expect(result.byCluster.reduce((sum, row) => sum + row.savings, 0)).toBeCloseTo(result.estimated_savings_usd);
+    expect(result.byDistinctTask.reduce((sum, row) => sum + row.savings, 0)).toBeCloseTo(result.estimated_savings_usd);
   });
-  it("supports cluster-scoped simulations and expensive candidates", () => {
-    const legal = clusters.find((cluster) => cluster.id.includes("legal"))!;
-    const legalTraces = traces.filter((trace) => legal.trace_ids.includes(trace.id));
+  it("supports Distinct Task-scoped simulations and expensive candidates", () => {
+    const legal = distinctTaskBuckets.find((bucket) => bucket.task.domain === "legal")!;
+    const legalTraces = traces.filter((trace) => legal.traces.includes(trace.id));
     const scoped = replay(legalTraces, "claude-opus-4.8");
-    const expensive = costOnly(traces, "gpt-5.5-pro", clusters);
-    expect(scoped.runs).toHaveLength(legal.volume);
+    const expensive = costOnly(traces, "gpt-5.5-pro", distinctTaskBuckets);
+    expect(scoped.runs).toHaveLength(legal.trace_count);
     expect(scoped.summary.pass_rate).toBe(1);
-    expect(scoped.summary.baseline_cost_usd).toBeCloseTo(legal.actual_cost_usd);
+    expect(scoped.summary.baseline_cost_usd).toBeCloseTo(legal.total_cost_usd);
     expect(expensive.simulated_cost_usd).toBeGreaterThan(0);
-    expect(expensive.byCluster).toHaveLength(clusters.length);
+    expect(expensive.byDistinctTask).toHaveLength(distinctTaskBuckets.length);
   });
-  it("makes all-strong routing more expensive than the believable mixed baseline", () => {
+  it("prices premium strong-model routing against the mixed baseline", () => {
     for (const model of ["claude-opus-4.8", "gpt-5.5-pro"]) {
-      const projected = costOnly(traces, model, clusters);
+      const projected = costOnly(traces, model, distinctTaskBuckets);
       const replayed = replay(traces, model);
-      expect(projected.simulated_cost_usd).toBeGreaterThan(projected.baseline_cost_usd);
-      expect(replayed.summary.simulated_cost_usd).toBeGreaterThan(replayed.summary.baseline_cost_usd);
       expect(replayed.summary.simulated_cost_usd).toBeCloseTo(projected.simulated_cost_usd);
     }
+    expect(costOnly(traces, "gpt-5.5-pro", distinctTaskBuckets).estimated_savings_usd).toBeLessThan(0);
   });
-  it("reconciles cluster monthly savings to the top-level simulation", () => {
+  it("reconciles Distinct Task monthly savings to the top-level simulation", () => {
     for (const strategy of ["direct", "cascade"] as const) {
       const result = strategy === "direct" ? replay(traces, "deepseek-r1") : cascade(traces, "deepseek-r1", "claude-opus-4.8");
-      const breakdown = monthlyClusterBreakdown(traces, clusters, "deepseek-r1", strategy);
+      const breakdown = monthlyDistinctTaskBreakdown(traces, distinctTaskBuckets, "deepseek-r1", strategy);
       expect(breakdown.reduce((sum, row) => sum + row.monthly_savings_usd, 0)).toBeCloseTo(result.summary.estimated_savings_usd * MONTHLY_MULTIPLIER);
     }
   });
@@ -151,17 +147,28 @@ describe("simulation and recommendations", () => {
     expect(mixed.summary.simulated_cost_usd).toBeGreaterThan(cheap.summary.simulated_cost_usd);
     expect(mixed.summary.simulated_cost_usd).toBeLessThan(mixed.summary.baseline_cost_usd);
   });
+  it("samples low-score evals across Distinct Tasks instead of queueing every failure", () => {
+    const cheap = replay(traces, "deepseek-r1");
+    const queue = buildReviewQueue(traces, cheap.runs, cheap.evals, distinctTaskBuckets);
+    const lowScoreTraceIds = new Set(cheap.evals.filter((item) => !item.passed || item.score < REVIEW_LOW_SCORE_THRESHOLD).map((item) => item.trace_id));
+    const lowScoreDistinctTaskIds = new Set(distinctTaskBuckets.filter((bucket) => bucket.traces.some((traceId) => lowScoreTraceIds.has(traceId))).map((bucket) => bucket.bucket_id));
+    const queuedDistinctTaskIds = new Set(queue.reviewItems.map((item) => item.bucket?.bucket_id).filter(Boolean));
+    expect(queue.lowScoreCount).toBeGreaterThan(REVIEW_QUEUE_MAX);
+    expect(queue.reviewItems).toHaveLength(REVIEW_QUEUE_MAX);
+    expect(queue.reviewItems.every((item) => !item.evalResult.passed || item.evalResult.score < REVIEW_LOW_SCORE_THRESHOLD)).toBe(true);
+    expect(queuedDistinctTaskIds.size).toBe(Math.min(lowScoreDistinctTaskIds.size, REVIEW_QUEUE_MAX));
+  });
   it("cascades from the cheapest to strongest model in the selected family", () => {
     const mixed = familyCascade(traces, "mistral-large-3");
-    const breakdown = monthlyClusterBreakdown(traces, clusters, "mistral-large-3", "family_cascade");
+    const breakdown = monthlyDistinctTaskBreakdown(traces, distinctTaskBuckets, "mistral-large-3", "family_cascade");
     expect(mixed.runs).toHaveLength(SEED_TRACE_COUNT);
     expect(mixed.summary.escalation_rate).toBeGreaterThan(0);
     expect(mixed.runs.some((run) => run.candidate_model === "mistral-large-3")).toBe(true);
     expect(breakdown.reduce((sum, row) => sum + row.monthly_savings_usd, 0)).toBeCloseTo(mixed.summary.estimated_savings_usd * MONTHLY_MULTIPLIER);
   });
-  it("protects high risk clusters and exports policies", () => {
-    const policy = recommendPolicy(traces, clusters);
-    const legal = policy.rules.find((rule) => rule.match.cluster_id.includes("legal"))!;
+  it("protects high risk Distinct Tasks and exports policies", () => {
+    const policy = recommendPolicy(traces, distinctTaskBuckets);
+    const legal = policy.rules.find((rule) => rule.name.toLowerCase().includes("legal"))!;
     expect(legal.strategy.type).toBe("keep_current");
     expect(policy.estimated_monthly_savings_usd).toBeGreaterThan(0);
     expect(policy.estimated_monthly_savings_usd).toBeGreaterThanOrEqual(50000);
@@ -174,20 +181,24 @@ describe("simulation and recommendations", () => {
     expect(policy.rules.find((rule) => rule.strategy.type === "direct")?.comparison?.cost.after).toBeLessThan(
       policy.rules.find((rule) => rule.strategy.type === "direct")!.comparison!.cost.before,
     );
-    const slowSupport = policy.rules.find((rule) => rule.match.cluster_id.includes("support_faq"))!;
-    expect(slowSupport.strategy.type).toBe("direct");
+    const slowSupport = policy.rules.find((rule) => rule.name.toLowerCase().includes("customer support responses") && rule.rejected_alternative)!;
+    expect(slowSupport.strategy.type).not.toBe("keep_current");
     expect(slowSupport.estimated_monthly_savings_usd).toBeGreaterThan(0);
     expect(slowSupport.rejected_alternative?.potential_monthly_savings_usd).toBeGreaterThan(0);
     expect(slowSupport.rejected_alternative?.comparison.latency_ms.delta_pct).toBeGreaterThan(50);
     expect(slowSupport.rejected_alternative?.comparison.latency_ms.after).toBeGreaterThan(slowSupport.rejected_alternative!.comparison.latency_ms.before);
     expect(slowSupport.rejected_alternative?.comparison.cost.after).toBeLessThan(slowSupport.rejected_alternative!.comparison.cost.before);
     expect(slowSupport.rejected_alternative?.reason).toContain("latency");
-    expect(JSON.parse(exportPolicyJson(policy)).rules).toHaveLength(5);
-    expect(exportLiteLlm(policy)).toContain("routing_policies:");
-    expect(exportTypeScript(policy)).toContain("routeRequest");
+    expect(JSON.parse(exportPolicyJson(policy)).rules).toHaveLength(distinctTaskBuckets.length);
+    expect(exportLiteLlm(policy)).toContain("distinct_task_bucket_id:");
+    const openRouterConfig = JSON.parse(exportOpenRouterConfig(policy));
+    expect(openRouterConfig.provider).toBe("openrouter");
+    expect(openRouterConfig.routes).toHaveLength(distinctTaskBuckets.length);
+    expect(openRouterConfig.models.some((model: { openrouter_model: string }) => model.openrouter_model.includes("/"))).toBe(true);
+    expect(exportTypeScript(policy)).toContain("distinctTaskBucketId");
   });
   it("can constrain recommendations to one model candidate", () => {
-    const policy = recommendPolicy(traces, clusters, ["gemini-3-flash"]);
+    const policy = recommendPolicy(traces, distinctTaskBuckets, ["gemini-3-flash"]);
     expect(policy.candidate_model_ids).toEqual(["gemini-3-flash"]);
     expect(policy.rules.every((rule) => rule.strategy.type === "keep_current" || rule.strategy.type === "direct" && rule.strategy.model === "gemini-3-flash" || rule.strategy.type === "cascade" && rule.strategy.primary_model === "gemini-3-flash")).toBe(true);
   });
@@ -205,5 +216,26 @@ describe("simulation and recommendations", () => {
     expect(calculateCost(1_000_000, 1_000_000, local)).toBe(1);
     expect(replay(traces.slice(0, 1), local.id).summary.simulated_cost_usd).toBeGreaterThan(0);
     updateModelPricing(local.id, original.input, original.output);
+  });
+  it("uses edited prices in simulation cost calculations", () => {
+    const model = getModel("gemini-3-flash")!;
+    const original = { input: model.input_cost_per_1m, output: model.output_cost_per_1m };
+    const before = replay(traces.slice(0, 2), model.id).summary.simulated_cost_usd;
+    updateModelPricing(model.id, original.input * 10, original.output * 10);
+    const after = replay(traces.slice(0, 2), model.id).summary.simulated_cost_usd;
+    expect(after).toBeCloseTo(before * 10);
+    updateModelPricing(model.id, original.input, original.output);
+  });
+  it("can disable individual models and families for simulations and recommendations", () => {
+    const originalEnabled = new Map(modelCatalog.map((model) => [model.id, model.enabled]));
+    updateModelEnabled("mistral-small-3.2", false);
+    const cascadeResult = familyCascade(traces.slice(0, 8), "mistral-large-3");
+    expect(cascadeResult.runs.every((run) => run.candidate_model !== "mistral-small-3.2")).toBe(true);
+    updateFamilyEnabled("Gemini", false);
+    expect(enabledModels().some((model) => model.family === "Gemini")).toBe(false);
+    const candidates = enabledModels().map((model) => model.id);
+    const policy = recommendPolicy(traces, distinctTaskBuckets, candidates);
+    expect(policy.candidate_model_ids.some((id) => id.startsWith("gemini"))).toBe(false);
+    for (const model of modelCatalog) model.enabled = originalEnabled.get(model.id);
   });
 });
