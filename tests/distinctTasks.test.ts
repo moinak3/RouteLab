@@ -50,6 +50,8 @@ describe("distinct task buckets",()=>{
     expect(buckets).toHaveLength(20);
     expect(buckets.map(bucket=>bucket.bucket_id)).toEqual(again.map(bucket=>bucket.bucket_id));
     expect(buckets.every(bucket=>bucket.trace_count===3&&bucket.total_tokens>0&&bucket.avg_latency_ms&&bucket.examples.length===3)).toBe(true);
+    expect(new Set(buckets.map(bucket=>bucket.task.domain))).toEqual(new Set(["customer_support"]));
+    expect(traces.every(trace=>trace.prompt_text.startsWith("As an AI customer support agent,"))).toBe(true);
   });
 });
 describe("task eval plans",()=>{
