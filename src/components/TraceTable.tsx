@@ -1,0 +1,9 @@
+import type { Trace } from "../types";
+import type { SortDirection, TraceSortKey } from "../types/ui";
+import { money } from "../lib/format";
+import { SortHeader } from "./SortHeader";
+
+export function TraceTable({ traces, onSelect, sort, onSort }: { traces: Trace[]; onSelect?: (trace: Trace) => void; sort?: { key: TraceSortKey; direction: SortDirection }; onSort?: (key: TraceSortKey) => void }) {
+  const header = (label: string, key: TraceSortKey) => sort && onSort ? <SortHeader label={label} sortKey={key} activeKey={sort.key} direction={sort.direction} onSort={onSort} /> : <th>{label}</th>;
+  return <div className="tablewrap"><table><thead><tr>{header("Trace","trace")}{header("Model","model")}{header("Prompt","prompt")}{header("Response snapshot","response")}{header("Tokens","tokens")}{header("Latency","latency")}{header("Cost","cost")}{header("Status","status")}</tr></thead><tbody>{traces.map((trace) => <tr className={onSelect ? "trace-row" : ""} key={trace.id} tabIndex={onSelect ? 0 : undefined} onClick={() => onSelect?.(trace)} onKeyDown={(event) => { if (onSelect && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelect(trace); } }}><td>{onSelect?<span className="trace-id-action"><code>{trace.id.slice(-15)}</code><button className="trace-details-button" aria-haspopup="dialog" aria-label={`View details for ${trace.id}`} onClick={(event)=>{event.stopPropagation();onSelect(trace)}}>View details</button></span>:<code>{trace.id.slice(-15)}</code>}</td><td>{trace.model}</td><td className="prompt">{trace.prompt_text}</td><td className="response-snapshot">{trace.response_text || "No response captured"}</td><td>{trace.total_tokens}</td><td>{trace.latency_ms}ms</td><td>{money(trace.cost_usd ?? 0)}</td><td><span className={`status ${trace.status}`}>{trace.status}</span></td></tr>)}</tbody></table></div>;
+}
