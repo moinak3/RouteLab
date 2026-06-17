@@ -1,4 +1,5 @@
-import { useState, type FocusEvent, type MouseEvent } from "react";
+import { useId, useState, type FocusEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import type { DistinctTaskField } from "../types";
 
 const distinctTaskHelp: Record<string,string> = {
@@ -40,13 +41,15 @@ export const distinctTaskValue = (field: DistinctTaskField, value: unknown) => {
 
 export function DistinctTaskHelp({field,label}:{field:keyof typeof distinctTaskHelp;label:string}){
   const [tooltip,setTooltip]=useState<{left:number;top:number}|null>(null);
+  const tooltipId=useId();
   const showTooltip=(event:MouseEvent<HTMLElement>|FocusEvent<HTMLElement>)=>{
-    const rect=event.currentTarget.getBoundingClientRect();
+    const anchor=event.currentTarget.closest("th")??event.currentTarget;
+    const rect=anchor.getBoundingClientRect();
     const width=300;
     setTooltip({
       left:Math.min(Math.max(12,rect.left),window.innerWidth-width-12),
       top:rect.bottom+10,
     });
   };
-  return <span className="task-help" tabIndex={0} onMouseEnter={showTooltip} onMouseLeave={()=>setTooltip(null)} onFocus={showTooltip} onBlur={()=>setTooltip(null)} onClick={showTooltip}>{label}<i>?</i>{tooltip&&<em className="task-help-tooltip" role="tooltip" style={{left:tooltip.left,top:tooltip.top}}>{distinctTaskHelp[field]}</em>}</span>;
+  return <span className="task-help" tabIndex={0} aria-describedby={tooltip?tooltipId:undefined} onMouseEnter={showTooltip} onMouseLeave={()=>setTooltip(null)} onFocus={showTooltip} onBlur={()=>setTooltip(null)} onClick={showTooltip}>{label}<i>?</i>{tooltip&&createPortal(<em id={tooltipId} className="task-help-tooltip" role="tooltip" style={{left:tooltip.left,top:tooltip.top}}>{distinctTaskHelp[field]}</em>,document.body)}</span>;
 }

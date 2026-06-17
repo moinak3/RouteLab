@@ -54,6 +54,14 @@ export function replay(traces: Trace[], candidateId: string): ReplayResult {
   const evals = runs.map((run, index): EvalResult => ({ id: `eval_${run.id}`, trace_id: run.trace_id, candidate_run_id: run.id, ...evaluateTrace(traces[index], run.response_text) }));
   return { runs, evals, summary: summarize(traces, runs, evals) };
 }
+export function replayFromRuns(traces: Trace[], runs: CandidateRun[]): ReplayResult {
+  const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
+  const evals = runs.map((run): EvalResult => {
+    const trace = tracesById.get(run.trace_id);
+    return { id: `eval_${run.id}`, trace_id: run.trace_id, candidate_run_id: run.id, ...evaluateTrace(trace!, run.response_text) };
+  });
+  return { runs, evals, summary: summarize(traces, runs, evals) };
+}
 export function cascade(traces: Trace[], primaryId: string, fallbackId: string): ReplayResult {
   const primary = replay(traces, primaryId);
   const runs: CandidateRun[] = []; const evals: EvalResult[] = []; let escalations = 0;
@@ -102,6 +110,23 @@ export function monthlyDistinctTaskBreakdown(traces: Trace[], buckets: DistinctT
       current_monthly_cost_usd: result.summary.baseline_cost_usd * MONTHLY_MULTIPLIER,
       simulated_monthly_cost_usd: result.summary.simulated_cost_usd * MONTHLY_MULTIPLIER,
       monthly_savings_usd: result.summary.estimated_savings_usd * MONTHLY_MULTIPLIER,
+    };
+  });
+}
+export function monthlyDistinctTaskBreakdownFromRuns(traces: Trace[], runs: CandidateRun[], buckets: DistinctTaskBucket[]) {
+  const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
+  const runsByTraceId = new Map(runs.map((run) => [run.trace_id, run]));
+  return buckets.map((bucket) => {
+    const selected = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
+    const selectedRuns = selected.map((trace) => runsByTraceId.get(trace.id)).filter((run): run is CandidateRun => Boolean(run));
+    const current = selected.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
+    const simulated = selectedRuns.reduce((sum, run) => sum + run.cost_usd, 0);
+    return {
+      distinct_task_bucket_id: bucket.bucket_id,
+      name: bucket.bucket_name,
+      current_monthly_cost_usd: current * MONTHLY_MULTIPLIER,
+      simulated_monthly_cost_usd: simulated * MONTHLY_MULTIPLIER,
+      monthly_savings_usd: (current - simulated) * MONTHLY_MULTIPLIER,
     };
   });
 }

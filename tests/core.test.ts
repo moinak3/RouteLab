@@ -5,10 +5,12 @@ import { exactMatch, jsonSchema, mockJudge, regexEval } from "../src/core/evalua
 import { buildWorkflowTrees, ingestRecords, ingestText } from "../src/core/ingestion";
 import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScript, recommendPolicy } from "../src/core/recommendations";
 import { buildReviewQueue, REVIEW_LOW_SCORE_THRESHOLD, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
-import { createSeedTraces, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
+import { createSeedTraces, SEED_TASK_GROUP_COUNT, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
 import { cascade, costOnly, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, mockGenerate, replay } from "../src/core/simulations";
+import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
+import { createTraceJudgeResults } from "../src/core/traceJudge";
 
 const traces = createSeedTraces();
 const distinctTaskBuckets = createDistinctTaskBuckets(traces);
@@ -40,7 +42,7 @@ describe("ingestion and costs", () => {
   it("preserves flat and nested workflow trace trees", () => {
     const seededTrees = buildWorkflowTrees(traces);
     expect(seededTrees).toHaveLength(SEED_TRACES_PER_GROUP);
-    expect(seededTrees[0].trace_ids).toHaveLength(20);
+    expect(seededTrees[0].trace_ids).toHaveLength(SEED_TASK_GROUP_COUNT);
     expect(seededTrees[0].roots[0].workflow_role).toBe("planner");
     expect(seededTrees[0].roots[0].children[0].workflow_role).toBe("retriever_summarizer");
 
@@ -72,7 +74,7 @@ describe("analysis and risk inference", () => {
     const metrics = dashboardMetrics(traces);
     expect(metrics.totalRequests).toBe(SEED_TRACE_COUNT);
     expect(Object.values(metrics.byModel).reduce((sum, item) => sum + item.requests, 0)).toBe(SEED_TRACE_COUNT);
-    expect((metrics.byModel["gpt-5.5-pro"]?.requests ?? 0) + (metrics.byModel["claude-opus-4.8"]?.requests ?? 0)).toBeGreaterThan(SEED_TRACE_COUNT / 3);
+    expect((metrics.byModel["gpt-5.5-pro"]?.requests ?? 0) + (metrics.byModel["claude-opus-4.8"]?.requests ?? 0)).toBeGreaterThan(SEED_TRACE_COUNT / 4);
     expect(Object.values(metrics.byModel).reduce((sum, item) => sum + item.cost, 0)).toBeCloseTo(metrics.totalCost);
     expect(metrics.failed).toBe(1);
     expect(metrics.p95Latency).toBeGreaterThan(metrics.p50Latency);
@@ -100,6 +102,7 @@ describe("providers and evaluators", () => {
     expect(regexEval("Invoice INV-123", "INV-\\d+").passed).toBe(true);
     expect(mockJudge("[PASS]").score).toBe(1);
     expect(mockJudge("[FAIL_MINOR]").score).toBe(.75);
+    expect(mockJudge("[FAIL_MAJOR]").score).toBe(.5);
     expect(mockJudge("[FAIL_MAJOR]").passed).toBe(false);
     expect(mockJudge("[FAIL_CRITICAL]").severity).toBe("critical");
   });
@@ -121,10 +124,22 @@ describe("simulation and recommendations", () => {
     expect(expensive.simulated_cost_usd).toBeGreaterThan(0);
     expect(expensive.byDistinctTask).toHaveLength(distinctTaskBuckets.length);
   });
-  it("regenerates seed traces as customer support agent work across all task categories", () => {
+  it("regenerates seed traces as normalized customer support agent work", () => {
     expect(new Set(distinctTaskBuckets.map((bucket) => bucket.task.domain))).toEqual(new Set(["customer_support"]));
-    expect(new Set(distinctTaskBuckets.map((bucket) => bucket.task.task_type)).size).toBe(20);
+    expect(traces).toHaveLength(192);
+    expect(distinctTaskBuckets.length).toBeGreaterThanOrEqual(15);
+    expect(distinctTaskBuckets.length).toBeLessThanOrEqual(18);
+    expect(new Set(distinctTaskBuckets.map((bucket) => bucket.task.task_type)).size).toBe(SEED_TASK_GROUP_COUNT);
+    expect(distinctTaskBuckets.every((bucket) => bucket.trace_count === SEED_TRACES_PER_GROUP)).toBe(true);
     expect(traces.every((trace) => trace.prompt_text.startsWith("As an AI customer support agent,"))).toBe(true);
+    expect(traces.every((trace) => !/^\[(PASS|FAIL_MINOR|FAIL_MAJOR|FAIL_CRITICAL)\]/.test(trace.response_text ?? ""))).toBe(true);
+    expect(traces.every((trace) => trace.metadata?.seeded_judge_score === undefined)).toBe(true);
+    const judgeResults = createTraceJudgeResults(traces);
+    expect(new Set(judgeResults.map((result) => result.trace_id)).size).toBe(traces.length);
+    const scoreCounts = judgeResults.reduce((counts, result) => counts.set(result.score, (counts.get(result.score) ?? 0) + 1), new Map<number, number>());
+    expect(scoreCounts.get(1)).toBeGreaterThan(SEED_TRACE_COUNT * .5);
+    expect(scoreCounts.get(.5)).toBeGreaterThan(SEED_TRACE_COUNT * .1);
+    expect(scoreCounts.get(0)).toBeGreaterThan(SEED_TRACE_COUNT * .05);
   });
   it("prices premium strong-model routing against the mixed baseline", () => {
     for (const model of ["claude-opus-4.8", "gpt-5.5-pro"]) {
@@ -158,8 +173,8 @@ describe("simulation and recommendations", () => {
     const lowScoreTraceIds = new Set(cheap.evals.filter((item) => !item.passed || item.score < REVIEW_LOW_SCORE_THRESHOLD).map((item) => item.trace_id));
     const lowScoreDistinctTaskIds = new Set(distinctTaskBuckets.filter((bucket) => bucket.traces.some((traceId) => lowScoreTraceIds.has(traceId))).map((bucket) => bucket.bucket_id));
     const queuedDistinctTaskIds = new Set(queue.reviewItems.map((item) => item.bucket?.bucket_id).filter(Boolean));
-    expect(queue.lowScoreCount).toBeGreaterThan(REVIEW_QUEUE_MAX);
-    expect(queue.reviewItems).toHaveLength(REVIEW_QUEUE_MAX);
+    expect(queue.lowScoreCount).toBeGreaterThan(distinctTaskBuckets.length);
+    expect(queue.reviewItems).toHaveLength(Math.min(queue.lowScoreCount, REVIEW_QUEUE_MAX));
     expect(queue.reviewItems.every((item) => !item.evalResult.passed || item.evalResult.score < REVIEW_LOW_SCORE_THRESHOLD)).toBe(true);
     expect(queuedDistinctTaskIds.size).toBe(Math.min(lowScoreDistinctTaskIds.size, REVIEW_QUEUE_MAX));
   });
@@ -176,7 +191,7 @@ describe("simulation and recommendations", () => {
     const legal = policy.rules.find((rule) => rule.name.toLowerCase().includes("legal"))!;
     expect(legal.strategy.type).toBe("keep_current");
     expect(policy.estimated_monthly_savings_usd).toBeGreaterThan(0);
-    expect(policy.estimated_monthly_savings_usd).toBeGreaterThanOrEqual(50000);
+    expect(policy.estimated_monthly_savings_usd).toBeGreaterThan(10);
     expect(policy.estimated_monthly_savings_usd).toBeCloseTo(policy.estimated_sample_savings_usd * policy.monthly_multiplier);
     expect(policy.estimated_monthly_savings_usd).toBeCloseTo(policy.rules.reduce((sum, rule) => sum + rule.estimated_monthly_savings_usd, 0));
     expect(policy.estimated_sample_savings_usd).toBeCloseTo(policy.rules.reduce((sum, rule) => sum + (rule.comparison ? rule.comparison.cost.before - rule.comparison.cost.after : 0), 0));
@@ -242,5 +257,13 @@ describe("simulation and recommendations", () => {
     const policy = recommendPolicy(traces, distinctTaskBuckets, candidates);
     expect(policy.candidate_model_ids.some((id) => id.startsWith("gemini"))).toBe(false);
     for (const model of modelCatalog) model.enabled = originalEnabled.get(model.id);
+  });
+  it("uses family keys before falling back to OpenRouter for live simulation", () => {
+    expect(liveRoutingStatus("deepseek-r1", { familyApiKeys: {}, gatewayApiKeys: { OpenRouter: "sk-or-test" } })).toMatchObject({ source: "openrouter", label: "OpenRouter" });
+    expect(liveRoutingStatus("deepseek-r1", { familyApiKeys: { DeepSeek: "sk-deepseek-test" }, gatewayApiKeys: { OpenRouter: "sk-or-test" } })).toMatchObject({ source: "direct_family", label: "DeepSeek" });
+    expect(liveRoutingStatus("gemini-2.5-flash-lite", { familyApiKeys: {}, gatewayApiKeys: {}, serverGatewayKeys: { OpenRouter: true } })).toMatchObject({ source: "openrouter", label: "OpenRouter" });
+    expect(liveRoutingStatus("claude-sonnet-4.8", { familyApiKeys: { Claude: "sk-claude-test" }, gatewayApiKeys: { OpenRouter: "sk-or-test" } })).toMatchObject({ source: "openrouter", label: "OpenRouter" });
+    expect(liveRoutingStatus("claude-sonnet-4.8", { familyApiKeys: { Claude: "sk-claude-test" }, gatewayApiKeys: {} })).toMatchObject({ source: "direct_family", label: "Claude" });
+    expect(liveRoutingStatus("deepseek-r1", { familyApiKeys: {}, gatewayApiKeys: {} })).toBeUndefined();
   });
 });

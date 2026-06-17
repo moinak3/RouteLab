@@ -1,1 +1,15 @@
-/* Traces page styles live here when touched next. */
+.traces-page .trace-filter-bar{
+  grid-template-columns:minmax(220px,1.2fr) minmax(145px,.75fr) minmax(170px,.75fr) auto;
+}
+
+@media(max-width:1000px){
+  .traces-page .trace-filter-bar{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+@media(max-width:650px){
+  .traces-page .trace-filter-bar{
+    grid-template-columns:1fr;
+  }
+}

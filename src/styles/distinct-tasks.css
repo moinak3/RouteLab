@@ -1,1 +1,16 @@
-/* Distinct Task styles live here when touched next. */
+.distinct-task-explainer{
+  align-items:stretch;
+  gap:28px;
+}
+.distinct-task-explainer>div:first-child{
+  max-width:900px;
+}
+.distinct-task-explainer p{
+  margin:10px 0 0;
+  color:#b8c8bf;
+  font-size:14px;
+  line-height:1.55;
+}
+@media(max-width:650px){
+  .distinct-task-explainer{display:grid}
+}

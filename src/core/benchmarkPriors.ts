@@ -42,6 +42,7 @@ const mergePriors = (priors: BenchmarkPrior[]) => {
 };
 
 export const benchmarkFamilies = data.benchmark_families;
+export const modelBenchmarkScores = data.model_scores;
 export function mapDistinctTaskToBenchmarkPriors(task: DistinctTask): BenchmarkPrior[] {
   const mapped = mergePriors(data.mapping_rules.filter((rule) => matches(rule, task)).map(({ benchmark_id, alignment_score, confidence, rationale, weight }) => ({ benchmark_id, alignment_score, confidence, rationale, weight })));
   if (mapped.some((prior) => prior.alignment_score >= .55)) return mapped;

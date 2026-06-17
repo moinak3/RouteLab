@@ -87,6 +87,7 @@ export type Model = {
   family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local";
   family_tier: "top" | "mid" | "cheapest";
 };
+export type GatewayProvider = "OpenRouter";
 export type CandidateRun = {
   id: string; trace_id: string; candidate_model: string; response_text: string; input_tokens: number;
   output_tokens: number; latency_ms: number; cost_usd: number; status: "success" | "error";
@@ -94,6 +95,11 @@ export type CandidateRun = {
 export type EvalResult = {
   id: string; trace_id: string; candidate_run_id: string; evaluator_type: string;
   score: number; passed: boolean; explanation?: string; severity?: "minor" | "major" | "critical";
+};
+export type TraceJudgeResult = {
+  id: string; trace_id: string; evaluator_type: string;
+  score: number; passed: boolean; rationale: string; severity?: "minor" | "major" | "critical";
+  created_at: string;
 };
 export type RoutingRule = {
   id: string; name: string; match: { distinct_task_bucket_id: string; risk_level: Risk };

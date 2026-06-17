@@ -5,31 +5,42 @@ import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
 import { recommendPolicy } from "./core/recommendations";
 import { createSeedTraces } from "./core/seed";
+import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
+import { Evals } from "./pages/Evals";
 import { ModelCatalog } from "./pages/ModelCatalog";
 import { Overview } from "./pages/Overview";
 import { Recommendations } from "./pages/Recommendations";
 import { ReviewQueue } from "./pages/ReviewQueue";
 import { Simulations } from "./pages/Simulations";
 import { Traces } from "./pages/Traces";
-import type { Model, Trace } from "./types";
-import type { Page } from "./types/ui";
+import type { GatewayProvider, Model, Trace, TraceJudgeResult } from "./types";
+import type { Page, ReviewQueueFilter } from "./types/ui";
+
+const initialTraces = createSeedTraces();
+const DEEPSEEK_RECOMMENDATION_SCOPE = "deepseek_family";
 
 export default function App() {
   const [page, setPage] = useState<Page>("Overview");
-  const [traces, setTraces] = useState<Trace[]>(createSeedTraces);
+  const [traces, setTraces] = useState<Trace[]>(initialTraces);
+  const [traceJudgeResults, setTraceJudgeResults] = useState<TraceJudgeResult[]>(() => createTraceJudgeResults(initialTraces));
   const [candidate, setCandidate] = useState("deepseek-r1");
-  const [recommendationCandidate, setRecommendationCandidate] = useState("auto");
+  const [recommendationCandidate, setRecommendationCandidate] = useState(DEEPSEEK_RECOMMENDATION_SCOPE);
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [familyApiKeys, setFamilyApiKeys] = useState<Partial<Record<Model["family"], string>>>({});
+  const [gatewayApiKeys, setGatewayApiKeys] = useState<Partial<Record<GatewayProvider, string>>>({});
+  const [serverGatewayKeys, setServerGatewayKeys] = useState<Partial<Record<GatewayProvider, boolean>>>({});
+  const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>("all");
   const [notice, setNotice] = useState<string | null>("Example dataset loaded locally");
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const distinctTaskBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
   const metrics = useMemo(() => dashboardMetrics(traces), [traces]);
   const workflows = useMemo(() => buildWorkflowTrees(traces), [traces]);
-  const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidate === "auto" ? activeModelIds : [recommendationCandidate]), [traces, distinctTaskBuckets, recommendationCandidate, activeModelIds, catalogVersion]);
-  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Review Queue", "Simulations", "Recommendations", "Model Catalog"];
+  const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
+  const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
+  const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
+  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Evals", "Simulations", "Recommendations", "Model Catalog", "Review Queue"];
   const pageLabel = (item: Page) => item;
 
   useEffect(() => {
@@ -39,15 +50,29 @@ export default function App() {
   }, [notice]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/live/key-status")
+      .then(response => response.ok ? response.json() : undefined)
+      .then((payload: { gateways?: Partial<Record<GatewayProvider, boolean>> } | undefined) => {
+        if (!cancelled && payload?.gateways) setServerGatewayKeys(payload.gateways);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (!activeModels.length) return;
     if (!activeModelIds.includes(candidate)) setCandidate(activeModels[0].id);
-    if (recommendationCandidate !== "auto" && !activeModelIds.includes(recommendationCandidate)) setRecommendationCandidate("auto");
+    if (recommendationCandidate !== DEEPSEEK_RECOMMENDATION_SCOPE && !activeModelIds.includes(recommendationCandidate)) setRecommendationCandidate(DEEPSEEK_RECOMMENDATION_SCOPE);
   }, [activeModels, activeModelIds, candidate, recommendationCandidate]);
 
   async function upload(file?: File) {
     if (!file) return;
     const result = ingestText(await file.text(), file.name);
-    if (result.traces.length) setTraces(result.traces);
+    if (result.traces.length) {
+      setTraces(result.traces);
+      setTraceJudgeResults(createTraceJudgeResults(result.traces));
+    }
     setNotice(`${result.traces.length} LLM calls loaded · ${result.workflows.length} workflow trees preserved${result.errors.length ? ` · ${result.errors.length} rows need attention` : ""}`);
   }
 
@@ -61,13 +86,14 @@ export default function App() {
       <header><div><p className="eyebrow">Intelligent model simulations - the right model to tradeoff cost, quality and latency for your business</p><h1>{pageLabel(page)}</h1></div><div className="actions"><label className="upload">Upload traces<input type="file" accept=".csv,.json,.jsonl" onChange={(event) => upload(event.target.files?.[0])} /></label><button className="primary" onClick={() => setPage("Simulations")}>Run simulation</button></div></header>
       <div className="mobile-nav" aria-label="Mobile navigation">{nav.map(item=><button type="button" className={page===item?"active":""} onClick={()=>setPage(item)} key={item}>{pageLabel(item)}</button>)}</div>
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
-      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} workflowCount={workflows.length} policy={policy} />}
-      {page === "Traces" && <Traces traces={traces} />}
+      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} policy={policy} />}
+      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
       {page === "Distinct Tasks" && <DistinctTasks traces={traces} />}
-      {page === "Review Queue" && <ReviewQueue traces={traces} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} />}
-      {page === "Simulations" && <Simulations traces={traces} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} />}
-      {page === "Recommendations" && <Recommendations policy={policy} candidate={recommendationCandidate} setCandidate={setRecommendationCandidate} activeModels={activeModels} />}
-      {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
+      {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
+      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
+      {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
+      {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
+      {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onGatewayApiKey={(gateway,key)=>setGatewayApiKeys(keys=>({...keys,[gateway]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
     </main>
   </div>;
 }

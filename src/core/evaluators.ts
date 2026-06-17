@@ -18,12 +18,13 @@ export const regexEval = (candidate: string, pattern: string) => {
 export function mockJudge(candidate: string) {
   if (candidate.includes("[PASS]")) return result("mock_judge", true, 1);
   if (candidate.includes("[FAIL_MINOR]")) return result("mock_judge", true, .75, "minor");
-  if (candidate.includes("[FAIL_MAJOR]")) return result("mock_judge", false, .4, "major");
+  if (candidate.includes("[FAIL_MAJOR]")) return result("mock_judge", false, .5, "major");
   if (candidate.includes("[FAIL_CRITICAL]")) return result("mock_judge", false, 0, "critical");
   return result("mock_judge", false, .5);
 }
 export function evaluateTrace(trace: Trace, candidate: string) {
   const expected = String(trace.metadata?.expected_answer ?? trace.response_text ?? "");
+  if (/\[(PASS|FAIL_MINOR|FAIL_MAJOR|FAIL_CRITICAL)\]/.test(candidate)) return mockJudge(candidate);
   if (normalize(candidate) === normalize(expected)) return result("exact_match", true, 1);
   return trace.metadata?.task_type === "extraction" ? exactMatch(candidate, expected) : mockJudge(candidate);
 }
