@@ -1,4 +1,4 @@
-import { providerConfig, sendJson, serverOpenRouterKey, toMessages, type LiveTracePayload } from "./_shared";
+import { providerConfig, sendJson, serverOpenRouterKey, toMessages, type LiveTracePayload } from "./_shared.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {

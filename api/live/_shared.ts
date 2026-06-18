@@ -1,4 +1,4 @@
-import { getModel } from "../../src/core/catalog";
+import { getModel } from "../../src/core/catalog.js";
 
 export type LiveTracePayload = {
   id?: unknown;

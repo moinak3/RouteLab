@@ -1,4 +1,4 @@
-import { sendJson, serverOpenRouterKey } from "./_shared";
+import { sendJson, serverOpenRouterKey } from "./_shared.js";
 
 export default function handler(req: any, res: any) {
   if (req.method !== "GET") {
