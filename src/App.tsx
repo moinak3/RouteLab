@@ -8,6 +8,7 @@ import { createSeedTraces } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
 import { Evals } from "./pages/Evals";
+import { Home } from "./pages/Home";
 import { ModelCatalog } from "./pages/ModelCatalog";
 import { Overview } from "./pages/Overview";
 import { Recommendations } from "./pages/Recommendations";
@@ -19,9 +20,10 @@ import type { Page, ReviewQueueFilter } from "./types/ui";
 
 const initialTraces = createSeedTraces();
 const DEEPSEEK_RECOMMENDATION_SCOPE = "deepseek_family";
+const APP_PASSWORD = "Mochinder";
 
 export default function App() {
-  const [page, setPage] = useState<Page>("Overview");
+  const [page, setPage] = useState<Page>("Home");
   const [traces, setTraces] = useState<Trace[]>(initialTraces);
   const [traceJudgeResults, setTraceJudgeResults] = useState<TraceJudgeResult[]>(() => createTraceJudgeResults(initialTraces));
   const [candidate, setCandidate] = useState("deepseek-r1");
@@ -74,6 +76,18 @@ export default function App() {
       setTraceJudgeResults(createTraceJudgeResults(result.traces));
     }
     setNotice(`${result.traces.length} LLM calls loaded · ${result.workflows.length} workflow trees preserved${result.errors.length ? ` · ${result.errors.length} rows need attention` : ""}`);
+  }
+
+  function enterApp(password: string) {
+    if (password === APP_PASSWORD) {
+      setPage("Overview");
+      return true;
+    }
+    return false;
+  }
+
+  if (page === "Home") {
+    return <Home onGetStarted={enterApp} />;
   }
 
   return <div className="shell">

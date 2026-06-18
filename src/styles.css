@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import "./styles/home.css";
 @import "./styles/overview.css";
 @import "./styles/traces.css";
 @import "./styles/distinct-tasks.css";
