@@ -157,3 +157,15 @@ export type BenchmarkPriorOutput = {
     model_selection_confidence: "low" | "medium" | "high";
   };
 };
+export type GoldenDatasetRow = Record<string, string | number | boolean | null>;
+export type GoldenDataset = {
+  id: string; name: string; created_at: string; row_count: number; columns: string[]; rows: GoldenDatasetRow[];
+};
+export type FineTuneJob = {
+  id: string; dataset_id: string; dataset_name: string; base_model: string; provider: string;
+  status: "running" | "completed"; created_at: string; completed_at?: string; deployment_target?: string;
+};
+export type FineTuneSignal = {
+  should_suggest: boolean; threshold_tokens: number; matching_traces: number; total_traces: number;
+  stable_pattern_count: number; estimated_context_tokens: number; reason: string;
+};

@@ -11,6 +11,7 @@ import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/
 import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
+import { analyzeFineTuneOpportunity, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../src/core/goldenDatasets";
 import { createTraceJudgeResults } from "../src/core/traceJudge";
 
 const traces = createSeedTraces();
@@ -120,6 +121,43 @@ describe("providers and evaluators", () => {
     expect(mockJudge("[FAIL_CRITICAL]").severity).toBe("critical");
   });
 });
+
+describe("golden datasets and fine-tuning signals", () => {
+  it("parses and edits golden dataset CSV rows", () => {
+    const dataset = parseGoldenDatasetCsv(
+      "prompt,expected_response,score\nHello,Hi there,1\nBye,Goodbye,0.5",
+      "support-golden.csv",
+      new Date("2026-06-24T00:00:00.000Z"),
+    );
+
+    expect(dataset.name).toBe("support-golden.csv");
+    expect(dataset.created_at).toBe("2026-06-24T00:00:00.000Z");
+    expect(dataset.row_count).toBe(2);
+    expect(dataset.columns).toEqual(["prompt", "expected_response", "score"]);
+    expect(dataset.rows[0].score).toBe(1);
+
+    const updated = updateGoldenDatasetCell(dataset, 0, "expected_response", "Hello there");
+    expect(updated.rows[0].expected_response).toBe("Hello there");
+    expect(dataset.rows[0].expected_response).toBe("Hi there");
+  });
+
+  it("suggests fine-tuning when stable trace patterns carry high extra context", () => {
+    const highContextTraces = traces.slice(0, 8).map((trace, index) => ({
+      ...trace,
+      input_tokens: 1_600 + index,
+      prompt_text: `${trace.prompt_text} Few-shot examples: example A. Instructions: follow the long policy context.`,
+      metadata: { ...trace.metadata, task_type: "customer_support_responses" },
+    }));
+
+    const signal = analyzeFineTuneOpportunity(highContextTraces);
+
+    expect(signal.should_suggest).toBe(true);
+    expect(signal.matching_traces).toBe(8);
+    expect(signal.stable_pattern_count).toBe(1);
+    expect(signal.reason).toContain("Fine-tuning");
+  });
+});
+
 describe("simulation and recommendations", () => {
   it("calculates cheaper cost-only routing", () => {
     const result = costOnly(traces, "deepseek-r1", distinctTaskBuckets);

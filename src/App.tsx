@@ -8,6 +8,7 @@ import { createSeedTraces } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
 import { Evals } from "./pages/Evals";
+import { GoldenDataset } from "./pages/GoldenDataset";
 import { Home } from "./pages/Home";
 import { ModelCatalog } from "./pages/ModelCatalog";
 import { Overview } from "./pages/Overview";
@@ -15,7 +16,7 @@ import { Recommendations } from "./pages/Recommendations";
 import { ReviewQueue } from "./pages/ReviewQueue";
 import { Simulations } from "./pages/Simulations";
 import { Traces } from "./pages/Traces";
-import type { GatewayProvider, Model, Trace, TraceJudgeResult } from "./types";
+import type { FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace, TraceJudgeResult } from "./types";
 import type { Page, ReviewQueueFilter } from "./types/ui";
 
 const initialTraces = createSeedTraces();
@@ -33,6 +34,8 @@ export default function App() {
   const [gatewayApiKeys, setGatewayApiKeys] = useState<Partial<Record<GatewayProvider, string>>>({});
   const [serverGatewayKeys, setServerGatewayKeys] = useState<Partial<Record<GatewayProvider, boolean>>>({});
   const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>("all");
+  const [goldenDatasets, setGoldenDatasets] = useState<GoldenDatasetType[]>([]);
+  const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
   const [notice, setNotice] = useState<string | null>("Example dataset loaded locally");
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
@@ -42,7 +45,7 @@ export default function App() {
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
-  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Evals", "Simulations", "Recommendations", "Model Catalog", "Review Queue"];
+  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Evals", "Golden Dataset", "Simulations", "Recommendations", "Model Catalog", "Review Queue"];
   const pageLabel = (item: Page) => item;
 
   useEffect(() => {
@@ -86,6 +89,45 @@ export default function App() {
     return false;
   }
 
+  function addGoldenDataset(dataset: GoldenDatasetType) {
+    setGoldenDatasets((items) => [dataset, ...items]);
+    setNotice(`${dataset.name} uploaded · ${dataset.row_count.toLocaleString()} golden rows`);
+  }
+
+  function updateGoldenDataset(dataset: GoldenDatasetType) {
+    setGoldenDatasets((items) => items.map((item) => item.id === dataset.id ? dataset : item));
+  }
+
+  function deleteGoldenDataset(id: string) {
+    setGoldenDatasets((items) => items.filter((item) => item.id !== id));
+    setFineTuneJobs((items) => items.filter((job) => job.dataset_id !== id));
+    setNotice("Golden dataset deleted");
+  }
+
+  function startFineTune(dataset: GoldenDatasetType, baseModel: string, provider: string) {
+    const now = new Date();
+    const job: FineTuneJob = {
+      id: `ft_${now.getTime()}`,
+      dataset_id: dataset.id,
+      dataset_name: dataset.name,
+      base_model: baseModel,
+      provider,
+      status: "running",
+      created_at: now.toISOString(),
+    };
+    setFineTuneJobs((items) => [job, ...items]);
+    setNotice(`Fine-tuning started: ${baseModel} on ${provider}`);
+    window.setTimeout(() => {
+      setFineTuneJobs((items) => items.map((item) => item.id === job.id ? { ...item, status: "completed", completed_at: new Date().toISOString() } : item));
+      setNotice(`Fine-tuning completed: ${baseModel}`);
+    }, 900);
+  }
+
+  function deployFineTune(jobId: string, target: string) {
+    setFineTuneJobs((items) => items.map((item) => item.id === jobId ? { ...item, deployment_target: target } : item));
+    setNotice(`${target} selected for fine-tuned model`);
+  }
+
   if (page === "Home") {
     return <Home onGetStarted={enterApp} />;
   }
@@ -104,6 +146,7 @@ export default function App() {
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
       {page === "Distinct Tasks" && <DistinctTasks traces={traces} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
+      {page === "Golden Dataset" && <GoldenDataset traces={traces} datasets={goldenDatasets} jobs={fineTuneJobs} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
       {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}

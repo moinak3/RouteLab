@@ -4,6 +4,7 @@
 @import "./styles/traces.css";
 @import "./styles/distinct-tasks.css";
 @import "./styles/evals.css";
+@import "./styles/golden-dataset.css";
 @import "./styles/review-queue.css";
 @import "./styles/simulations.css";
 @import "./styles/recommendations.css";
