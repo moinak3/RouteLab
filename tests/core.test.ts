@@ -11,7 +11,7 @@ import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/
 import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
-import { analyzeFineTuneOpportunity, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../src/core/goldenDatasets";
+import { analyzeFineTuneOpportunity, calibrateGoldenDataset, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../src/core/goldenDatasets";
 import { createTraceJudgeResults } from "../src/core/traceJudge";
 
 const traces = createSeedTraces();
@@ -155,6 +155,31 @@ describe("golden datasets and fine-tuning signals", () => {
     expect(signal.matching_traces).toBe(8);
     expect(signal.stable_pattern_count).toBe(1);
     expect(signal.reason).toContain("Fine-tuning");
+  });
+
+  it("calibrates golden human labels against LLM-as-judge results", () => {
+    const judgeResults = createTraceJudgeResults(traces);
+    const first = traces[0];
+    const failed = judgeResults.find((result) => !result.passed)!;
+    const failedTrace = traces.find((trace) => trace.id === failed.trace_id)!;
+    const escapeCsv = (value: unknown) => {
+      const text = String(value ?? "");
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const csvRow = (values: unknown[]) => values.map(escapeCsv).join(",");
+    const dataset = parseGoldenDatasetCsv([
+      "trace_id,prompt,agent_answer,expected_answer,human_passed,human_score,human_severity",
+      csvRow([first.id, first.prompt_text, first.response_text, first.metadata?.expected_answer, false, .5, "major"]),
+      csvRow([failedTrace.id, failedTrace.prompt_text, failedTrace.response_text, failedTrace.metadata?.expected_answer, true, 1, "major"]),
+    ].join("\n"), "calibration.csv", new Date("2026-06-24T00:00:00.000Z"));
+
+    const calibration = calibrateGoldenDataset(dataset, traces, judgeResults);
+
+    expect(calibration.coverage_pct).toBe(100);
+    expect(calibration.agreement_rate).toBe(0);
+    expect(calibration.false_pass_rate).toBe(50);
+    expect(calibration.false_fail_rate).toBe(50);
+    expect(calibration.disagreements).toHaveLength(2);
   });
 });
 

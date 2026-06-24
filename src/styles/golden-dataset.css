@@ -26,6 +26,30 @@
 .golden-upload{
   flex:0 0 auto;
 }
+.golden-hero-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex:0 0 auto;
+}
+.ghost-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:42px;
+  padding:0 16px;
+  border:1px solid var(--line-strong);
+  border-radius:10px;
+  color:#eff8f2;
+  font-size:13px;
+  font-weight:900;
+  text-decoration:none;
+  background:rgba(255,255,255,.04);
+}
+.ghost-link:hover{
+  border-color:rgba(88,240,132,.45);
+  background:rgba(88,240,132,.08);
+}
 .golden-error{
   background:rgba(255,125,98,.1);
   border-color:rgba(255,125,98,.28);
@@ -220,6 +244,96 @@
   padding-top:8px;
   border-top:1px solid var(--line);
 }
+.calibration-copy{
+  max-width:720px;
+  margin:6px 0 0;
+  color:#b8c8bf;
+  font-size:13px;
+  line-height:1.5;
+}
+.calibration-metrics{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:10px;
+}
+.calibration-metrics article{
+  display:grid;
+  gap:6px;
+  min-width:0;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:rgba(255,255,255,.04);
+}
+.calibration-metrics span{
+  color:#91a39b;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.calibration-metrics b{
+  color:#fff;
+  font-size:24px;
+  letter-spacing:-.05em;
+}
+.calibration-metrics small,
+.calibration-disagreements small,
+.muted{
+  color:#9fb0a8;
+  font-size:12px;
+  line-height:1.45;
+}
+.calibration-disagreements{
+  display:grid;
+  gap:10px;
+  margin-top:16px;
+}
+.panelhead.compact{
+  margin-bottom:0;
+}
+.calibration-disagreements h3{
+  margin:4px 0 0;
+  color:#fff;
+  font-size:20px;
+}
+.calibration-disagreements article{
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);
+  gap:12px;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:rgba(255,255,255,.04);
+}
+.calibration-disagreements code{
+  color:#b7ff6d;
+  font-size:12px;
+}
+.calibration-disagreements p{
+  margin:8px 0 0;
+  color:#dbe8e0;
+  font-size:13px;
+  line-height:1.45;
+}
+.calibration-verdicts{
+  display:grid;
+  gap:8px;
+  align-content:center;
+}
+.calibration-verdicts span{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  color:#aebfb7;
+  background:rgba(255,255,255,.03);
+}
+.calibration-verdicts b{
+  color:#fff;
+}
 @media(max-width:1000px){
   .golden-hero,
   .fine-tune-signal,
@@ -230,13 +344,28 @@
   .golden-hero{
     display:grid;
   }
+  .golden-hero-actions{
+    justify-content:start;
+  }
+  .calibration-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .calibration-disagreements article{
+    grid-template-columns:1fr;
+  }
 }
 @media(max-width:650px){
   .signal-stats{
     grid-template-columns:1fr;
   }
+  .golden-hero-actions{
+    display:grid;
+  }
   .dataset-summary,
   .fine-tune-jobs article{
     display:grid;
+  }
+  .calibration-metrics{
+    grid-template-columns:1fr;
   }
 }

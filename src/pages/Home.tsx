@@ -2,16 +2,18 @@ import { useState, type FormEvent } from "react";
 
 const heroStats = [
   { value: "30-80%", label: "inference savings opportunity" },
-  { value: "0", label: "unproven route changes" },
-  { value: "Replay -> evaluate -> route", label: "offline proof loop" },
+  { value: "Human + eval", label: "golden dataset calibration" },
+  { value: "Simulate -> recommend -> tune", label: "model optimization loop" },
 ];
 
 const previewItems = [
+  { title: "Trace ingestion", action: "observe" },
   { title: "Distinct tasks", action: "classify" },
-  { title: "Import or generate evals", action: "define" },
+  { title: "Import or create evals", action: "define" },
+  { title: "Golden calibration", action: "verify" },
   { title: "Prompt simulations", action: "replay" },
-  { title: "Route readiness", action: "decide" },
-  { title: "Policy deployment", action: "monitor" },
+  { title: "Recommendations", action: "route" },
+  { title: "Fine-tuning prompts", action: "train" },
 ];
 
 const pains = [
@@ -25,7 +27,7 @@ const pains = [
   },
   {
     title: "Fragment",
-    text: "Gateways, evals, logs, and model experiments live in separate tools, so no system owns model allocation.",
+    text: "Gateways, evals, golden datasets, logs, model experiments, and fine-tuning workflows live in separate tools, so no system owns model allocation.",
   },
 ];
 
@@ -36,42 +38,54 @@ const allocationLayers = [
   },
   {
     title: "Eval stacks",
-    items: ["Trace and score", "Regression testing", "Do not optimize model allocation"],
+    items: ["Trace and score", "Regression testing", "Need calibration to trust automated judges"],
   },
   {
     title: "RouteLab",
-    items: ["Classify workloads", "Replay and prove routes", "Own cost-quality decisions"],
+    items: ["Classify tasks", "Calibrate evals with golden data", "Simulate, recommend, and fine-tune"],
   },
 ];
 
 const steps = [
   {
-    title: "Classify Traces into Distinct Tasks",
-    text: "Group production traces into task-level workloads so routing decisions are made against repeatable work, not one-off prompts.",
+    title: "Work With Production Traces",
+    text: "Start from the traces you already have: prompts, responses, model names, latency, tokens, cost, and workflow context.",
     image: "/marketing/traces.jpg",
     alt: "RouteLab Traces tab showing normalized LLM calls",
   },
   {
-    title: "Import/Generate an eval",
-    text: "Bring existing evals into RouteLab or generate task-specific evaluators for quality, policy, and failure-mode checks.",
+    title: "Classify Traces into Distinct Tasks",
+    text: "Group traces into repeatable task-level workloads so routing and evaluation decisions are made against stable patterns, not one-off prompts.",
+    image: "/marketing/traces.jpg",
+    alt: "RouteLab Traces tab showing normalized LLM calls",
+  },
+  {
+    title: "Import or Create Evals",
+    text: "Bring existing evals into RouteLab or generate task-specific evaluators for quality, policy, factuality, tool behavior, and failure-mode checks.",
     image: "/marketing/evals.jpg",
     alt: "RouteLab Evals tab showing trace quality judge scores",
   },
   {
-    title: "Run Simulations Across Routing Strategies",
-    text: "Run prompts against candidate models and compare direct routing, cascades, thresholds, and fallback strategies.",
+    title: "Calibrate Evals With Golden Datasets",
+    text: "Upload human-labeled golden datasets and compare human answers against LLM-as-judge results to measure agreement, false passes, false fails, and coverage.",
+    image: "/marketing/evals.jpg",
+    alt: "RouteLab Evals tab showing trace quality judge scores",
+  },
+  {
+    title: "Run Simulations Across Candidate Models",
+    text: "Replay prompts against candidate models and compare direct routing, cascades, thresholds, provider choices, latency, quality, and cost.",
     image: "/marketing/simulations.jpg",
     alt: "RouteLab Simulations tab showing model replay results",
   },
   {
-    title: "Route Readiness",
-    text: "Score cost, quality, latency, failure severity, and evidence grade before production changes.",
-    image: "/marketing/simulations.jpg",
-    alt: "RouteLab Simulations tab showing route readiness results",
+    title: "Generate Recommendations",
+    text: "Turn simulation and eval evidence into route recommendations that preserve quality and latency guardrails while reducing spend.",
+    image: "/marketing/recommendations.jpg",
+    alt: "RouteLab recommendations view",
   },
   {
-    title: "Policy Deployment and Continuous Monitoring",
-    text: "Export gateway-ready policies, then monitor drift detection, shadow traffic, and benchmark refreshes over time.",
+    title: "Prompt Fine-Tuning When It Is Worth It",
+    text: "Detect stable high-context patterns, recommend fine-tuning when it can reduce token overhead, and help users launch an open-weight fine-tuning workflow.",
     image: "/marketing/recommendations.jpg",
     alt: "RouteLab policy export and recommendations view",
   },
@@ -92,10 +106,12 @@ const supportReasons = [
 ];
 
 const proof = [
-  "Local-first trace ingestion",
-  "Eval-backed decisions",
+  "Trace-native workflow intelligence",
+  "Distinct task classification",
+  "Eval creation and import",
+  "Golden dataset calibration",
   "Provider and model-family agnostic",
-  "Cost, quality, latency guardrails",
+  "Simulations, recommendations, and fine-tuning",
 ];
 
 export function Home({ onGetStarted }: { onGetStarted: (password: string) => boolean }) {
@@ -131,12 +147,12 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
         <div className="home-hero-copy">
           <h1>Find the cheapest safe model for every AI workflow.</h1>
           <p>
-            RouteLab connects to production traces, scores model quality, replays traffic across candidate models, and
-            generates eval-backed allocation policies that reduce inference spend without unproven route changes.
+            RouteLab works from production traces, classifies distinct tasks, helps teams create and calibrate evals,
+            simulates candidate models, recommends safe routes, and prompts fine-tuning when stable workloads can be made cheaper.
           </p>
           <div className="home-cta-row">
             <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
-            <span>Start offline with traces. Leave with a safe routing policy.</span>
+            <span>Start with traces. Leave with calibrated evals, model recommendations, and fine-tuning candidates.</span>
           </div>
           <div className="home-hero-stats" aria-label="RouteLab proof points">
             {heroStats.map((stat) => (
@@ -162,8 +178,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
         <div>
           <h2>AI inference is becoming cloud spend 2.0.</h2>
           <p>
-            Teams are scaling AI features faster than they can govern model spend, quality, and risk. The result is
-            avoidable spend with no auditable answer for why a model served a workflow.
+            Teams are scaling AI features faster than they can govern model spend, quality, risk, and evaluation trust.
+            The result is avoidable spend with no auditable answer for why a model served a workflow or whether the eval is good enough to approve it.
           </p>
         </div>
         <div className="home-pain-grid" aria-label="AI inference spend problems">
@@ -183,7 +199,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <p>
             Open and managed-open models are good enough for many workflows, while premium frontier models still cost
             dramatically more. The decision is no longer which model is best. It is which model is good enough for this
-            workflow.
+            distinct task, under this eval, with this golden dataset evidence.
           </p>
         </div>
         <div className="home-why-panel">
@@ -192,7 +208,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <small>margin leak</small>
           <i />
           <span>The new control plane</span>
-          <b>Portfolio of models per workflow</b>
+          <b>Portfolio of models, evals, and fine-tunes per task</b>
           <small>proved allocation</small>
         </div>
       </section>
@@ -200,7 +216,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-allocation">
         <div className="home-section-head">
           <h2>Not routing. Model allocation.</h2>
-          <p>RouteLab is the allocation layer above gateways and eval tools: prove what should move, then export the policy.</p>
+          <p>RouteLab is the allocation layer above gateways, eval tools, and fine-tuning workflows: prove what should move, what should stay, and what should be trained.</p>
         </div>
         <div className="home-allocation-grid">
           {allocationLayers.map((layer) => (
@@ -215,7 +231,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-steps" id="how-it-works">
         <div className="home-section-head">
           <h2>Traces become model allocation decisions.</h2>
-          <p>The same loop starts offline, then evolves into a continuously optimizing runtime.</p>
+          <p>The loop starts with uploaded traces and becomes a calibrated operating system for routing, evaluation, and fine-tuning.</p>
         </div>
         <div className="home-step-grid">
           {steps.map((step, index) => (
@@ -236,13 +252,13 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <p className="eyebrow">48-hour model spend assessment</p>
           <h2>A savings assessment that pays for itself.</h2>
           <p>
-            Do not trust a live router on day one. Import traces, replay candidate models, identify safe savings, and
-            export a policy before touching production traffic.
+            Do not trust a live router on day one. Import traces, define evals, calibrate those evals with golden data,
+            replay candidate models, identify safe savings, and decide where fine-tuning can reduce repeated context cost.
           </p>
         </div>
         <div className="home-assessment-card">
           <span>After RouteLab assessment</span>
-          <b>Each workflow gets the cheapest safe route.</b>
+          <b>Each distinct task gets the cheapest safe route or a fine-tuning path.</b>
           <div>
             {assessmentRoutes.map((route) => (
               <p key={route.label}><strong>{route.value}</strong>{route.label}</p>
@@ -271,8 +287,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       </section>
 
       <section className="home-final">
-        <h2>Start with traces. Leave with a safe routing policy.</h2>
-        <p>Replay candidate models, prove quality, and export the cheapest safe execution path for every workflow.</p>
+        <h2>Start with traces. Leave with a calibrated model strategy.</h2>
+        <p>Classify tasks, create evals, verify them with golden data, simulate candidates, generate recommendations, and fine-tune when the evidence says it is worth it.</p>
         <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
       </section>
 

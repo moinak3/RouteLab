@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import type { FineTuneSignal, GoldenDataset, GoldenDatasetRow, Trace } from "../types";
+import type { FineTuneSignal, GoldenDataset, GoldenDatasetCalibration, GoldenDatasetCalibrationRow, GoldenDatasetRow, Trace, TraceJudgeResult } from "../types";
 
 export const EXTRA_CONTEXT_TOKEN_THRESHOLD = 1200;
 const STABLE_PATTERN_MIN_TRACES = 6;
@@ -39,6 +39,92 @@ export function parseGoldenDatasetCsv(text: string, name: string, now = new Date
 export function updateGoldenDatasetCell(dataset: GoldenDataset, rowIndex: number, column: string, value: string): GoldenDataset {
   const rows = dataset.rows.map((row, index) => index === rowIndex ? { ...row, [column]: normalizeCell(value) } : row);
   return { ...dataset, rows, row_count: rows.length, columns: Array.from(new Set([...dataset.columns, column])) };
+}
+
+const readString = (row: GoldenDatasetRow, keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && value !== "") return String(value);
+  }
+  return "";
+};
+
+const readNumber = (row: GoldenDatasetRow, keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  }
+  return undefined;
+};
+
+const readBoolean = (row: GoldenDatasetRow, keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value > 0;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["true", "pass", "passed", "yes", "1"].includes(normalized)) return true;
+      if (["false", "fail", "failed", "no", "0"].includes(normalized)) return false;
+    }
+  }
+  return undefined;
+};
+
+const readSeverity = (row: GoldenDatasetRow) => {
+  const severity = readString(row, ["human_severity", "severity", "expected_severity"]).toLowerCase();
+  return severity === "minor" || severity === "major" || severity === "critical" ? severity : undefined;
+};
+
+const pct = (numerator: number, denominator: number) => denominator ? numerator / denominator * 100 : 0;
+
+export function calibrateGoldenDataset(dataset: GoldenDataset | undefined, traces: Trace[], judgeResults: TraceJudgeResult[]): GoldenDatasetCalibration {
+  const traceById = new Map(traces.map((trace) => [trace.id, trace]));
+  const judgeByTraceId = new Map(judgeResults.map((result) => [result.trace_id, result]));
+  const rows = (dataset?.rows ?? []).map((row): GoldenDatasetCalibrationRow | null => {
+    const traceId = readString(row, ["trace_id", "id"]);
+    if (!traceId) return null;
+    const trace = traceById.get(traceId);
+    const judge = judgeByTraceId.get(traceId);
+    const humanScore = readNumber(row, ["human_score", "score", "expected_score"]);
+    const humanPassed = readBoolean(row, ["human_passed", "passed", "expected_passed", "label"]);
+    const humanSeverity = readSeverity(row);
+    const expectedAnswer = readString(row, ["expected_answer", "expected_response", "gold_answer", "human_answer"]);
+    const agentAnswer = readString(row, ["agent_answer", "response", "actual_answer"]) || trace?.response_text || "";
+    const agreement = humanPassed === undefined || judge === undefined ? undefined : humanPassed === judge.passed;
+    return {
+      trace_id: traceId,
+      prompt: readString(row, ["prompt", "prompt_text"]) || trace?.prompt_text || "",
+      agent_answer: agentAnswer,
+      expected_answer: expectedAnswer || String(trace?.metadata?.expected_answer ?? ""),
+      human_passed: humanPassed,
+      human_score: humanScore,
+      human_severity: humanSeverity,
+      judge_passed: judge?.passed,
+      judge_score: judge?.score,
+      judge_severity: judge?.severity,
+      judge_rationale: judge?.rationale,
+      agreement,
+      score_delta: humanScore === undefined || judge === undefined ? undefined : judge.score - humanScore,
+    };
+  }).filter((row): row is GoldenDatasetCalibrationRow => row !== null);
+
+  const comparable = rows.filter((row) => row.human_passed !== undefined && row.judge_passed !== undefined);
+  const scoreComparable = rows.filter((row) => row.score_delta !== undefined);
+  const severityComparable = rows.filter((row) => row.human_severity && row.judge_severity);
+  const disagreements = comparable.filter((row) => row.agreement === false);
+  return {
+    matched_rows: rows.length,
+    coverage_pct: pct(rows.filter((row) => row.judge_passed !== undefined).length, dataset?.row_count ?? 0),
+    agreement_rate: pct(comparable.filter((row) => row.agreement).length, comparable.length),
+    false_pass_rate: pct(comparable.filter((row) => row.human_passed === false && row.judge_passed === true).length, comparable.length),
+    false_fail_rate: pct(comparable.filter((row) => row.human_passed === true && row.judge_passed === false).length, comparable.length),
+    avg_score_delta: scoreComparable.length ? scoreComparable.reduce((sum, row) => sum + Math.abs(row.score_delta ?? 0), 0) / scoreComparable.length : 0,
+    severity_agreement_rate: pct(severityComparable.filter((row) => row.human_severity === row.judge_severity).length, severityComparable.length),
+    disagreements,
+    rows,
+  };
 }
 
 export function analyzeFineTuneOpportunity(traces: Trace[], thresholdTokens = EXTRA_CONTEXT_TOKEN_THRESHOLD): FineTuneSignal {

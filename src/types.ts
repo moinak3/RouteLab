@@ -161,6 +161,17 @@ export type GoldenDatasetRow = Record<string, string | number | boolean | null>;
 export type GoldenDataset = {
   id: string; name: string; created_at: string; row_count: number; columns: string[]; rows: GoldenDatasetRow[];
 };
+export type GoldenDatasetCalibrationRow = {
+  trace_id: string; prompt: string; agent_answer: string; expected_answer: string;
+  human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical";
+  judge_passed?: boolean; judge_score?: number; judge_severity?: "minor" | "major" | "critical"; judge_rationale?: string;
+  agreement?: boolean; score_delta?: number;
+};
+export type GoldenDatasetCalibration = {
+  matched_rows: number; coverage_pct: number; agreement_rate: number; false_pass_rate: number;
+  false_fail_rate: number; avg_score_delta: number; severity_agreement_rate: number; disagreements: GoldenDatasetCalibrationRow[];
+  rows: GoldenDatasetCalibrationRow[];
+};
 export type FineTuneJob = {
   id: string; dataset_id: string; dataset_name: string; base_model: string; provider: string;
   status: "running" | "completed"; created_at: string; completed_at?: string; deployment_target?: string;

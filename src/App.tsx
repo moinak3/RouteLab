@@ -8,6 +8,7 @@ import { createSeedTraces } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
 import { Evals } from "./pages/Evals";
+import { FineTuning } from "./pages/FineTuning";
 import { GoldenDataset } from "./pages/GoldenDataset";
 import { Home } from "./pages/Home";
 import { ModelCatalog } from "./pages/ModelCatalog";
@@ -45,7 +46,7 @@ export default function App() {
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
-  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Evals", "Golden Dataset", "Simulations", "Recommendations", "Model Catalog", "Review Queue"];
+  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Evals", "Golden Dataset", "Simulations", "Recommendations", "Fine-Tuning", "Model Catalog", "Review Queue"];
   const pageLabel = (item: Page) => item;
 
   useEffect(() => {
@@ -146,10 +147,11 @@ export default function App() {
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
       {page === "Distinct Tasks" && <DistinctTasks traces={traces} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
-      {page === "Golden Dataset" && <GoldenDataset traces={traces} datasets={goldenDatasets} jobs={fineTuneJobs} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
+      {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
       {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
+      {page === "Fine-Tuning" && <FineTuning traces={traces} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
       {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onGatewayApiKey={(gateway,key)=>setGatewayApiKeys(keys=>({...keys,[gateway]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
     </main>
   </div>;
