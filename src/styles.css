@@ -117,6 +117,31 @@
 .recommendations-page .route{
   font-size:11px;
 }
+.provider-choice{
+  display:grid;
+  gap:5px;
+  margin:8px 0 14px;
+  padding:11px 12px;
+  border:1px solid #dce8de;
+  border-radius:9px;
+  background:#f5f8f5;
+}
+.provider-choice span{
+  color:#71857b;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.provider-choice b{
+  color:#1d3027;
+  font-size:12px;
+}
+.provider-choice small{
+  color:#71857b;
+  font-size:9px;
+  line-height:1.4;
+}
 @media(max-width:650px){
   .recommendations-page .hero strong{font-size:42px}
   .recommendations-page .recommendation-intro{font-size:15px}
@@ -342,6 +367,12 @@ code{color:#a9e8c0}
 .monthly-saving b,.rejected-alternative .rejected-saving{color:var(--green)}
 .rejected-alternative{background:rgba(255,125,98,.08);border-color:rgba(255,125,98,.2)}
 .rejected-alternative span,.rejected-alternative p{color:#ffb09e!important}
+.provider-choice{
+  background:rgba(88,240,132,.08);
+  border-color:rgba(88,240,132,.22);
+}
+.provider-choice span,.provider-choice small{color:#9fb0a8}
+.provider-choice b{color:#eef7f1}
 .model code{color:#bda7ff}
 .pricing-source{color:#9aaeaa}
 .projection{background:linear-gradient(135deg,#10241a,#092914);border:1px solid rgba(88,240,132,.18)}

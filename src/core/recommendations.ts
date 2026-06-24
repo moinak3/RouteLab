@@ -1,6 +1,7 @@
 import type { RoutingPolicy, RoutingRule, Trace, DistinctTaskBucket } from "../types";
 import { getModel, recommendationCandidates } from "./catalog";
 import { evaluateTrace } from "./evaluators";
+import { cheapestProviderQuoteForModel, providerQuotesForModel, quoteLabel } from "./providerPricing";
 import { cascade, MONTHLY_MULTIPLIER, replay } from "./simulations";
 
 const percentDelta = (before: number, after: number) => before ? (after - before) / before * 100 : 0;
@@ -18,19 +19,21 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
     let strategy: RoutingRule["strategy"];
     let rationale: string;
     let recommended: ReturnType<typeof replay> | undefined;
-    const candidates = candidateIds.map((modelId) => {
-      const direct = replay(selected, modelId);
-      const cascaded = cascade(selected, modelId, strong);
+    const providerQuotes = candidateIds.flatMap((modelId) => providerQuotesForModel(modelId));
+    const fallbackQuote = cheapestProviderQuoteForModel(strong);
+    const candidates = candidateIds.flatMap((modelId) => providerQuotesForModel(modelId).map((quote) => {
+      const direct = replay(selected, modelId, quote);
+      const cascaded = cascade(selected, modelId, strong, quote, fallbackQuote);
       const needsStrictEvidence = bucket.task.complexity === "high" || bucket.task.temporal_context === "late_multi_turn" || ["recovered_failure","failed"].includes(bucket.task.tool_use) || bucket.task.output_uncertainty === "low" && bucket.risk_level !== "low";
       const qualityThreshold = needsStrictEvidence ? .98 : bucket.risk_level === "low" && bucket.task.complexity === "low" ? .9 : .95;
       const directQuality = direct.summary.pass_rate >= qualityThreshold;
       const directValid = direct.summary.estimated_savings_usd > 0 && direct.summary.latency_delta_pct <= MAX_LATENCY_REGRESSION_PCT && directQuality;
       const cascadeValid = cascadeFallbackEnabled && modelId !== strong && cascaded.summary.estimated_savings_usd > 0 && cascaded.summary.latency_delta_pct <= MAX_LATENCY_REGRESSION_PCT && cascaded.summary.pass_rate >= .95;
-      return { modelId, direct, cascaded, directValid, cascadeValid };
-    });
+      return { modelId, quote, direct, cascaded, directValid, cascadeValid };
+    }));
     const valid = bucket.risk_level === "high" || bucket.task.tool_use === "failed" ? [] : candidates.flatMap((candidate) => [
-      ...(candidate.directValid ? [{ modelId: candidate.modelId, type: "direct" as const, result: candidate.direct }] : []),
-      ...(candidate.cascadeValid ? [{ modelId: candidate.modelId, type: "cascade" as const, result: candidate.cascaded }] : []),
+      ...(candidate.directValid ? [{ modelId: candidate.modelId, providerQuote: candidate.quote, type: "direct" as const, result: candidate.direct }] : []),
+      ...(candidate.cascadeValid ? [{ modelId: candidate.modelId, providerQuote: candidate.quote, type: "cascade" as const, result: candidate.cascaded }] : []),
     ]).sort((a, b) => b.result.summary.estimated_savings_usd - a.result.summary.estimated_savings_usd);
     const winner = valid[0];
     if (bucket.risk_level === "high") {
@@ -40,14 +43,14 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
       strategy = { type: "keep_current" };
       rationale = `Keep current routing: this Distinct Task contains unrecovered tool failures and requires recovery-focused evaluation before automatic switching.`;
     } else if (winner?.type === "direct") {
-      strategy = { type: "direct", model: winner.modelId };
+      strategy = { type: "direct", model: winner.modelId, provider: winner.providerQuote.provider_name };
       recommended = winner.result;
-      rationale = `${getModel(winner.modelId)?.display_name ?? winner.modelId} delivered the highest guardrail-approved savings and passed ${(winner.result.summary.pass_rate * 100).toFixed(0)}% of deterministic evaluations.`;
+      rationale = `${quoteLabel(winner.providerQuote)} delivered the highest guardrail-approved savings and passed ${(winner.result.summary.pass_rate * 100).toFixed(0)}% of deterministic evaluations.`;
       sampleSavings += winner.result.summary.estimated_savings_usd;
     } else if (winner?.type === "cascade") {
-      strategy = { type: "cascade", primary_model: winner.modelId, fallback_model: strong, evaluator: "mock_judge", pass_threshold: .85 };
+      strategy = { type: "cascade", primary_model: winner.modelId, primary_provider: winner.providerQuote.provider_name, fallback_model: strong, fallback_provider: fallbackQuote?.provider_name, evaluator: "mock_judge", pass_threshold: .85 };
       recommended = winner.result;
-      rationale = `${getModel(winner.modelId)?.display_name ?? winner.modelId} with Opus fallback delivered the highest guardrail-approved savings at ${(winner.result.summary.pass_rate * 100).toFixed(0)}% quality pass rate.`;
+      rationale = `${quoteLabel(winner.providerQuote)} with ${fallbackQuote ? quoteLabel(fallbackQuote) : getModel(strong)?.display_name ?? strong} fallback delivered the highest guardrail-approved savings at ${(winner.result.summary.pass_rate * 100).toFixed(0)}% quality pass rate.`;
       sampleSavings += winner.result.summary.estimated_savings_usd;
     } else {
       strategy = { type: "keep_current" };
@@ -75,6 +78,7 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
       .sort((a, b) => b.direct.summary.estimated_savings_usd - a.direct.summary.estimated_savings_usd)[0];
     const rejectedAlternative = rejected ? {
       model: rejected.modelId,
+      provider: rejected.quote.provider_name,
       reason: `Rejected because latency increases ${rejected.direct.summary.latency_delta_pct.toFixed(0)}%, above the ${MAX_LATENCY_REGRESSION_PCT}% guardrail.`,
       potential_monthly_savings_usd: rejected.direct.summary.estimated_savings_usd * monthlyMultiplier,
       comparison: {
@@ -83,7 +87,7 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
         quality: { before: baselineQuality, after: rejected.direct.summary.pass_rate, delta_pct: percentDelta(baselineQuality, rejected.direct.summary.pass_rate) },
       },
     } : undefined;
-    rules.push({ id: `rule_${bucket.bucket_id}`, name: bucket.bucket_name, match: { distinct_task_bucket_id: bucket.bucket_id, risk_level: bucket.risk_level }, strategy, rationale, estimated_monthly_savings_usd: estimatedMonthlySavings, comparison, rejected_alternative: rejectedAlternative });
+    rules.push({ id: `rule_${bucket.bucket_id}`, name: bucket.bucket_name, match: { distinct_task_bucket_id: bucket.bucket_id, risk_level: bucket.risk_level }, strategy, rationale, estimated_monthly_savings_usd: estimatedMonthlySavings, comparison, provider_quote: winner?.providerQuote, provider_quotes_evaluated: providerQuotes, rejected_alternative: rejectedAlternative });
   });
   return { id: "policy_recommended", name: "RouteLab recommended policy", created_at: "2026-06-07T00:00:00.000Z", rules, estimated_sample_savings_usd: sampleSavings, monthly_multiplier: monthlyMultiplier, estimated_monthly_savings_usd: sampleSavings * monthlyMultiplier, estimated_quality_delta: 0, estimated_latency_delta_pct: -24, risk_summary: "High-risk workloads remain protected; lower-risk workloads use the best guardrail-approved candidate.", candidate_model_ids: candidateIds };
 }
@@ -92,8 +96,8 @@ export const exportPolicyJson = (policy: RoutingPolicy) => JSON.stringify(policy
 export function exportLiteLlm(policy: RoutingPolicy) {
   const models = new Set<string>();
   policy.rules.forEach((rule) => {
-    if (rule.strategy.type === "direct") models.add(rule.strategy.model);
-    if (rule.strategy.type === "cascade") { models.add(rule.strategy.primary_model); models.add(rule.strategy.fallback_model); }
+    if (rule.strategy.type === "direct") models.add(`${rule.strategy.model} via ${rule.strategy.provider ?? "default provider"}`);
+    if (rule.strategy.type === "cascade") { models.add(`${rule.strategy.primary_model} via ${rule.strategy.primary_provider ?? "default provider"}`); models.add(`${rule.strategy.fallback_model} via ${rule.strategy.fallback_provider ?? "default provider"}`); }
   });
   return `model_list:\n${[...models].map((model) => `  - model_name: ${model}\n    litellm_params:\n      model: ${model}`).join("\n")}\n\nrouting_policies:\n${policy.rules.map((rule) => `  - name: ${rule.name}\n    match:\n      distinct_task_bucket_id: ${rule.match.distinct_task_bucket_id}\n    strategy: ${rule.strategy.type}`).join("\n")}\n`;
 }
@@ -110,6 +114,7 @@ export function exportOpenRouterConfig(policy: RoutingPolicy) {
       openrouter_model: model?.pricing_source_model_id ?? modelId,
       display_name: model?.display_name ?? modelId,
       provider: model?.provider ?? "unknown",
+      selected_provider: policy.rules.find((rule) => rule.provider_quote?.model_id === modelId)?.provider_quote?.provider_name,
     };
   });
   return JSON.stringify({
@@ -123,11 +128,13 @@ export function exportOpenRouterConfig(policy: RoutingPolicy) {
       strategy: rule.strategy.type === "keep_current"
         ? { type: "keep_current" }
         : rule.strategy.type === "direct"
-          ? { type: "direct", model: getModel(rule.strategy.model)?.pricing_source_model_id ?? rule.strategy.model }
+          ? { type: "direct", model: getModel(rule.strategy.model)?.pricing_source_model_id ?? rule.strategy.model, provider: rule.strategy.provider }
           : {
               type: "cascade",
               primary_model: getModel(rule.strategy.primary_model)?.pricing_source_model_id ?? rule.strategy.primary_model,
+              primary_provider: rule.strategy.primary_provider,
               fallback_model: getModel(rule.strategy.fallback_model)?.pricing_source_model_id ?? rule.strategy.fallback_model,
+              fallback_provider: rule.strategy.fallback_provider,
               evaluator: rule.strategy.evaluator,
               pass_threshold: rule.strategy.pass_threshold,
             },
@@ -137,8 +144,8 @@ export function exportOpenRouterConfig(policy: RoutingPolicy) {
 export function exportTypeScript(policy: RoutingPolicy) {
   const branches = policy.rules.map((rule) => {
     const decision = rule.strategy.type === "keep_current" ? `{ strategy: "keep_current" as const }`
-      : rule.strategy.type === "direct" ? `{ strategy: "direct" as const, model: "${rule.strategy.model}" }`
-      : `{ strategy: "cascade" as const, primaryModel: "${rule.strategy.primary_model}", fallbackModel: "${rule.strategy.fallback_model}", evaluator: "${rule.strategy.evaluator}", passThreshold: ${rule.strategy.pass_threshold} }`;
+      : rule.strategy.type === "direct" ? `{ strategy: "direct" as const, model: "${rule.strategy.model}", provider: "${rule.strategy.provider ?? ""}" }`
+      : `{ strategy: "cascade" as const, primaryModel: "${rule.strategy.primary_model}", primaryProvider: "${rule.strategy.primary_provider ?? ""}", fallbackModel: "${rule.strategy.fallback_model}", fallbackProvider: "${rule.strategy.fallback_provider ?? ""}", evaluator: "${rule.strategy.evaluator}", passThreshold: ${rule.strategy.pass_threshold} }`;
     return `  if (input.distinctTaskBucketId === "${rule.match.distinct_task_bucket_id}") return ${decision};`;
   }).join("\n");
   return `export type RouteInput = { distinctTaskBucketId: string };\nexport function routeRequest(input: RouteInput) {\n${branches}\n  return { strategy: "keep_current" as const };\n}\n`;

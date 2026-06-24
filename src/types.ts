@@ -87,10 +87,16 @@ export type Model = {
   family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local";
   family_tier: "top" | "mid" | "cheapest";
 };
+export type InferenceProviderQuote = {
+  provider_id: string; provider_name: string; model_id: string; model_display_name: string;
+  input_cost_per_1m: number; output_cost_per_1m: number; estimated_latency_ms: number;
+  pricing_source: "provider_quote" | "user_configured";
+};
 export type GatewayProvider = "OpenRouter";
 export type CandidateRun = {
   id: string; trace_id: string; candidate_model: string; response_text: string; input_tokens: number;
   output_tokens: number; latency_ms: number; cost_usd: number; status: "success" | "error";
+  provider?: string; provider_id?: string;
 };
 export type EvalResult = {
   id: string; trace_id: string; candidate_run_id: string; evaluator_type: string;
@@ -103,7 +109,7 @@ export type TraceJudgeResult = {
 };
 export type RoutingRule = {
   id: string; name: string; match: { distinct_task_bucket_id: string; risk_level: Risk };
-  strategy: { type: "direct"; model: string } | { type: "cascade"; primary_model: string; fallback_model: string; evaluator: string; pass_threshold: number } | { type: "keep_current" };
+  strategy: { type: "direct"; model: string; provider?: string } | { type: "cascade"; primary_model: string; primary_provider?: string; fallback_model: string; fallback_provider?: string; evaluator: string; pass_threshold: number } | { type: "keep_current" };
   rationale: string;
   estimated_monthly_savings_usd: number;
   comparison?: {
@@ -111,8 +117,10 @@ export type RoutingRule = {
     latency_ms: { before: number; after: number; delta_pct: number };
     quality: { before: number; after: number; delta_pct: number };
   };
+  provider_quote?: InferenceProviderQuote;
+  provider_quotes_evaluated?: InferenceProviderQuote[];
   rejected_alternative?: {
-    model: string; reason: string; potential_monthly_savings_usd: number;
+    model: string; provider?: string; reason: string; potential_monthly_savings_usd: number;
     comparison: NonNullable<RoutingRule["comparison"]>;
   };
 };

@@ -7,6 +7,7 @@ import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScri
 import { buildReviewQueue, REVIEW_LOW_SCORE_THRESHOLD, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
 import { createSeedTraces, SEED_TASK_GROUP_COUNT, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
 import { cascade, costOnly, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, mockGenerate, replay } from "../src/core/simulations";
+import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/core/providerPricing";
 import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
@@ -94,6 +95,18 @@ describe("providers and evaluators", () => {
     expect(mockGenerate(easy, "deepseek-r1").response_text).toBe(easy.metadata?.expected_answer);
     expect(mockGenerate(hard, "deepseek-r1").response_text).toContain("[FAIL_MAJOR]");
     expect(mockGenerate(hard, "claude-opus-4.8").response_text).toBe(hard.metadata?.expected_answer);
+  });
+  it("quotes at least five inference providers for model pricing", () => {
+    for (const model of modelCatalog) {
+      const quotes = providerQuotesForModel(model.id);
+      expect(quotes.length).toBeGreaterThanOrEqual(MIN_PROVIDER_QUOTES);
+      expect(new Set(quotes.map((quote) => quote.provider_id)).size).toBeGreaterThanOrEqual(MIN_PROVIDER_QUOTES);
+      expect(quotes.every((quote) => quote.input_cost_per_1m >= 0 && quote.output_cost_per_1m >= 0 && quote.estimated_latency_ms > 0)).toBe(true);
+    }
+    const quote = providerQuotesForModel("deepseek-r1")[0];
+    const result = replay(traces.slice(0, 1), "deepseek-r1", quote);
+    expect(result.runs[0].provider).toBe(quote.provider_name);
+    expect(quoteLabel(quote)).toContain(" via ");
   });
   it("runs deterministic evaluators", () => {
     expect(exactMatch("Hello world", "hello   world").passed).toBe(true);
@@ -198,6 +211,8 @@ describe("simulation and recommendations", () => {
     expect(policy.rules.every((rule) => rule.rationale)).toBe(true);
     expect(policy.rules.filter((rule) => rule.strategy.type !== "keep_current").every((rule) => rule.comparison)).toBe(true);
     expect(policy.rules.filter((rule) => rule.strategy.type === "keep_current").every((rule) => !rule.comparison)).toBe(true);
+    expect(policy.rules.filter((rule) => rule.strategy.type !== "keep_current").every((rule) => rule.provider_quote?.provider_name && rule.rationale.includes(" via "))).toBe(true);
+    expect(policy.rules.every((rule) => (rule.provider_quotes_evaluated?.length ?? 0) >= policy.candidate_model_ids.length * MIN_PROVIDER_QUOTES)).toBe(true);
     expect(policy.rules.find((rule) => rule.strategy.type === "direct")?.comparison?.cost.after).toBeLessThan(
       policy.rules.find((rule) => rule.strategy.type === "direct")!.comparison!.cost.before,
     );
@@ -214,7 +229,9 @@ describe("simulation and recommendations", () => {
     const openRouterConfig = JSON.parse(exportOpenRouterConfig(policy));
     expect(openRouterConfig.provider).toBe("openrouter");
     expect(openRouterConfig.routes).toHaveLength(distinctTaskBuckets.length);
+    expect(openRouterConfig.routes.some((route: { strategy: { provider?: string; primary_provider?: string } }) => route.strategy.provider || route.strategy.primary_provider)).toBe(true);
     expect(openRouterConfig.models.some((model: { openrouter_model: string }) => model.openrouter_model.includes("/"))).toBe(true);
+    expect(exportTypeScript(policy)).toContain("provider");
     expect(exportTypeScript(policy)).toContain("distinctTaskBucketId");
   });
   it("can constrain recommendations to one model candidate", () => {

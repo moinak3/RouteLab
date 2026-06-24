@@ -1,6 +1,7 @@
 import { calculateCost, getModel, isModelEnabled, modelCatalog } from "./catalog";
 import { evaluateTrace } from "./evaluators";
-import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket } from "../types";
+import { calculateProviderCost, cheapestProviderQuoteForModel } from "./providerPricing";
+import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket, InferenceProviderQuote } from "../types";
 
 export type SimulationSummary = {
   baseline_cost_usd: number; simulated_cost_usd: number; estimated_savings_usd: number; estimated_savings_pct: number;
@@ -24,20 +25,21 @@ const summarize = (traces: Trace[], runs: CandidateRun[], evals: EvalResult[], e
     severe_failure_rate: evals.filter((item) => item.severity === "critical").length / (evals.length || 1), escalation_rate: escalationRate,
   };
 };
-export function costOnly(traces: Trace[], candidateId: string, buckets: DistinctTaskBucket[] = []) {
+export function costOnly(traces: Trace[], candidateId: string, buckets: DistinctTaskBucket[] = [], providerQuote = cheapestProviderQuoteForModel(candidateId)) {
   const candidate = getModel(candidateId)!;
   const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
   const baseline = traces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
-  const simulated = traces.reduce((sum, trace) => sum + calculateCost(trace.input_tokens, trace.output_tokens, candidate), 0);
+  const quoteCost = (trace: Trace) => providerQuote ? calculateProviderCost(trace.input_tokens, trace.output_tokens, providerQuote) : calculateCost(trace.input_tokens, trace.output_tokens, candidate);
+  const simulated = traces.reduce((sum, trace) => sum + quoteCost(trace), 0);
   const byDistinctTask = buckets.map((bucket) => {
     const selected = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
     const actual = selected.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
-    const next = selected.reduce((sum, trace) => sum + calculateCost(trace.input_tokens, trace.output_tokens, candidate), 0);
+    const next = selected.reduce((sum, trace) => sum + quoteCost(trace), 0);
     return { distinct_task_bucket_id: bucket.bucket_id, savings: actual - next };
   });
-  return { baseline_cost_usd: baseline, simulated_cost_usd: simulated, estimated_savings_usd: baseline - simulated, estimated_savings_pct: (baseline - simulated) / baseline * 100, byDistinctTask };
+  return { baseline_cost_usd: baseline, simulated_cost_usd: simulated, estimated_savings_usd: baseline - simulated, estimated_savings_pct: (baseline - simulated) / baseline * 100, byDistinctTask, provider_quote: providerQuote };
 }
-export function mockGenerate(trace: Trace, modelId: string): CandidateRun {
+export function mockGenerate(trace: Trace, modelId: string, providerQuote = cheapestProviderQuoteForModel(modelId)): CandidateRun {
   const model = getModel(modelId)!;
   const strong = model.quality_tier === "strong";
   const easy = trace.metadata?.mock_difficulty === "easy";
@@ -46,11 +48,25 @@ export function mockGenerate(trace: Trace, modelId: string): CandidateRun {
   // Mock responses are short markers, so preserve historical volume for realistic pricing.
   const outputTokens = trace.output_tokens;
   const seed = [...`${trace.id}:${modelId}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const latency = trace.metadata?.mock_slow_candidate && modelId === "deepseek-r1" ? 6500 + seed % 300 : model.default_latency_ms + seed % 120;
-  return { id: `run_${trace.id}_${modelId}`, trace_id: trace.id, candidate_model: modelId, response_text: response, input_tokens: trace.input_tokens, output_tokens: outputTokens, latency_ms: latency, cost_usd: calculateCost(trace.input_tokens, outputTokens, model), status: "success" };
+  const providerLatency = providerQuote?.estimated_latency_ms ?? model.default_latency_ms;
+  const latency = trace.metadata?.mock_slow_candidate && modelId === "deepseek-r1" ? Math.round((6500 + seed % 300) * (providerLatency / model.default_latency_ms)) : providerLatency + seed % 120;
+  const cost = providerQuote ? calculateProviderCost(trace.input_tokens, outputTokens, providerQuote) : calculateCost(trace.input_tokens, outputTokens, model);
+  return {
+    id: `run_${trace.id}_${modelId}_${providerQuote?.provider_id ?? model.provider}`,
+    trace_id: trace.id,
+    candidate_model: modelId,
+    response_text: response,
+    input_tokens: trace.input_tokens,
+    output_tokens: outputTokens,
+    latency_ms: latency,
+    cost_usd: cost,
+    status: "success",
+    provider: providerQuote?.provider_name,
+    provider_id: providerQuote?.provider_id,
+  };
 }
-export function replay(traces: Trace[], candidateId: string): ReplayResult {
-  const runs = traces.map((trace) => mockGenerate(trace, candidateId));
+export function replay(traces: Trace[], candidateId: string, providerQuote?: InferenceProviderQuote): ReplayResult {
+  const runs = traces.map((trace) => mockGenerate(trace, candidateId, providerQuote));
   const evals = runs.map((run, index): EvalResult => ({ id: `eval_${run.id}`, trace_id: run.trace_id, candidate_run_id: run.id, ...evaluateTrace(traces[index], run.response_text) }));
   return { runs, evals, summary: summarize(traces, runs, evals) };
 }
@@ -62,13 +78,13 @@ export function replayFromRuns(traces: Trace[], runs: CandidateRun[]): ReplayRes
   });
   return { runs, evals, summary: summarize(traces, runs, evals) };
 }
-export function cascade(traces: Trace[], primaryId: string, fallbackId: string): ReplayResult {
-  const primary = replay(traces, primaryId);
+export function cascade(traces: Trace[], primaryId: string, fallbackId: string, primaryQuote?: InferenceProviderQuote, fallbackQuote?: InferenceProviderQuote): ReplayResult {
+  const primary = replay(traces, primaryId, primaryQuote);
   const runs: CandidateRun[] = []; const evals: EvalResult[] = []; let escalations = 0;
   traces.forEach((trace, index) => {
     if (primary.evals[index].passed) { runs.push(primary.runs[index]); evals.push(primary.evals[index]); return; }
     escalations++;
-    const fallback = mockGenerate(trace, fallbackId);
+    const fallback = mockGenerate(trace, fallbackId, fallbackQuote);
     fallback.latency_ms += primary.runs[index].latency_ms;
     fallback.cost_usd += primary.runs[index].cost_usd;
     const evaluation: EvalResult = { id: `eval_${fallback.id}`, trace_id: trace.id, candidate_run_id: fallback.id, ...evaluateTrace(trace, fallback.response_text) };
@@ -99,11 +115,11 @@ export function familyCascade(traces: Trace[], selectedModelId: string): ReplayR
   });
   return { runs, evals, summary: summarize(traces, runs, evals, escalations / Math.max(traces.length, 1)) };
 }
-export function monthlyDistinctTaskBreakdown(traces: Trace[], buckets: DistinctTaskBucket[], candidateId: string, strategy: "direct" | "cascade" | "family_cascade", fallbackId = "claude-opus-4.8") {
+export function monthlyDistinctTaskBreakdown(traces: Trace[], buckets: DistinctTaskBucket[], candidateId: string, strategy: "direct" | "cascade" | "family_cascade", fallbackId = "claude-opus-4.8", providerQuote?: InferenceProviderQuote) {
   const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
   return buckets.map((bucket) => {
     const selected = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
-    const result = strategy === "direct" ? replay(selected, candidateId) : strategy === "family_cascade" ? familyCascade(selected, candidateId) : cascade(selected, candidateId, fallbackId);
+    const result = strategy === "direct" ? replay(selected, candidateId, providerQuote) : strategy === "family_cascade" ? familyCascade(selected, candidateId) : cascade(selected, candidateId, fallbackId, providerQuote);
     return {
       distinct_task_bucket_id: bucket.bucket_id,
       name: bucket.bucket_name,
