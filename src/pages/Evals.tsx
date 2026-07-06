@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from "react";
 import type { Trace, TraceJudgeResult } from "../types";
 import { pct } from "../lib/format";
 import type { ReviewQueueFilter } from "../types/ui";
@@ -38,6 +39,44 @@ Output JSON:
     "Pass/fail score threshold",
   ],
 };
+
+type EvalDefinition = typeof activeEvalDefinition & { scope: string };
+const seededEvalDefinitions: EvalDefinition[] = [
+  { ...activeEvalDefinition, scope: "All distinct tasks" },
+  {
+    id: "policy_compliance_check",
+    name: "Policy compliance check",
+    status: "Running",
+    evaluator_type: "deterministic_rule_check",
+    model: "none",
+    threshold: 1,
+    prompt: "Rule-based evaluator rejects refund promises before verification, password disclosure requests, public data sharing, and unsupported SLA credit commitments.",
+    dimensions: ["Refund approval language", "Account access policy", "Data handling policy", "SLA eligibility constraints"],
+    scope: "Policy compliance review, refund and billing dispute resolution, account security verification",
+  },
+  {
+    id: "factual_grounding_judge",
+    name: "Factual grounding judge",
+    status: "Running",
+    evaluator_type: "llm_as_judge",
+    model: "gpt-5.5-pro",
+    threshold: .9,
+    prompt: "Score whether the answer is supported by retrieved context and cites the correct source for RAG-grounded support answers.",
+    dimensions: ["Retrieved context support", "Citation correctness", "Unsupported claim detection"],
+    scope: "RAG-grounded policy answers",
+  },
+  {
+    id: "tool_call_validity",
+    name: "Tool call validity",
+    status: "Running",
+    evaluator_type: "schema_check",
+    model: "none",
+    threshold: 1,
+    prompt: "Validate tool output schema, required arguments, tool success state, and whether the final answer reflects the returned tool data.",
+    dimensions: ["Tool arguments", "Tool status", "Schema validity", "Final answer consistency"],
+    scope: "Order status lookup, account security verification",
+  },
+];
 
 const monthLabel = (date: Date) => date.toLocaleString("en-US", { month: "short" });
 
@@ -94,6 +133,36 @@ export function Evals({
   const history = monthlyEvalHistory(traceJudgeResults);
   const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(seededEvalDefinitions);
+  const [modal,setModal]=useState<"import"|"create"|null>(null);
+  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All distinct tasks",prompt:""});
+  const [importText,setImportText]=useState(JSON.stringify(seededEvalDefinitions[0],null,2));
+  const [formError,setFormError]=useState<string|null>(null);
+  function importEval(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const parsed=JSON.parse(importText) as Partial<EvalDefinition>;
+      if(!parsed.id||!parsed.name) throw new Error("Eval JSON must include id and name.");
+      setEvalDefinitions(items=>[{...seededEvalDefinitions[0],...parsed,dimensions:Array.isArray(parsed.dimensions)?parsed.dimensions:[],scope:parsed.scope??"Imported task scope",status:parsed.status??"Running"},...items]);
+      setModal(null); setFormError(null);
+    } catch(error) { setFormError(error instanceof Error?error.message:"Invalid eval JSON."); }
+  }
+  function createEval(event: FormEvent) {
+    event.preventDefault();
+    if(!draft.name.trim()){setFormError("Name is required.");return;}
+    setEvalDefinitions(items=>[{
+      id:draft.name.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")||`eval_${Date.now()}`,
+      name:draft.name.trim(),
+      status:"Running",
+      evaluator_type:draft.evaluator_type,
+      model:draft.model,
+      threshold:Number(draft.threshold)||.85,
+      prompt:draft.prompt||"Evaluate candidate response against the selected task rubric.",
+      dimensions:["Task scope", "Pass threshold", "Evaluator prompt"],
+      scope:draft.scope||"All distinct tasks",
+    },...items]);
+    setModal(null); setFormError(null);
+  }
 
   return (
     <>
@@ -108,8 +177,8 @@ export function Evals({
           </p>
         </div>
         <div className="eval-actions">
-          <button type="button" className="primary">Import eval</button>
-          <button type="button">Create eval</button>
+          <button type="button" className="primary" onClick={()=>setModal("import")}>Import eval</button>
+          <button type="button" onClick={()=>setModal("create")}>Create eval</button>
           <button type="button">Manage versions</button>
         </div>
       </section>
@@ -180,6 +249,11 @@ export function Evals({
         </div>
       </article>
 
+      <section className="panel eval-library">
+        <div className="panelhead"><div><p className="eyebrow">Eval library</p><h2>{evalDefinitions.length} active evals</h2></div></div>
+        <div className="eval-library-grid">{evalDefinitions.map((definition)=><article key={definition.id}><span className="eval-status">{definition.status}</span><h3>{definition.name}</h3><p>{definition.scope}</p><small>{definition.evaluator_type} · {definition.model} · threshold {pct(definition.threshold*100)}</small></article>)}</div>
+      </section>
+
       <section className="panel eval-history">
         <div className="eval-history-head">
           <div>
@@ -190,6 +264,7 @@ export function Evals({
         </div>
         <div className="eval-history-chart" aria-label="Monthly eval score line chart">
           <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Average eval score by month">
+            {[0,.25,.5,.75,1].map((value)=><text className="eval-axis-label" key={value} x="4" y={evalChart.top+(1-value)*(evalChart.height-evalChart.top-evalChart.bottom)+4}>{pct(value*100)}</text>)}
             <g className="eval-history-grid">
               {[.25, .5, .75].map((value) => {
                 const y = evalChart.top + (1 - value) * (evalChart.height - evalChart.top - evalChart.bottom);
@@ -216,6 +291,7 @@ export function Evals({
           </svg>
         </div>
       </section>
+      {modal&&<div className="modal-layer" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setModal(null)}}><form className="eval-modal" onSubmit={modal==="import"?importEval:createEval} role="dialog" aria-modal="true"><div className="modal-head"><div><p className="eyebrow">{modal==="import"?"Import eval":"Create eval"}</p><h2>{modal==="import"?"Import JSON eval definition":"Create evaluator"}</h2></div><button type="button" onClick={()=>setModal(null)}>×</button></div>{modal==="import"?<><p>Paste an eval definition JSON object with id, name, evaluator_type, model, threshold, prompt, dimensions, and scope.</p><textarea value={importText} onChange={event=>setImportText(event.target.value)} rows={12} /></>:<div className="eval-form-grid"><label>Name<input value={draft.name} onChange={event=>setDraft({...draft,name:event.target.value})} /></label><label>Evaluator type<select value={draft.evaluator_type} onChange={event=>setDraft({...draft,evaluator_type:event.target.value})}><option>llm_as_judge</option><option>deterministic_rule_check</option><option>schema_check</option></select></label><label>Judge model<input value={draft.model} onChange={event=>setDraft({...draft,model:event.target.value})} /></label><label>Threshold<input value={draft.threshold} onChange={event=>setDraft({...draft,threshold:event.target.value})} /></label><label>Task scope<input value={draft.scope} onChange={event=>setDraft({...draft,scope:event.target.value})} /></label><label className="wide">Prompt<textarea value={draft.prompt} onChange={event=>setDraft({...draft,prompt:event.target.value})} rows={6} /></label></div>}{formError&&<p className="form-error">{formError}</p>}<button type="submit" className="primary">{modal==="import"?"Import eval":"Create eval"}</button></form></div>}
     </>
   );
 }

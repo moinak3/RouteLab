@@ -1,4 +1,4 @@
-import type { RoutingPolicy, RoutingRule, Trace, DistinctTaskBucket } from "../types";
+import type { RoutingPolicy, RoutingRule, ScriptAutomationRecommendation, ToolCallSignatureStep, Trace, TraceSpan, DistinctTaskBucket } from "../types";
 import { getModel, recommendationCandidates } from "./catalog";
 import { evaluateTrace } from "./evaluators";
 import { cheapestProviderQuoteForModel, providerQuotesForModel, quoteLabel } from "./providerPricing";
@@ -6,6 +6,140 @@ import { cascade, MONTHLY_MULTIPLIER, replay } from "./simulations";
 
 const percentDelta = (before: number, after: number) => before ? (after - before) / before * 100 : 0;
 const MAX_LATENCY_REGRESSION_PCT = 50;
+const SCRIPTABLE_PATTERN_THRESHOLD = .9;
+const SCRIPT_REPLACEMENT_SAVINGS_RATE = .9;
+const toolSpanTypes = new Set(["tool", "function"]);
+
+type ToolCallInstance = {
+  tool: string;
+  args: Record<string, string>;
+};
+type ToolCallSession = {
+  id: string;
+  calls: ToolCallInstance[];
+  accepted: boolean;
+  automation_cost_usd: number;
+};
+
+const compactName = (value: string) => value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const scriptSlug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "tool_sequence";
+const normalizeArgumentValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return JSON.stringify(value.map(normalizeArgumentValue));
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+    return JSON.stringify(Object.fromEntries(entries.map(([key, item]) => [key, normalizeArgumentValue(item)])));
+  }
+  return String(value);
+};
+const argumentRecord = (span: TraceSpan): Record<string, string> => {
+  const metadata = span.metadata ?? {};
+  const raw = span.input ?? metadata.arguments ?? metadata.args ?? metadata.params ?? metadata.input;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw === undefined ? {} : { input: normalizeArgumentValue(raw) };
+  return Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, normalizeArgumentValue(value)]));
+};
+const explicitAccepted = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return undefined;
+  if (/^(accepted|approved|pass|passed|success|true)$/i.test(value)) return true;
+  if (/^(rejected|failed|fail|false)$/i.test(value)) return false;
+  return undefined;
+};
+const traceAccepted = (trace: Trace) => {
+  const metadata = trace.metadata ?? {};
+  const explicit = explicitAccepted(metadata.user_accepted ?? metadata.accepted ?? metadata.result_accepted ?? metadata.human_accepted ?? metadata.human_passed ?? metadata.outcome);
+  if (explicit !== undefined) return explicit;
+  if (trace.status === "error") return false;
+  const reference = metadata._internal_reference;
+  if (reference !== undefined) return String(trace.response_text ?? "") === String(reference);
+  return true;
+};
+const toolCallsForTrace = (trace: Trace): ToolCallInstance[] => (trace.spans ?? [])
+  .filter((span) => toolSpanTypes.has(span.type))
+  .map((span) => ({ tool: String(span.name ?? span.id ?? span.type), args: argumentRecord(span) }));
+const toolCallSessions = (traces: Trace[]): ToolCallSession[] => {
+  const groups = new Map<string, Trace[]>();
+  traces.forEach((trace) => {
+    const key = trace.id;
+    groups.set(key, [...(groups.get(key) ?? []), trace]);
+  });
+  return [...groups.entries()].map(([id, items]) => {
+    const sorted = [...items].sort((a, b) => `${a.timestamp}-${a.node_id ?? a.id}`.localeCompare(`${b.timestamp}-${b.node_id ?? b.id}`));
+    const toolBearing = sorted.map((trace) => ({ trace, calls: toolCallsForTrace(trace) })).filter((item) => item.calls.length);
+    return {
+      id,
+      calls: toolBearing.flatMap((item) => item.calls),
+      accepted: sorted.every(traceAccepted),
+      automation_cost_usd: toolBearing.reduce((sum, item) => sum + (item.trace.cost_usd ?? 0), 0),
+    };
+  }).filter((session) => session.calls.length);
+};
+const signatureKey = (calls: ToolCallInstance[]) => calls.map((call) => `${call.tool}(${Object.keys(call.args).sort().join(",")})`).join(" -> ");
+const stepSummaries = (sessions: ToolCallSession[]): ToolCallSignatureStep[] => {
+  const maxSteps = Math.max(...sessions.map((session) => session.calls.length));
+  return Array.from({ length: maxSteps }, (_, index) => {
+    const calls = sessions.map((session) => session.calls[index]).filter((call): call is ToolCallInstance => Boolean(call));
+    const keys = [...new Set(calls.flatMap((call) => Object.keys(call.args)))].sort();
+    return {
+      tool_name: calls[0]?.tool ?? "unknown_tool",
+      fixed_arguments: keys.filter((key) => calls.length === sessions.length && new Set(calls.map((call) => call.args[key])).size === 1),
+      variable_arguments: keys.filter((key) => calls.length !== sessions.length || new Set(calls.map((call) => call.args[key])).size !== 1),
+    };
+  });
+};
+const variationPct = (values: string[]) => {
+  if (!values.length) return 0;
+  const counts = new Map<string, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  return (1 - Math.max(...counts.values()) / values.length) * 100;
+};
+const argumentVariationPct = (sessions: ToolCallSession[]) => {
+  const steps = stepSummaries(sessions);
+  if (!steps.length) return 0;
+  const variableSteps = steps.filter((step) => step.variable_arguments.length).length;
+  return variableSteps / steps.length * 100;
+};
+const scriptStub = (steps: ToolCallSignatureStep[], scriptName: string) => {
+  const calls = steps.map((step, index) => {
+    const args = [...step.fixed_arguments.map((arg) => `${arg}: fixed.${arg}`), ...step.variable_arguments.map((arg) => `${arg}: input.${arg}`)].join(", ");
+    return `  const step${index + 1} = await tools.${scriptSlug(step.tool_name)}({ ${args} });`;
+  }).join("\n");
+  return `export async function ${scriptName}(input) {\n${calls || "  const step1 = await tools.run(input);"}\n  return step${Math.max(steps.length, 1)};\n}`;
+};
+
+export function recommendScriptAutomation(traces: Trace[], monthlyMultiplier = MONTHLY_MULTIPLIER): ScriptAutomationRecommendation[] {
+  const sessions = toolCallSessions(traces);
+  const clusters = new Map<string, ToolCallSession[]>();
+  sessions.forEach((session) => clusters.set(signatureKey(session.calls), [...(clusters.get(signatureKey(session.calls)) ?? []), session]));
+  return [...clusters.entries()].flatMap(([key, items], index) => {
+    const branchVariation = variationPct(items.map((item) => item.calls.map((call) => call.tool).join(" -> ")));
+    const outcomeVariation = variationPct(items.map((item) => String(item.accepted)));
+    const argVariation = argumentVariationPct(items);
+    const patternMatch = 100 - Math.max(branchVariation, outcomeVariation);
+    if (items.length < 3 || patternMatch < SCRIPTABLE_PATTERN_THRESHOLD * 100) return [];
+    const steps = stepSummaries(items);
+    const name = steps.map((step) => compactName(step.tool_name)).join(" -> ");
+    const scriptName = `run${steps.map((step) => compactName(step.tool_name).replace(/\s+/g, "")).join("") || `ToolSequence${index + 1}`}`;
+    const projectedMonthlySavings = items.reduce((sum, item) => sum + item.automation_cost_usd, 0) * monthlyMultiplier * SCRIPT_REPLACEMENT_SAVINGS_RATE;
+    return [{
+      id: `script_${scriptSlug(key)}_${index + 1}`,
+      cluster_name: name,
+      example_sequence: steps,
+      instance_count: items.length,
+      pattern_match_pct: patternMatch,
+      variation: {
+        argument_variation_pct: argVariation,
+        branch_variation_pct: branchVariation,
+        outcome_variation_pct: outcomeVariation,
+      },
+      projected_monthly_savings_usd: projectedMonthlySavings,
+      script_name: `${scriptSlug(name)}.ts`,
+      script_stub: scriptStub(steps, scriptName),
+      rationale: `${items.length} sessions follow the same tool-call signature with no observed reasoning-driven branch changes.`,
+    }];
+  }).sort((a, b) => b.projected_monthly_savings_usd - a.projected_monthly_savings_usd).slice(0, 4);
+}
 
 export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], candidateIds = recommendationCandidates.map((model) => model.id), strong = "claude-opus-4.8"): RoutingPolicy {
   const rules: RoutingRule[] = [];
@@ -48,7 +182,7 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
       rationale = `${quoteLabel(winner.providerQuote)} delivered the highest guardrail-approved savings and passed ${(winner.result.summary.pass_rate * 100).toFixed(0)}% of deterministic evaluations.`;
       sampleSavings += winner.result.summary.estimated_savings_usd;
     } else if (winner?.type === "cascade") {
-      strategy = { type: "cascade", primary_model: winner.modelId, primary_provider: winner.providerQuote.provider_name, fallback_model: strong, fallback_provider: fallbackQuote?.provider_name, evaluator: "mock_judge", pass_threshold: .85 };
+      strategy = { type: "cascade", primary_model: winner.modelId, primary_provider: winner.providerQuote.provider_name, fallback_model: strong, fallback_provider: fallbackQuote?.provider_name, evaluator: "trace_quality_llm_judge", pass_threshold: .85 };
       recommended = winner.result;
       rationale = `${quoteLabel(winner.providerQuote)} with ${fallbackQuote ? quoteLabel(fallbackQuote) : getModel(strong)?.display_name ?? strong} fallback delivered the highest guardrail-approved savings at ${(winner.result.summary.pass_rate * 100).toFixed(0)}% quality pass rate.`;
       sampleSavings += winner.result.summary.estimated_savings_usd;
@@ -89,7 +223,7 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
     } : undefined;
     rules.push({ id: `rule_${bucket.bucket_id}`, name: bucket.bucket_name, match: { distinct_task_bucket_id: bucket.bucket_id, risk_level: bucket.risk_level }, strategy, rationale, estimated_monthly_savings_usd: estimatedMonthlySavings, comparison, provider_quote: winner?.providerQuote, provider_quotes_evaluated: providerQuotes, rejected_alternative: rejectedAlternative });
   });
-  return { id: "policy_recommended", name: "RouteLab recommended policy", created_at: "2026-06-07T00:00:00.000Z", rules, estimated_sample_savings_usd: sampleSavings, monthly_multiplier: monthlyMultiplier, estimated_monthly_savings_usd: sampleSavings * monthlyMultiplier, estimated_quality_delta: 0, estimated_latency_delta_pct: -24, risk_summary: "High-risk workloads remain protected; lower-risk workloads use the best guardrail-approved candidate.", candidate_model_ids: candidateIds };
+  return { id: "policy_recommended", name: "RouteLab recommended policy", created_at: "2026-06-07T00:00:00.000Z", rules, estimated_sample_savings_usd: sampleSavings, monthly_multiplier: monthlyMultiplier, estimated_monthly_savings_usd: sampleSavings * monthlyMultiplier, estimated_quality_delta: 0, estimated_latency_delta_pct: -24, risk_summary: "High-risk workloads remain protected; lower-risk workloads use the best guardrail-approved candidate.", candidate_model_ids: candidateIds, script_automation_recommendations: recommendScriptAutomation(traces, monthlyMultiplier) };
 }
 
 export const exportPolicyJson = (policy: RoutingPolicy) => JSON.stringify(policy, null, 2);

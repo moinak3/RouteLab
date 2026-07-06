@@ -39,17 +39,19 @@ export function costOnly(traces: Trace[], candidateId: string, buckets: Distinct
   });
   return { baseline_cost_usd: baseline, simulated_cost_usd: simulated, estimated_savings_usd: baseline - simulated, estimated_savings_pct: (baseline - simulated) / baseline * 100, byDistinctTask, provider_quote: providerQuote };
 }
-export function mockGenerate(trace: Trace, modelId: string, providerQuote = cheapestProviderQuoteForModel(modelId)): CandidateRun {
+export function deterministicGenerate(trace: Trace, modelId: string, providerQuote = cheapestProviderQuoteForModel(modelId)): CandidateRun {
   const model = getModel(modelId)!;
   const strong = model.quality_tier === "strong";
-  const easy = trace.metadata?.mock_difficulty === "easy";
-  const expected = String(trace.metadata?.expected_answer ?? trace.response_text ?? "");
-  const response = strong || easy ? expected : "[FAIL_MAJOR] Incomplete candidate answer";
-  // Mock responses are short markers, so preserve historical volume for realistic pricing.
+  const candidatePasses = trace.metadata?._internal_candidate_quality === "passes";
+  const reference = String(trace.metadata?._internal_reference ?? trace.response_text ?? "");
+  const weakResponse = String(trace.metadata?._internal_weak_response ?? "I can help with this. The request appears eligible, and I will proceed without further review.");
+  const response = strong || candidatePasses ? reference : weakResponse;
+  // Preserve historical volume for comparable pricing.
   const outputTokens = trace.output_tokens;
   const seed = [...`${trace.id}:${modelId}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const providerLatency = providerQuote?.estimated_latency_ms ?? model.default_latency_ms;
-  const latency = trace.metadata?.mock_slow_candidate && modelId === "deepseek-r1" ? Math.round((6500 + seed % 300) * (providerLatency / model.default_latency_ms)) : providerLatency + seed % 120;
+  const latencySensitive = String(trace.metadata?.distinct_task_label ?? "").toLowerCase().includes("refund");
+  const latency = latencySensitive && modelId === "deepseek-r1" ? Math.round((6500 + seed % 300) * (providerLatency / model.default_latency_ms)) : providerLatency + seed % 120;
   const cost = providerQuote ? calculateProviderCost(trace.input_tokens, outputTokens, providerQuote) : calculateCost(trace.input_tokens, outputTokens, model);
   return {
     id: `run_${trace.id}_${modelId}_${providerQuote?.provider_id ?? model.provider}`,
@@ -66,7 +68,7 @@ export function mockGenerate(trace: Trace, modelId: string, providerQuote = chea
   };
 }
 export function replay(traces: Trace[], candidateId: string, providerQuote?: InferenceProviderQuote): ReplayResult {
-  const runs = traces.map((trace) => mockGenerate(trace, candidateId, providerQuote));
+  const runs = traces.map((trace) => deterministicGenerate(trace, candidateId, providerQuote));
   const evals = runs.map((run, index): EvalResult => ({ id: `eval_${run.id}`, trace_id: run.trace_id, candidate_run_id: run.id, ...evaluateTrace(traces[index], run.response_text) }));
   return { runs, evals, summary: summarize(traces, runs, evals) };
 }
@@ -84,7 +86,7 @@ export function cascade(traces: Trace[], primaryId: string, fallbackId: string, 
   traces.forEach((trace, index) => {
     if (primary.evals[index].passed) { runs.push(primary.runs[index]); evals.push(primary.evals[index]); return; }
     escalations++;
-    const fallback = mockGenerate(trace, fallbackId, fallbackQuote);
+    const fallback = deterministicGenerate(trace, fallbackId, fallbackQuote);
     fallback.latency_ms += primary.runs[index].latency_ms;
     fallback.cost_usd += primary.runs[index].cost_usd;
     const evaluation: EvalResult = { id: `eval_${fallback.id}`, trace_id: trace.id, candidate_run_id: fallback.id, ...evaluateTrace(trace, fallback.response_text) };
@@ -103,7 +105,7 @@ export function familyCascade(traces: Trace[], selectedModelId: string): ReplayR
   traces.forEach((trace) => {
     let accumulatedCost = 0; let accumulatedLatency = 0;
     for (let index = 0; index < models.length; index++) {
-      const run = mockGenerate(trace, models[index].id);
+      const run = deterministicGenerate(trace, models[index].id);
       accumulatedCost += run.cost_usd; accumulatedLatency += run.latency_ms;
       const evaluation: EvalResult = { id: `eval_${run.id}`, trace_id: trace.id, candidate_run_id: run.id, ...evaluateTrace(trace, run.response_text) };
       if (evaluation.passed || index === models.length - 1) {

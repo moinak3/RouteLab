@@ -124,11 +124,33 @@ export type RoutingRule = {
     comparison: NonNullable<RoutingRule["comparison"]>;
   };
 };
+export type ToolCallSignatureStep = {
+  tool_name: string;
+  fixed_arguments: string[];
+  variable_arguments: string[];
+};
+export type ScriptAutomationRecommendation = {
+  id: string;
+  cluster_name: string;
+  example_sequence: ToolCallSignatureStep[];
+  instance_count: number;
+  pattern_match_pct: number;
+  variation: {
+    argument_variation_pct: number;
+    branch_variation_pct: number;
+    outcome_variation_pct: number;
+  };
+  projected_monthly_savings_usd: number;
+  script_name: string;
+  script_stub: string;
+  rationale: string;
+};
 export type RoutingPolicy = {
   id: string; name: string; created_at: string; rules: RoutingRule[]; estimated_monthly_savings_usd: number;
   estimated_sample_savings_usd: number; monthly_multiplier: number;
   estimated_quality_delta: number; estimated_latency_delta_pct: number; risk_summary: string;
   candidate_model_ids: string[];
+  script_automation_recommendations: ScriptAutomationRecommendation[];
 };
 export type BenchmarkFamily = {
   id: string; name: string; description: string; best_for: string[]; weak_for: string[];
@@ -162,7 +184,7 @@ export type GoldenDataset = {
   id: string; name: string; created_at: string; row_count: number; columns: string[]; rows: GoldenDatasetRow[];
 };
 export type GoldenDatasetCalibrationRow = {
-  trace_id: string; prompt: string; agent_answer: string; expected_answer: string;
+  trace_id: string; prompt: string; agent_answer: string; human_answer: string;
   human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical";
   judge_passed?: boolean; judge_score?: number; judge_severity?: "minor" | "major" | "critical"; judge_rationale?: string;
   agreement?: boolean; score_delta?: number;
@@ -174,7 +196,9 @@ export type GoldenDatasetCalibration = {
 };
 export type FineTuneJob = {
   id: string; dataset_id: string; dataset_name: string; base_model: string; provider: string;
-  status: "running" | "completed"; created_at: string; completed_at?: string; deployment_target?: string;
+  status: "queued" | "running" | "completed" | "failed"; created_at: string; completed_at?: string; deployment_target?: string;
+  external_job_id?: string; external_project_id?: string; external_url?: string; error?: string;
+  mode?: "simulated" | "baseten";
 };
 export type FineTuneSignal = {
   should_suggest: boolean; threshold_tokens: number; matching_traces: number; total_traces: number;

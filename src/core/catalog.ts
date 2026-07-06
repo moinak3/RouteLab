@@ -1,4 +1,4 @@
-import type { Model } from "../types";
+import type { Model } from "../types.js";
 
 export const modelCatalog: Model[] = [
   { id: "gpt-5.5-pro", provider: "openai", family: "OpenAI", family_tier: "top", display_name: "GPT-5.5 Pro", input_cost_per_1m: 30, output_cost_per_1m: 180, default_latency_ms: 1800, deployment_type: "closed_managed", quality_tier: "strong", pricing_source: "OpenRouter", pricing_source_model_id: "openai/gpt-5.5-pro", pricing_updated_at: "2026-06-09" },

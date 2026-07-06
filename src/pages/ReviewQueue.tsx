@@ -101,9 +101,9 @@ export function ReviewQueue({
     setIndex(Math.min(index + 1, Math.max(reviewItems.length - 1, 0)));
   };
   const choiceLabels: Array<[ReviewDecision, string, string]> = [
-    ["approve", "Approve", "Eval is wrong"],
-    ["reject", "Reject", "Real failure"],
-    ["escalate", "Flag for review", "Needs expert"],
+    ["approve", "Overrule judge", "Response is actually fine"],
+    ["reject", "Confirm failure", "Judge is right"],
+    ["escalate", "Escalate to expert", "Needs domain review"],
     ["skip", "Skip", "Not enough context"],
   ];
 

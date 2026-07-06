@@ -1,1 +1,74 @@
-/* Recommendations page styles live here when touched next. */
+.automation-note{
+  margin-top:16px;
+}
+.automation-grid{
+  margin-bottom:14px;
+}
+.automation-rule{
+  gap:12px;
+}
+.automation-rule p{
+  min-height:auto;
+}
+.automation-metrics{
+  grid-template-columns:repeat(4,1fr);
+  margin:0;
+}
+.automation-metrics div{
+  min-width:0;
+}
+.automation-metrics dd{
+  font-size:10px;
+}
+.tool-sequence{
+  display:grid;
+  gap:7px;
+  margin-top:2px;
+}
+.tool-sequence div{
+  border:1px solid #e4ebe5;
+  border-radius:8px;
+  padding:9px;
+  background:#f7faf7;
+  display:grid;
+  gap:4px;
+}
+.tool-sequence strong{
+  font-size:9px;
+  color:#24372e;
+}
+.tool-sequence span{
+  font-size:8px;
+  color:#718177;
+}
+.script-stub{
+  border:1px solid #dce8de;
+  border-radius:9px;
+  background:#f6f9f6;
+  padding:10px;
+  display:grid;
+  gap:6px;
+}
+.script-stub span{
+  font-size:7px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:#788980;
+  font-weight:800;
+}
+.script-stub b{
+  font-size:10px;
+  color:#22382e;
+}
+.script-stub code{
+  display:block;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  color:#53685d;
+  background:transparent;
+  line-height:1.55;
+}
+
+@media(max-width:1000px){
+  .automation-metrics{grid-template-columns:repeat(2,1fr)}
+}

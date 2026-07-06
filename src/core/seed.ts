@@ -6,13 +6,9 @@ export const SEED_TASK_GROUP_COUNT = 16;
 export const SEED_TRACE_COUNT = SEED_TRACES_PER_GROUP * SEED_TASK_GROUP_COUNT;
 
 const workflowRoles: WorkflowRole[] = ["planner", "retriever_summarizer", "judge", "final_answer"];
+const json = (value: unknown) => JSON.stringify(value);
 
-type SeedExample = {
-  prompt: string;
-  response: string;
-  spans?: TraceSpan[];
-};
-
+type SeedExample = { prompt: string; response: string; weak_response?: string; spans?: TraceSpan[] };
 type SeedGroup = {
   key: TaskType;
   label: string;
@@ -23,233 +19,243 @@ type SeedGroup = {
   examples: SeedExample[];
 };
 
-const json = (value: unknown) => JSON.stringify(value);
-const supportPrefix = "As an AI customer support agent,";
+const sharedSupportSystemPrompt = [
+  "You are the production support AI for a B2B SaaS company.",
+  "Follow the support policy exactly. Do not promise refunds, credits, account access, or timeline commitments unless the provided context explicitly allows it.",
+  "Use a calm, concise, customer-ready tone. Preserve required facts, cite retrieved sources when present, and escalate uncertainty.",
+  "For structured tasks, return the requested schema without extra prose. For customer replies, avoid internal policy names and explain the next safe step.",
+].join(" ");
+const sharedSupportSystemTokens = Math.ceil(sharedSupportSystemPrompt.length / 4);
 
 const groups: SeedGroup[] = [
   {
-    key: "summarization",
-    label: "Support thread summarization",
-    risk: "low",
-    complexity: "low",
-    easyRate: .92,
-    currentModels: ["deepseek-r1", "deepseek-v4-pro", "claude-opus-4.8"],
-    examples: [
-      { prompt: `${supportPrefix} summarize this ticket for handoff: the customer cannot export audit logs, billing is current, and the export job timed out twice.`, response: "The customer cannot export audit logs despite an active account; two export attempts timed out and need engineering review." },
-      { prompt: `${supportPrefix} summarize this chat transcript for the next agent: the admin lost access after SSO enforcement and needs recovery today.`, response: "An admin lost access after SSO enforcement and needs same-day account recovery support." },
-      { prompt: `${supportPrefix} condense this escalation note: renewal is tomorrow, the customer needs SLA credit review, and support needs the outage timeline.`, response: "The renewal is tomorrow; support needs the outage timeline to assess SLA credit eligibility." },
-    ],
-  },
-  {
-    key: "extraction",
-    label: "Billing and account field extraction",
-    risk: "low",
-    complexity: "low",
-    easyRate: .96,
-    currentModels: ["local-qwen-14b", "deepseek-r1", "deepseek-v4-pro"],
-    examples: [
-      { prompt: `${supportPrefix} extract invoice_id, due_date, total, and currency from this billing message: Invoice INV-2048 is due 2026-07-01 for USD 418.25.`, response: json({ invoice_id: "INV-2048", due_date: "2026-07-01", total: 418.25, currency: "USD" }) },
-      { prompt: `${supportPrefix} extract customer_name, company, and renewal_date from this note: Priya Shah at Northstar renews on 2027-03-14.`, response: json({ customer_name: "Priya Shah", company: "Northstar", renewal_date: "2027-03-14" }) },
-      { prompt: `${supportPrefix} extract order_id, shipping_region, and priority from this case: Order SO-781 for EMEA is blocked and marked urgent.`, response: json({ order_id: "SO-781", shipping_region: "EMEA", priority: "urgent" }) },
-    ],
-  },
-  {
     key: "classification_tagging",
-    label: "Ticket classification and priority tagging",
+    label: "Intent classification and tagging",
     risk: "low",
     complexity: "low",
     easyRate: .94,
     currentModels: ["deepseek-r1", "deepseek-v4-pro", "local-qwen-14b"],
     examples: [
-      { prompt: `${supportPrefix} classify intent, priority, and sentiment for this ticket: I was charged twice after upgrading yesterday.`, response: "intent=billing_dispute; priority=high; sentiment=frustrated" },
-      { prompt: `${supportPrefix} tag this ticket: enterprise admin asks for SSO security documents before rollout.`, response: "intent=security_review; priority=medium; tags=sso,security" },
-      { prompt: `${supportPrefix} label this message: customer asks where to find the refund status page.`, response: "intent=refund_status; priority=low; sentiment=neutral" },
+      { prompt: "Classify intent, priority, sentiment, and queue for a customer who says they were charged twice after upgrading yesterday.", response: "intent=billing_dispute; priority=high; sentiment=frustrated; queue=billing" },
+      { prompt: "Tag an enterprise admin request for SSO documentation before rollout, including security review and priority.", response: "intent=security_review; priority=medium; tags=sso,security_docs,enterprise" },
+      { prompt: "Classify a message asking where to find the refund status page after submitting a request.", response: "intent=refund_status; priority=low; sentiment=neutral; queue=billing" },
     ],
   },
   {
-    key: "question_answering",
-    label: "General support question answering",
+    key: "customer_support_responses",
+    label: "Refund and billing dispute resolution",
     risk: "medium",
     complexity: "medium",
-    easyRate: 1,
-    currentModels: ["deepseek-v4-pro", "claude-opus-4.8", "gpt-5.4"],
+    easyRate: .82,
+    currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro"],
     examples: [
-      { prompt: `${supportPrefix} answer the question: what is the difference between API latency and throughput for a customer troubleshooting slow requests?`, response: "Latency is the time one request takes to complete. Throughput is the number of requests the system handles in a period." },
-      { prompt: `${supportPrefix} answer why a customer can have a higher bill after moving to a lower base plan.`, response: "A lower base plan can still cost more when usage, add-ons, or overage charges increase." },
-      { prompt: `${supportPrefix} answer what an admin should check first when users stop receiving invitation emails.`, response: "Check the email allowlist, spam filtering, and whether invitations were sent to the correct domain." },
+      { prompt: "Draft a reply to a customer reporting a duplicate annual-plan charge. Policy says billing must verify the transaction before approval.", response: "Thanks for flagging this. I can see why a duplicate charge would be frustrating. Our billing team will verify the transaction first, and we will update you with the next step after that review is complete.", weak_response: "Thanks for flagging this. I have approved the refund and you should see it today." },
+      { prompt: "Respond to a customer asking for an immediate refund after missing a renewal reminder. Policy allows review but not automatic approval.", response: "I can open a refund review for you. We need to confirm the renewal timeline and account history before any approval, and I will share the decision once the review is complete.", weak_response: "No problem, your refund is guaranteed because you missed the renewal reminder." },
+      { prompt: "Reply to a customer disputing an overage fee where usage logs need to be checked before credit can be issued.", response: "I can help review the overage. We will compare the usage logs with your plan limits first, then confirm whether a credit or plan adjustment is available.", weak_response: "The overage fee was probably an error, so I removed it from your bill." },
     ],
   },
   {
     key: "rag_grounded_answers",
-    label: "Grounded support answers with citations",
+    label: "RAG-grounded policy answers",
     risk: "high",
     complexity: "high",
     easyRate: .68,
     currentModels: ["claude-opus-4.8", "gpt-5.5-pro", "gpt-5.4"],
     examples: [
-      { prompt: `${supportPrefix} using retrieved context, answer whether the customer qualifies for a refund and cite sources. Context [1]: Annual plan refunds are allowed within 30 days.`, response: "Yes. The customer qualifies when the annual plan purchase is within 30 days [1].", spans: [{ id: "retrieved_refund_policy", type: "retriever", name: "refund_policy", metadata: { chunks: 3 } }] },
-      { prompt: `${supportPrefix} using retrieved context, answer whether the outage qualifies for service credit and cite sources. Context [1]: Credits require 45 continuous minutes of unplanned downtime.`, response: "The outage qualifies when it reached 45 continuous minutes of unplanned downtime [1].", spans: [{ id: "retrieved_sla_policy", type: "retriever", name: "sla_policy", metadata: { chunks: 2 } }] },
-      { prompt: `${supportPrefix} using retrieved context, answer whether SSO enforcement can be delayed and cite sources. Context [1]: Enterprise admins can defer enforcement once for 14 days.`, response: "The admin can defer SSO enforcement once for 14 days [1].", spans: [{ id: "retrieved_sso_policy", type: "retriever", name: "sso_policy", metadata: { chunks: 2 } }] },
+      { prompt: "Using retrieved context, answer whether an annual-plan refund is allowed and cite the source. Context [1]: Annual plan refunds are allowed within 30 days when no export job has completed.", response: "Yes, the customer may qualify if the purchase was within 30 days and no export job has completed [1].", weak_response: "Yes, annual-plan refunds are always allowed within 30 days." , spans: [{ id: "retrieved_refund_policy", type: "retriever", name: "refund_policy", metadata: { chunks: 3 } }] },
+      { prompt: "Using retrieved context, answer whether an outage qualifies for service credit. Context [1]: Credits require 45 continuous minutes of unplanned downtime.", response: "The outage qualifies only if it reached 45 continuous minutes of unplanned downtime [1].", weak_response: "The outage qualifies for credit because any downtime is eligible.", spans: [{ id: "retrieved_sla_policy", type: "retriever", name: "sla_policy", metadata: { chunks: 2 } }] },
+      { prompt: "Using retrieved context, answer whether SSO enforcement can be delayed. Context [1]: Enterprise admins can defer enforcement once for 14 days.", response: "The admin can defer SSO enforcement once for 14 days [1].", weak_response: "The admin can delay SSO enforcement indefinitely if they contact support.", spans: [{ id: "retrieved_sso_policy", type: "retriever", name: "sso_policy", metadata: { chunks: 2 } }] },
     ],
   },
   {
     key: "customer_support_responses",
-    label: "Customer-facing support replies",
+    label: "Subscription and plan change handling",
     risk: "medium",
     complexity: "medium",
-    easyRate: 1,
-    currentModels: ["deepseek-r1", "claude-opus-4.8", "deepseek-v4-pro"],
+    easyRate: .9,
+    currentModels: ["deepseek-v4-pro", "claude-opus-4.8", "gpt-5.4"],
     examples: [
-      { prompt: `${supportPrefix} according to support policy, draft a customer-facing reply explaining that a refund request is under review and no approval is promised yet.`, response: "Thanks for reaching out. Your refund request is under review, and we will update you after eligibility is checked." },
-      { prompt: `${supportPrefix} according to support policy, draft a customer-facing reply for an admin locked out after SSO enforcement.`, response: "I can help restore access. Please confirm the admin email and account domain so we can start the recovery review." },
-      { prompt: `${supportPrefix} according to support policy, write a reply explaining that export delays are being escalated without promising an exact fix time.`, response: "We have escalated the export delay to our team and will share updates as soon as we have confirmed next steps." },
+      { prompt: "Draft a reply explaining why moving to a lower base plan can still increase a bill when add-ons and usage overages remain active.", response: "A lower base plan can reduce the subscription fee, but add-ons and overage charges are billed separately. I can help review the account usage so you can decide which plan or usage limit fits best." },
+      { prompt: "Explain to an admin how to schedule a downgrade at renewal instead of changing the plan immediately.", response: "You can schedule the downgrade for the renewal date so current seats and features stay active through the term. I can help confirm the renewal date and the target plan before making the change." },
+      { prompt: "Respond to a customer asking whether adding temporary seats will change their annual contract.", response: "Temporary seats can affect billing for the active term. We should confirm the seat count, dates, and contract terms before applying the change." },
+    ],
+  },
+  {
+    key: "classification_tagging",
+    label: "Escalation triage and routing",
+    risk: "medium",
+    complexity: "low",
+    easyRate: .92,
+    currentModels: ["deepseek-r1", "deepseek-v4-pro", "gpt-5.4"],
+    examples: [
+      { prompt: "Route a ticket where renewal is tomorrow, outage timeline is missing, and the account owner asks for SLA credit review.", response: "queue=enterprise_support; priority=high; escalation_reason=renewal_risk_and_sla_credit_review" },
+      { prompt: "Route a ticket where a workspace admin lost access after SSO enforcement and the incident affects the executive team.", response: "queue=account_recovery; priority=critical; escalation_reason=admin_lockout_sso_enforcement" },
+      { prompt: "Route a ticket where a customer reports audit-log export failures before a compliance audit.", response: "queue=technical_support; priority=high; escalation_reason=compliance_deadline_export_failure" },
+    ],
+  },
+  {
+    key: "writing_editing",
+    label: "CSAT follow-up drafting",
+    risk: "low",
+    complexity: "low",
+    easyRate: .96,
+    currentModels: ["deepseek-r1", "gpt-5.4", "local-qwen-14b"],
+    examples: [
+      { prompt: "Write a short CSAT follow-up after a billing dispute was resolved and the customer thanked the support team.", response: "Thanks again for working with us on the billing issue. If anything else comes up, reply here and we will help." },
+      { prompt: "Draft a friendly follow-up after a password reset issue was resolved through admin verification.", response: "I am glad we were able to restore access. Please let us know if any other users have trouble signing in." },
+      { prompt: "Create a concise follow-up after export retries succeeded and the customer confirmed the file is available.", response: "Great to hear the export is available now. We will keep monitoring for any recurrence on our side." },
+    ],
+  },
+  {
+    key: "summarization",
+    label: "Ticket summarization for handoff",
+    risk: "low",
+    complexity: "low",
+    easyRate: .95,
+    currentModels: ["deepseek-r1", "deepseek-v4-pro", "claude-opus-4.8"],
+    examples: [
+      { prompt: "Summarize a ticket for handoff: the customer cannot export audit logs, billing is current, and the export job timed out twice.", response: "The customer cannot export audit logs despite an active account; two export attempts timed out and need engineering review." },
+      { prompt: "Summarize a chat transcript for the next agent: the admin lost access after SSO enforcement and needs recovery today.", response: "An admin lost access after SSO enforcement and needs same-day account recovery support." },
+      { prompt: "Condense an escalation note: renewal is tomorrow, support needs the outage timeline, and the customer asked for SLA credit review.", response: "The renewal is tomorrow; support needs the outage timeline to assess SLA credit eligibility." },
+    ],
+  },
+  {
+    key: "tool_use_function_calling",
+    label: "Order status lookup",
+    risk: "medium",
+    complexity: "medium",
+    easyRate: .9,
+    currentModels: ["deepseek-v4-pro", "gpt-5.4", "claude-opus-4.8"],
+    examples: [
+      { prompt: "Call the order API and shipping calculator to confirm whether order SO-781 can ship today.", response: json({ order_id: "SO-781", inventory_available: true, shipping_window: "today" }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-781" } } }, { id: "shipping_calculator", type: "tool", name: "shipping_calculator", metadata: { status: "success", arguments: { region: "EMEA" } } }] },
+      { prompt: "Check order SO-882 and return inventory availability and ship date.", response: json({ order_id: "SO-882", inventory_available: false, shipping_window: "backorder review" }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-882" } } }] },
+      { prompt: "Use fulfillment tools to tell support whether order SO-945 is blocked by payment or inventory.", response: json({ order_id: "SO-945", block_reason: "payment_hold", inventory_available: true }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-945" } } }] },
+    ],
+  },
+  {
+    key: "tool_use_function_calling",
+    label: "Account security verification",
+    risk: "high",
+    complexity: "medium",
+    easyRate: .8,
+    currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro"],
+    examples: [
+      { prompt: "Call the entitlement and admin-directory tools to verify whether account Greenbyte can enable audit-log export.", response: json({ account: "Greenbyte", admin_verified: true, audit_log_export_enabled: true }), spans: [{ id: "entitlement_api", type: "tool", name: "entitlement_api", metadata: { status: "success", arguments: { account: "Greenbyte" } } }, { id: "admin_directory", type: "tool", name: "admin_directory", metadata: { status: "success", arguments: { account: "Greenbyte" } } }] },
+      { prompt: "Verify whether the requester for Northstar is an admin before discussing SSO recovery steps.", response: json({ account: "Northstar", requester_admin: true, recovery_steps_allowed: true }), spans: [{ id: "admin_directory", type: "tool", name: "admin_directory", metadata: { status: "success", arguments: { account: "Northstar" } } }] },
+      { prompt: "Check whether Acme has verified domain ownership before enabling SCIM changes.", response: json({ account: "Acme", domain_verified: true, scim_change_allowed: true }), spans: [{ id: "domain_verification", type: "tool", name: "domain_verification", metadata: { status: "success", arguments: { account: "Acme" } } }] },
+    ],
+  },
+  {
+    key: "question_answering",
+    label: "Troubleshooting guided flows",
+    risk: "medium",
+    complexity: "medium",
+    easyRate: .88,
+    currentModels: ["deepseek-v4-pro", "claude-opus-4.8", "gpt-5.4"],
+    examples: [
+      { prompt: "Guide a customer through first checks when API requests are slow but not failing.", response: "Check recent latency by endpoint, confirm request volume, compare p95 latency against baseline, and inspect retries or rate-limit headers before escalating." },
+      { prompt: "Explain what an admin should check first when invitation emails are not received.", response: "Check the email allowlist, spam filtering, and whether invitations were sent to the correct domain before resending." },
+      { prompt: "Provide a troubleshooting flow for failed CSV exports that timeout after five minutes.", response: "Confirm export size, retry during lower traffic, check filters, and escalate with the export job ID if the retry also times out." },
     ],
   },
   {
     key: "policy_compliance_reasoning",
-    label: "Support policy compliance checks",
+    label: "Policy compliance review",
     risk: "high",
     complexity: "high",
     easyRate: .54,
     currentModels: ["claude-opus-4.8", "gpt-5.5-pro", "gpt-5.4"],
     examples: [
-      { prompt: `${supportPrefix} according to policy, check whether this draft complies with refund policy: We guarantee your refund today before verifying the charge.`, response: "Non-compliant. The reply promises approval before verifying refund eligibility." },
-      { prompt: `${supportPrefix} according to policy, check whether sharing a customer CSV export in a public ticket complies with data handling policy.`, response: "Non-compliant. Customer exports must stay in approved support systems and personal data must be protected." },
-      { prompt: `${supportPrefix} according to policy, check whether this password reset reply follows account access policy: Tell me the old password and I will reset it.`, response: "Non-compliant. Support must not ask customers to disclose passwords." },
-    ],
-  },
-  {
-    key: "code_generation",
-    label: "Support automation code generation",
-    risk: "medium",
-    complexity: "medium",
-    easyRate: 1,
-    currentModels: ["deepseek-v4-pro", "claude-opus-4.8", "gpt-5.4"],
-    examples: [
-      { prompt: `${supportPrefix} write code for a TypeScript helper that retries a failed support ticket lookup three times with backoff.`, response: "```ts\nexport async function retryTicketLookup<T>(fn:()=>Promise<T>, attempts=3){let last:unknown;for(let i=0;i<attempts;i++){try{return await fn()}catch(error){last=error;await new Promise(resolve=>setTimeout(resolve,100*(i+1)))}}throw last}\n```" },
-      { prompt: `${supportPrefix} generate code for a small JavaScript function that masks account IDs in support notes.`, response: "```js\nexport function maskAccountId(value){return value.replace(/acct_[A-Za-z0-9]+/g,'acct_****')}\n```" },
-      { prompt: `${supportPrefix} write code for a Jest test that verifies cents are formatted as dollars in billing replies.`, response: "```ts\nexpect(formatDollars(1234)).toBe('$12.34');\nexpect(formatDollars(0)).toBe('$0.00');\n```" },
-    ],
-  },
-  {
-    key: "code_review_debugging",
-    label: "Support automation debugging",
-    risk: "medium",
-    complexity: "medium",
-    easyRate: 1,
-    currentModels: ["claude-opus-4.8", "deepseek-v4-pro", "gpt-5.4"],
-    examples: [
-      { prompt: `${supportPrefix} debug this support automation diff: the refund API writes a credit before checking idempotency.`, response: "The bug can create duplicate credits on retry. Check idempotency before writing the credit." },
-      { prompt: `${supportPrefix} review this ticket routing diff: urgent billing tickets are matched after the generic billing rule.`, response: "The generic billing rule captures urgent billing tickets first. Move urgent billing above the generic rule." },
-      { prompt: `${supportPrefix} explain why this support dashboard effect loops forever: it sets ticket state and depends on that state.`, response: "The effect updates a dependency every run. Use a narrower dependency or a functional update." },
-    ],
-  },
-  {
-    key: "sql_data_query_generation",
-    label: "Support SQL query generation",
-    risk: "medium",
-    complexity: "medium",
-    easyRate: 1,
-    currentModels: ["deepseek-v4-pro", "deepseek-r1", "claude-opus-4.8"],
-    examples: [
-      { prompt: `${supportPrefix} write SQL to calculate weekly support tickets by issue category from tickets(category, created_at).`, response: "SELECT date_trunc('week', created_at) AS week, category, count(*) AS ticket_count FROM tickets GROUP BY 1, 2 ORDER BY 1, 2;" },
-      { prompt: `${supportPrefix} write SQL for refund approval rate by support queue from tickets and refunds tables.`, response: "SELECT t.queue, count(r.id)::float / count(t.id) AS refund_approval_rate FROM tickets t LEFT JOIN refunds r ON r.ticket_id=t.id AND r.status='approved' GROUP BY 1;" },
-      { prompt: `${supportPrefix} generate SQL to find accounts with more than three reopenings in the last 30 days.`, response: "SELECT account_id, count(*) AS reopen_count FROM tickets WHERE reopened_at >= current_date - interval '30 days' GROUP BY account_id HAVING count(*) > 3;" },
-    ],
-  },
-  {
-    key: "data_analysis_insight_generation",
-    label: "Support analytics insight generation",
-    risk: "medium",
-    complexity: "medium",
-    easyRate: 1,
-    currentModels: ["claude-opus-4.8", "gpt-5.4", "mistral-large-3"],
-    examples: [
-      { prompt: `${supportPrefix} analyze dashboard metrics: password reset tickets fell 8%, refund tickets rose 3%, and SLA breaches doubled.`, response: "Password reset volume improved, while refund volume and SLA breaches indicate billing friction or staffing risk." },
-      { prompt: `${supportPrefix} analyze an experiment where help-center deflection rose from 10.2% to 11.1% over 40k visits.`, response: "The variant shows a 0.9 point lift; confirm statistical significance and check escalation quality before rollout." },
-      { prompt: `${supportPrefix} interpret a support trend: first response time improved, but reopen rate increased for billing tickets.`, response: "Faster first responses are not fully resolving billing cases. Review answer quality and refund workflow clarity." },
-    ],
-  },
-  {
-    key: "writing_editing",
-    label: "Support writing and editing",
-    risk: "low",
-    complexity: "low",
-    easyRate: .88,
-    currentModels: ["deepseek-r1", "gpt-5.4", "local-qwen-14b"],
-    examples: [
-      { prompt: `${supportPrefix} rewrite this customer update to be clearer and shorter: We are experiencing some delay on account of a dependency.`, response: "We are delayed because a dependency is not ready yet." },
-      { prompt: `${supportPrefix} edit this escalation note for a calmer customer-facing tone: Engineering has not fixed this and the customer is angry.`, response: "The case remains active, and our team is reviewing the remaining dependency." },
-      { prompt: `${supportPrefix} improve clarity in this support macro: Your thing is not working because setup is wrong.`, response: "The issue appears to be caused by a setup mismatch. I can help verify the configuration." },
-    ],
-  },
-  {
-    key: "translation_localization",
-    label: "Support translation and localization",
-    risk: "low",
-    complexity: "low",
-    easyRate: .9,
-    currentModels: ["local-qwen-14b", "deepseek-v4-pro", "gpt-5.4"],
-    examples: [
-      { prompt: `${supportPrefix} translate to Spanish for a friendly support email: Your refund request is under review.`, response: "Tu solicitud de reembolso está en revisión." },
-      { prompt: `${supportPrefix} localize this US support message for UK English: We are organizing your case history before escalating.`, response: "We are organising your case history before escalating." },
-      { prompt: `${supportPrefix} translate to French for a support reply: Please confirm the billing email on the account.`, response: "Veuillez confirmer l'adresse e-mail de facturation du compte." },
+      { prompt: "Check whether this draft complies with refund policy: We guarantee your refund today before verifying the charge.", response: "Non-compliant. The reply promises approval before verifying refund eligibility.", weak_response: "Compliant. The customer deserves a fast refund because the charge is disputed." },
+      { prompt: "Check whether sharing a customer CSV export in a public ticket complies with data-handling policy.", response: "Non-compliant. Customer exports must stay in approved support systems and personal data must be protected.", weak_response: "Compliant as long as the link is convenient for the customer." },
+      { prompt: "Check whether this password reset reply follows account access policy: Tell me the old password and I will reset it.", response: "Non-compliant. Support must not ask customers to disclose passwords.", weak_response: "Compliant. Asking for the old password confirms identity." },
     ],
   },
   {
     key: "document_review_legal_analysis",
-    label: "Support legal document review",
+    label: "Legal and DPA document review",
     risk: "high",
     complexity: "high",
-    easyRate: .34,
+    easyRate: .42,
     currentModels: ["claude-opus-4.8", "gpt-5.5-pro", "gpt-5.4"],
     examples: [
-      { prompt: `${supportPrefix} review this enterprise support agreement clause for unusual termination obligations before escalating to legal.`, response: "The clause allows termination for convenience but requires 60 days notice and payment of committed fees." },
-      { prompt: `${supportPrefix} identify risk in this indemnity clause before summarizing it for the account team.`, response: "Risk: indemnity is uncapped and covers third-party claims caused by customer modifications." },
-      { prompt: `${supportPrefix} review this data processing addendum excerpt for support escalation obligations.`, response: "The excerpt requires incident notice within 48 hours and restricts support data access to approved personnel." },
+      { prompt: "Review an enterprise support agreement clause for unusual termination obligations before escalating to legal.", response: "The clause allows termination for convenience but requires 60 days notice and payment of committed fees.", weak_response: "The clause appears standard and does not need legal review." },
+      { prompt: "Identify risk in an indemnity clause before summarizing it for the account team.", response: "Risk: indemnity is uncapped and covers third-party claims caused by customer modifications.", weak_response: "The indemnity clause only protects the vendor and has no customer risk." },
+      { prompt: "Review a DPA excerpt for support escalation obligations.", response: "The excerpt requires incident notice within 48 hours and restricts support data access to approved personnel.", weak_response: "The DPA does not include any support escalation obligations." },
     ],
   },
   {
-    key: "planning_strategy_recommendations",
-    label: "Support planning and recommendations",
-    risk: "medium",
-    complexity: "medium",
-    easyRate: 1,
-    currentModels: ["gpt-5.4", "mistral-large-3", "deepseek-v4-pro"],
+    key: "translation_localization",
+    label: "Multilingual reply translation",
+    risk: "low",
+    complexity: "low",
+    easyRate: .92,
+    currentModels: ["local-qwen-14b", "deepseek-v4-pro", "gpt-5.4"],
     examples: [
-      { prompt: `${supportPrefix} create a plan for rolling out new refund macros across support traffic.`, response: "Week 1 review quality, week 2 shadow test, week 3 pilot with billing agents, week 4 monitored rollout with rollback thresholds." },
-      { prompt: `${supportPrefix} recommend next steps after a failed help-center deflection experiment.`, response: "Segment failed searches, interview agents, revise article structure, and rerun with a targeted cohort." },
-      { prompt: `${supportPrefix} create a plan to reduce weekend SLA breaches in the enterprise support queue.`, response: "Review weekend volume, adjust staffing, add priority triage, monitor breach rate, and revisit coverage after two weeks." },
+      { prompt: "Translate to Spanish for a friendly support email: Your refund request is under review.", response: "Tu solicitud de reembolso está en revisión." },
+      { prompt: "Localize this US support message for UK English: We are organizing your case history before escalating.", response: "We are organising your case history before escalating." },
+      { prompt: "Translate to French for a support reply: Please confirm the billing email on the account.", response: "Veuillez confirmer l'adresse e-mail de facturation du compte." },
     ],
   },
   {
-    key: "tool_use_function_calling",
-    label: "Support tool and API calls",
-    risk: "medium",
-    complexity: "medium",
-    easyRate: 1,
-    currentModels: ["deepseek-v4-pro", "gpt-5.4", "claude-opus-4.8"],
+    key: "writing_editing",
+    label: "Macro and template drafting",
+    risk: "low",
+    complexity: "low",
+    easyRate: .9,
+    currentModels: ["deepseek-r1", "gpt-5.4", "local-qwen-14b"],
     examples: [
-      { prompt: `${supportPrefix} call the order API and shipping calculator to confirm whether order SO-781 can ship today.`, response: json({ order_id: "SO-781", inventory_available: true, shipping_window: "today" }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success" } }, { id: "shipping_calculator", type: "tool", name: "shipping_calculator", metadata: { status: "success" } }] },
-      { prompt: `${supportPrefix} call the CRM lookup tool for account Acme and return support owner and ARR.`, response: json({ account: "Acme", support_owner: "Jordan Lee", arr: 84000 }), spans: [{ id: "crm_lookup", type: "tool", name: "crm_lookup", metadata: { status: "success" } }] },
-      { prompt: `${supportPrefix} call the entitlement API to check whether account Greenbyte has audit-log export enabled.`, response: json({ account: "Greenbyte", audit_log_export_enabled: true }), spans: [{ id: "entitlement_api", type: "tool", name: "entitlement_api", metadata: { status: "success" } }] },
+      { prompt: "Draft a support macro for explaining that an export delay is being escalated without promising an exact fix time.", response: "We have escalated the export delay to our team and will share updates as soon as we have confirmed next steps." },
+      { prompt: "Rewrite a support macro to be clearer: Your thing is not working because setup is wrong.", response: "The issue appears to be caused by a setup mismatch. I can help verify the configuration." },
+      { prompt: "Draft a template for asking an admin to confirm account domain before access recovery.", response: "Please confirm the account domain and admin email so we can start the recovery review." },
+    ],
+  },
+  {
+    key: "classification_tagging",
+    label: "Sentiment and churn-risk flagging",
+    risk: "medium",
+    complexity: "low",
+    easyRate: .9,
+    currentModels: ["deepseek-r1", "deepseek-v4-pro", "gpt-5.4"],
+    examples: [
+      { prompt: "Flag sentiment and churn risk for a customer who says this is the third outage before renewal.", response: "sentiment=frustrated; churn_risk=high; trigger=repeat_outage_before_renewal" },
+      { prompt: "Classify churn risk for a customer asking whether competitors have better audit-log exports.", response: "sentiment=concerned; churn_risk=medium; trigger=competitive_evaluation" },
+      { prompt: "Tag sentiment for a customer thanking support after a billing correction.", response: "sentiment=positive; churn_risk=low; trigger=resolved_billing_issue" },
+    ],
+  },
+  {
+    key: "extraction",
+    label: "Knowledge-base gap extraction",
+    risk: "low",
+    complexity: "low",
+    easyRate: .95,
+    currentModels: ["local-qwen-14b", "deepseek-r1", "deepseek-v4-pro"],
+    examples: [
+      { prompt: "Extract missing knowledge-base topic, customer question, and suggested article title from a ticket about SSO enforcement delay.", response: json({ missing_topic: "SSO enforcement deferral", customer_question: "Can SSO enforcement be delayed?", suggested_article: "How to defer SSO enforcement" }) },
+      { prompt: "Extract the documentation gap from a ticket where a customer cannot find audit-log export limits.", response: json({ missing_topic: "Audit-log export limits", customer_question: "What are the size and time limits for audit-log export?", suggested_article: "Audit-log export limits and troubleshooting" }) },
+      { prompt: "Extract a help-center gap from a support thread about renewal reminders and plan changes.", response: json({ missing_topic: "Renewal reminder timing", customer_question: "When are renewal reminders sent?", suggested_article: "Renewal reminders and scheduled plan changes" }) },
     ],
   },
 ];
 
+const accounts = ["Northstar", "Acme", "Greenbyte", "Atlas", "Waypoint", "Cobalt", "Helio", "Nimbus", "Redwood", "Summit", "Kite", "Harbor"];
 const complexityScore = (complexity: Complexity) => ({ low: .12, medium: .18, high: .82 })[complexity];
 const tokenBase = (complexity: Complexity) => ({ low: 360, medium: 820, high: 1600 })[complexity];
+
+function personalize(prompt: string, index: number) {
+  return `${prompt} Account: ${accounts[index % accounts.length]}. Ticket opened by ${["admin", "billing owner", "support manager", "operations lead"][index % 4]}.`;
+}
 
 export function createSeedTraces(): Trace[] {
   return groups.flatMap((group, groupIndex) => Array.from({ length: SEED_TRACES_PER_GROUP }, (_, index) => {
     const example = group.examples[index % group.examples.length];
-    const id = `trace_${group.key}_${String(index + 1).padStart(3, "0")}`;
-    const prompt = `${example.prompt} Case ${index + 1}.`;
-    const expected = example.response;
+    const id = `trace_${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${String(index + 1).padStart(3, "0")}`;
+    const prompt = personalize(example.prompt, index);
+    const reference = example.response;
     const modelId = group.currentModels[index % group.currentModels.length];
     const model = getModel(modelId)!;
     const base = tokenBase(group.complexity);
-    const input = base + groupIndex * 17 + index * 19;
+    const input = base + sharedSupportSystemTokens + groupIndex * 17 + index * 19;
     const output = Math.round(base * .22) + groupIndex * 5 + index * 7;
     const monthIndex = index < SEED_TRACES_PER_GROUP / 2
       ? Math.floor(index / (SEED_TRACES_PER_GROUP / 2) * 4)
@@ -262,26 +268,40 @@ export function createSeedTraces(): Trace[] {
     const role = workflowRoles[groupIndex % workflowRoles.length];
     const parentRole = groupIndex ? workflowRoles[(groupIndex - 1) % workflowRoles.length] : undefined;
     const nodeId = `${workflowId}_${String(groupIndex + 1).padStart(2, "0")}_${role}`;
-    const failed = index === SEED_TRACES_PER_GROUP - 1 && group.key === "tool_use_function_calling";
+    const failed = index === SEED_TRACES_PER_GROUP - 1 && group.label === "Order status lookup";
     return {
-      id, timestamp,
-      provider: model.provider, model: modelId, messages: [{ role: "user", content: prompt }],
-      prompt_text: prompt, response_text: expected, input_tokens: input, output_tokens: output,
-      total_tokens: input + output, latency_ms: model.default_latency_ms + groupIndex * 25 + index * 18,
-      cost_usd: calculateCost(input, output, model), status: failed ? "error" : "success",
-      workflow_id: workflowId, node_id: nodeId,
+      id,
+      timestamp,
+      provider: model.provider,
+      model: modelId,
+      messages: [{ role: "user", content: prompt }],
+      prompt_text: prompt,
+      response_text: reference,
+      input_tokens: input,
+      output_tokens: output,
+      total_tokens: input + output,
+      latency_ms: model.default_latency_ms + groupIndex * 25 + index * 18,
+      cost_usd: calculateCost(input, output, model),
+      status: failed ? "error" : "success",
+      workflow_id: workflowId,
+      node_id: nodeId,
       parent_node_id: groupIndex && parentRole ? `${workflowId}_${String(groupIndex).padStart(2, "0")}_${parentRole}` : undefined,
-      workflow_role: role, span_name: `${group.label} ${role}`,
+      workflow_role: role,
+      span_name: `${group.label} ${role}`,
       spans: example.spans,
       error_type: failed ? "timeout" : undefined,
       metadata: {
-        expected_answer: expected,
-        mock_difficulty: index / SEED_TRACES_PER_GROUP < group.easyRate ? "easy" : "hard",
+        _internal_reference: reference,
+        _internal_candidate_quality: index / SEED_TRACES_PER_GROUP < group.easyRate ? "passes" : "fails",
+        _internal_weak_response: example.weak_response,
         task_type: group.key,
+        distinct_task_label: group.label,
         domain: "customer_support",
         risk_level: group.risk,
         complexity_score: complexityScore(group.complexity),
-        mock_slow_candidate: group.key === "customer_support_responses",
+        static_prompt_tokens: sharedSupportSystemTokens,
+        workflow_id: workflowId,
+        parent_step: parentRole ?? "root",
       },
     };
   }));

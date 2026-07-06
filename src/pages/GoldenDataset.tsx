@@ -41,7 +41,7 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
       <div>
         <p className="eyebrow">Golden Dataset</p>
         <h2>Upload human-labeled examples to calibrate your evals.</h2>
-        <p>Golden datasets are the ground-truth layer for RouteLab. Upload prompts, agent answers, expected answers, and human pass or score labels, then compare them against the current LLM-as-judge eval.</p>
+      <p>Golden datasets are the ground-truth layer for RouteLab. Upload prompts, agent answers, human reference answers, and human pass or score labels, then compare them against the current LLM-as-judge eval.</p>
       </div>
       <div className="golden-hero-actions">
         <label className="upload golden-upload">Upload golden CSV<input type="file" accept=".csv" onChange={(event) => uploadDataset(event.target.files?.[0])} /></label>

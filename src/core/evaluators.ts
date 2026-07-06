@@ -15,16 +15,28 @@ export const regexEval = (candidate: string, pattern: string) => {
   const passed = new RegExp(pattern).test(candidate);
   return result("regex", passed, passed ? 1 : 0);
 };
-export function mockJudge(candidate: string) {
-  if (candidate.includes("[PASS]")) return result("mock_judge", true, 1);
-  if (candidate.includes("[FAIL_MINOR]")) return result("mock_judge", true, .75, "minor");
-  if (candidate.includes("[FAIL_MAJOR]")) return result("mock_judge", false, .5, "major");
-  if (candidate.includes("[FAIL_CRITICAL]")) return result("mock_judge", false, 0, "critical");
-  return result("mock_judge", false, .5);
+export function rubricJudge(candidate: string, trace?: Trace) {
+  const text = candidate.toLowerCase();
+  const task = String(trace?.metadata?.distinct_task_label ?? trace?.metadata?.task_type ?? "trace");
+  if (/approved the refund|refund is guaranteed|removed it from your bill|guarantee your refund/.test(text)) {
+    return result("trace_quality_llm_judge (gpt-5.5-pro)", false, .5, "major", "Promises a billing outcome before required verification.");
+  }
+  if (/always allowed|any downtime is eligible|indefinitely/.test(text)) {
+    return result("trace_quality_llm_judge (gpt-5.5-pro)", false, .5, "major", "Overgeneralizes policy and omits a required eligibility constraint.");
+  }
+  if (/old password|public ticket|convenient for the customer/.test(text)) {
+    return result("trace_quality_llm_judge (gpt-5.5-pro)", false, 0, "critical", "Introduces an account-security or data-handling violation.");
+  }
+  if (/no customer risk|does not need legal review|no support escalation obligations/.test(text)) {
+    return result("trace_quality_llm_judge (gpt-5.5-pro)", false, .5, "major", "Misses the material legal or compliance risk in the trace.");
+  }
+  if (candidate.trim().length < 24) {
+    return result("trace_quality_llm_judge (gpt-5.5-pro)", false, .5, "major", `${task} response is too sparse to satisfy the requested outcome.`);
+  }
+  return result("trace_quality_llm_judge (gpt-5.5-pro)", false, .5, "major", `${task} response does not match the calibrated reference outcome.`);
 }
 export function evaluateTrace(trace: Trace, candidate: string) {
-  const expected = String(trace.metadata?.expected_answer ?? trace.response_text ?? "");
-  if (/\[(PASS|FAIL_MINOR|FAIL_MAJOR|FAIL_CRITICAL)\]/.test(candidate)) return mockJudge(candidate);
-  if (normalize(candidate) === normalize(expected)) return result("exact_match", true, 1);
-  return trace.metadata?.task_type === "extraction" ? exactMatch(candidate, expected) : mockJudge(candidate);
+  const reference = String(trace.metadata?._internal_reference ?? trace.response_text ?? "");
+  if (normalize(candidate) === normalize(reference)) return result("trace_quality_llm_judge (gpt-5.5-pro)", true, 1, undefined, "Matches the calibrated reference answer for this trace.");
+  return trace.metadata?.task_type === "extraction" ? exactMatch(candidate, reference) : rubricJudge(candidate, trace);
 }

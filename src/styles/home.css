@@ -414,7 +414,7 @@
 }
 .home-assessment-card>div{
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-columns:repeat(4,minmax(0,1fr));
   gap:8px;
 }
 .home-assessment-card p{
@@ -481,6 +481,29 @@
   border-radius:16px;
   background:rgba(255,255,255,.03);
   color:#c9d8d0;
+}
+.home-method-link{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  margin-top:14px;
+  color:#b7ff6d;
+  font-size:13px;
+  font-weight:800;
+  text-decoration:none;
+}
+.home-method-link:hover{
+  text-decoration:underline;
+  text-underline-offset:4px;
+}
+.home-assessment-condensed{
+  margin-top:-40px;
+  margin-bottom:42px;
+  grid-template-columns:1fr;
+  padding:26px 30px;
+}
+.home-assessment-condensed h2{
+  margin:0 0 8px;
 }
 .home-final{
   display:flex;

@@ -41,6 +41,48 @@ export function updateGoldenDatasetCell(dataset: GoldenDataset, rowIndex: number
   return { ...dataset, rows, row_count: rows.length, columns: Array.from(new Set([...dataset.columns, column])) };
 }
 
+const simulatedGoldenColumns = ["trace_id", "task_type", "model", "prompt", "agent_answer", "human_answer", "human_passed", "human_score", "human_severity", "human_rationale"];
+const simulatedGoldenTaskTypes = ["customer_support_responses", "rag_grounded_answers", "policy_compliance_reasoning", "document_review_legal_analysis"];
+
+const humanOverride = (judge: TraceJudgeResult, index: number) => {
+  if (index % 13 === 0) return { passed: !judge.passed, score: judge.passed ? .5 : 1, severity: judge.passed ? "major" : "" };
+  if (index % 17 === 0) return { passed: false, score: .5, severity: "major" };
+  return { passed: judge.passed, score: judge.score, severity: judge.severity ?? "" };
+};
+
+export function createSimulatedGoldenDataset(traces: Trace[], judgeResults: TraceJudgeResult[], now = new Date("2026-06-24T00:00:00.000Z")): GoldenDataset {
+  const judgeByTraceId = new Map(judgeResults.map((result) => [result.trace_id, result]));
+  const selected = simulatedGoldenTaskTypes.flatMap((taskType) =>
+    traces.filter((trace) => trace.metadata?.task_type === taskType).slice(0, 8),
+  );
+  const rows = selected.map((trace, index): GoldenDatasetRow => {
+    const judge = judgeByTraceId.get(trace.id);
+    const human = judge ? humanOverride(judge, index) : { passed: true, score: 1, severity: "" };
+    return {
+      trace_id: trace.id,
+      task_type: String(trace.metadata?.task_type ?? ""),
+      model: trace.model,
+      prompt: trace.prompt_text,
+      agent_answer: trace.response_text ?? "",
+      human_answer: String(trace.metadata?._internal_reference ?? trace.response_text ?? ""),
+      human_passed: human.passed,
+      human_score: human.score,
+      human_severity: human.severity,
+      human_rationale: human.passed
+        ? "Human reviewer marked this answer acceptable against the expected support outcome."
+        : "Human reviewer marked this answer insufficient because it misses a required fact, policy constraint, or safe escalation.",
+    };
+  });
+  return {
+    id: "golden_routelab_simulated",
+    name: "routelab-simulated-golden-dataset.csv",
+    created_at: now.toISOString(),
+    row_count: rows.length,
+    columns: simulatedGoldenColumns,
+    rows,
+  };
+}
+
 const readString = (row: GoldenDatasetRow, keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
@@ -90,14 +132,14 @@ export function calibrateGoldenDataset(dataset: GoldenDataset | undefined, trace
     const humanScore = readNumber(row, ["human_score", "score", "expected_score"]);
     const humanPassed = readBoolean(row, ["human_passed", "passed", "expected_passed", "label"]);
     const humanSeverity = readSeverity(row);
-    const expectedAnswer = readString(row, ["expected_answer", "expected_response", "gold_answer", "human_answer"]);
+    const humanAnswer = readString(row, ["human_answer", "reference_answer", "gold_answer"]);
     const agentAnswer = readString(row, ["agent_answer", "response", "actual_answer"]) || trace?.response_text || "";
     const agreement = humanPassed === undefined || judge === undefined ? undefined : humanPassed === judge.passed;
     return {
       trace_id: traceId,
       prompt: readString(row, ["prompt", "prompt_text"]) || trace?.prompt_text || "",
       agent_answer: agentAnswer,
-      expected_answer: expectedAnswer || String(trace?.metadata?.expected_answer ?? ""),
+      human_answer: humanAnswer || String(trace?.metadata?._internal_reference ?? ""),
       human_passed: humanPassed,
       human_score: humanScore,
       human_severity: humanSeverity,

@@ -1,19 +1,20 @@
 import { useState, type FormEvent } from "react";
 
 const heroStats = [
-  { value: "30-80%", label: "inference savings opportunity" },
+  { value: "Up to 80%", label: "guardrail-approved savings observed on simulated support workloads" },
+  { value: "Cache + route", label: "guardrail-approved cost levers before tuning" },
   { value: "Human + eval", label: "golden dataset calibration" },
-  { value: "Simulate -> recommend -> tune", label: "model optimization loop" },
 ];
 
 const previewItems = [
   { title: "Trace ingestion", action: "observe" },
   { title: "Distinct tasks", action: "classify" },
   { title: "Import or create evals", action: "define" },
-  { title: "Golden calibration", action: "verify" },
+  { title: "Calibrate with human judge scores", action: "verify" },
   { title: "Prompt simulations", action: "replay" },
   { title: "Recommendations", action: "route" },
-  { title: "Fine-tuning prompts", action: "train" },
+  { title: "Prompt caching", action: "cache" },
+  { title: "Fine-tune when evidence beats prompting", action: "train" },
 ];
 
 const pains = [
@@ -27,14 +28,14 @@ const pains = [
   },
   {
     title: "Fragment",
-    text: "Gateways, evals, golden datasets, logs, model experiments, and fine-tuning workflows live in separate tools, so no system owns model allocation.",
+    text: "Gateways, evals, golden datasets, logs, prompt caching, model experiments, and fine-tuning workflows live in separate tools, so no system owns model allocation.",
   },
 ];
 
 const allocationLayers = [
   {
     title: "Gateways",
-    items: ["Call many models", "Fallbacks and budgets", "Do not prove which route is safe for you"],
+    items: ["Call many models", "Fallbacks and budgets", "Do not prove which route is guardrail-approved for you"],
   },
   {
     title: "Eval stacks",
@@ -42,7 +43,7 @@ const allocationLayers = [
   },
   {
     title: "RouteLab",
-    items: ["Classify tasks", "Calibrate evals with golden data", "Simulate, recommend, and fine-tune"],
+    items: ["Classify tasks", "Calibrate evals with golden data", "Simulate, cache, route, and fine-tune"],
   },
 ];
 
@@ -67,9 +68,9 @@ const steps = [
   },
   {
     title: "Calibrate Evals With Golden Datasets",
-    text: "Upload human-labeled golden datasets and compare human answers against LLM-as-judge results to measure agreement, false passes, false fails, and coverage.",
+    text: "Know exactly how often your automated judge disagrees with humans — false passes and false fails, quantified — before you let it approve a routing change.",
     image: "/marketing/evals.jpg",
-    alt: "RouteLab Evals tab showing trace quality judge scores",
+    alt: "RouteLab Golden Dataset calibration view showing human and judge agreement",
   },
   {
     title: "Run Simulations Across Candidate Models",
@@ -84,8 +85,14 @@ const steps = [
     alt: "RouteLab recommendations view",
   },
   {
-    title: "Prompt Fine-Tuning When It Is Worth It",
-    text: "Detect stable high-context patterns, recommend fine-tuning when it can reduce token overhead, and help users launch an open-weight fine-tuning workflow.",
+    title: "Find Prompt Caching Savings",
+    text: "Detect stable prompt prefixes, show exactly where cache_control markers should go, and calculate provider-level savings before changing model behavior.",
+    image: "/marketing/simulations.jpg",
+    alt: "RouteLab simulations view showing model comparison results",
+  },
+  {
+    title: "Recommend Fine-Tuning Only When the Evidence Says So",
+    text: "Detect stable high-context patterns, recommend fine-tuning only when caching, prompting, RAG, and routing are insufficient, and help users launch an open-weight workflow.",
     image: "/marketing/recommendations.jpg",
     alt: "RouteLab policy export and recommendations view",
   },
@@ -93,8 +100,9 @@ const steps = [
 
 const assessmentRoutes = [
   { value: "55%", label: "direct cheap" },
-  { value: "30%", label: "cascade" },
-  { value: "15%", label: "keep premium" },
+  { value: "20%", label: "cascade" },
+  { value: "15%", label: "prompt cache" },
+  { value: "10%", label: "keep premium" },
 ];
 
 const supportReasons = [
@@ -110,6 +118,9 @@ const proof = [
   "Distinct task classification",
   "Eval creation and import",
   "Golden dataset calibration",
+  "Prompt cache marker recommendations",
+  "Script automation detection",
+  "Gateway config export",
   "Provider and model-family agnostic",
   "Simulations, recommendations, and fine-tuning",
 ];
@@ -139,20 +150,21 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <a href="#problem">Problem</a>
           <a href="#why-now">Why now</a>
           <a href="#how-it-works">How it works</a>
-          <button type="button" onClick={openPasswordPrompt}>Get started</button>
+          <button type="button" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
         </div>
       </nav>
 
       <section className="home-hero">
         <div className="home-hero-copy">
-          <h1>Find the cheapest safe model for every AI workflow.</h1>
+          <p className="eyebrow">Built first for high-volume AI support teams</p>
+          <h1>Find the cheapest model that passes your evals. For every AI workflow.</h1>
           <p>
-            RouteLab works from production traces, classifies distinct tasks, helps teams create and calibrate evals,
-            simulates candidate models, recommends safe routes, and prompts fine-tuning when stable workloads can be made cheaper.
+            Start with the traces you already have. Leave with calibrated evals, guardrail-approved model recommendations,
+            and fine-tuning candidates backed by evidence.
           </p>
           <div className="home-cta-row">
-            <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
-            <span>Start with traces. Leave with calibrated evals, model recommendations, and fine-tuning candidates.</span>
+            <button type="button" className="primary" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
+            <span>A time-boxed savings assessment on your own traces. No production traffic, no live router, no risk.</span>
           </div>
           <div className="home-hero-stats" aria-label="RouteLab proof points">
             {heroStats.map((stat) => (
@@ -162,6 +174,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
               </div>
             ))}
           </div>
+          <a className="home-method-link" href="#how-it-works">Measured as monthly projection = uploaded sample × observed run rate, after quality and latency guardrails. See how the math works →</a>
         </div>
         <div className="home-product-preview" aria-label="RouteLab workflow preview">
           {previewItems.map((item, index) => (
@@ -171,6 +184,14 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
               <span>{item.action}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="home-assessment home-assessment-condensed">
+        <div>
+          <p className="eyebrow">48-hour model spend assessment</p>
+          <h2>Evidence before routing changes.</h2>
+          <p>Import traces, calibrate evals, replay candidate models, and leave with guardrail-approved savings math your team can audit.</p>
         </div>
       </section>
 
@@ -208,7 +229,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <small>margin leak</small>
           <i />
           <span>The new control plane</span>
-          <b>Portfolio of models, evals, and fine-tunes per task</b>
+          <b>Portfolio of models, evals, cache markers, and fine-tunes per task</b>
           <small>proved allocation</small>
         </div>
       </section>
@@ -216,7 +237,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-allocation">
         <div className="home-section-head">
           <h2>Not routing. Model allocation.</h2>
-          <p>RouteLab is the allocation layer above gateways, eval tools, and fine-tuning workflows: prove what should move, what should stay, and what should be trained.</p>
+          <p>RouteLab is the allocation layer above gateways, eval tools, prompt caching, and fine-tuning workflows: prove what should move, what should stay, what should be cached, and what should be trained.</p>
+          <p>RouteLab decides the routes. Your gateway executes them — export recommendations as OpenRouter, LiteLLM, or JSON configs.</p>
         </div>
         <div className="home-allocation-grid">
           {allocationLayers.map((layer) => (
@@ -231,7 +253,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-steps" id="how-it-works">
         <div className="home-section-head">
           <h2>Traces become model allocation decisions.</h2>
-          <p>The loop starts with uploaded traces and becomes a calibrated operating system for routing, evaluation, and fine-tuning.</p>
+          <p>The loop starts with uploaded traces and becomes a calibrated operating system for routing, evaluation, prompt caching, and fine-tuning.</p>
+          <p>Today RouteLab optimizes per-request workloads — classification, RAG answers, drafting, tool calls. Trajectory-level simulation for multi-step agents is on the roadmap.</p>
         </div>
         <div className="home-step-grid">
           {steps.map((step, index) => (
@@ -253,12 +276,13 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <h2>A savings assessment that pays for itself.</h2>
           <p>
             Do not trust a live router on day one. Import traces, define evals, calibrate those evals with golden data,
-            replay candidate models, identify safe savings, and decide where fine-tuning can reduce repeated context cost.
+            replay candidate models, identify guardrail-approved savings, place prompt-cache markers, and decide where fine-tuning can reduce repeated context cost.
+            Allocation is not a one-time decision. Every new model release, price drop, and prompt change re-opens the question — RouteLab re-runs the evidence automatically.
           </p>
         </div>
         <div className="home-assessment-card">
           <span>After RouteLab assessment</span>
-          <b>Each distinct task gets the cheapest safe route or a fine-tuning path.</b>
+          <b>Each distinct task gets the cheapest guardrail-approved route, cache marker, or fine-tuning path.</b>
           <div>
             {assessmentRoutes.map((route) => (
               <p key={route.label}><strong>{route.value}</strong>{route.label}</p>
@@ -282,14 +306,21 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
         <strong>Cut AI support inference cost by 50%+ while preserving CSAT, resolution, and escalation guardrails.</strong>
       </section>
 
+      <section className="home-allocation">
+        <div className="home-section-head">
+          <h2>Why this is not only a gateway, eval stack, or fine-tuning platform.</h2>
+          <p>Fine-tuning platforms train a cheaper model for everything. RouteLab proves, per task, whether prompting, routing, cascading, scripting, or fine-tuning wins — and only then recommends training.</p>
+        </div>
+      </section>
+
       <section className="home-proof" aria-label="RouteLab trust principles">
         {proof.map((item) => <span key={item}>{item}</span>)}
       </section>
 
       <section className="home-final">
         <h2>Start with traces. Leave with a calibrated model strategy.</h2>
-        <p>Classify tasks, create evals, verify them with golden data, simulate candidates, generate recommendations, and fine-tune when the evidence says it is worth it.</p>
-        <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
+        <p>Classify tasks, create evals, verify them with golden data, simulate candidates, place cache markers, generate recommendations, and fine-tune when the evidence says it is worth it.</p>
+        <button type="button" className="primary" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
       </section>
 
       {isPasswordOpen && (

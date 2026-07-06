@@ -158,8 +158,6 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
     if(constraintMatches.length){complexityScore+=1;complexityEvidence.push(`Constraint signals: ${constraintMatches.slice(0,3).join(", ")}`)}
     const repetition=repetitionRatio(trace.prompt_text??"");
     if(repetition<.38){complexityScore-=2;complexityEvidence.push("Highly repetitive input reduces semantic complexity")}
-    if(trace.metadata?.mock_difficulty==="hard"){complexityScore+=1;complexityEvidence.push("Historical difficulty signal marks this workload hard")}
-    if(trace.metadata?.mock_difficulty==="easy"){complexityScore-=1;complexityEvidence.push("Historical difficulty signal marks this workload easy")}
     if(externalDifficulty!==undefined){complexityScore+=externalDifficulty>=.7?3:externalDifficulty>=.4?1:-1;complexityEvidence.push(`External embedding/LLM difficulty score: ${(externalDifficulty*100).toFixed(0)}%`)}
     const complexity:Inference<Complexity>={value:complexityScore>=4?"high":complexityScore>=2?"medium":"low",confidence:externalDifficulty===undefined?.84:.97,evidence:complexityEvidence.slice(0,4)};
     const fields={task_type:taskType,domain,complexity,temporal_context:temporal,tool_use:toolUse,output_uncertainty:uncertainty,output_format:format,grounding_requirement:grounding};
@@ -176,14 +174,15 @@ const title=(value:string)=>value.replaceAll("_"," ");
 export const bucketName=(task:DistinctTask)=>`${title(task.domain)} ${title(task.task_type)}, ${task.complexity} complexity, ${title(task.temporal_context)}, ${title(task.tool_use)} tools`;
 export function createDistinctTaskBuckets(traces:NormalizedTrace[], classifier:DistinctTaskClassifier=new HeuristicDistinctTaskClassifier()):DistinctTaskBucket[]{
   const inferred=traces.map(trace=>({trace,result:classifier.infer(trace)})); const groups=new Map<string,typeof inferred>();
-  inferred.forEach(item=>{const key=distinctTaskKey(item.result.task);const group=groups.get(key);if(group)group.push(item);else groups.set(key,[item])});
+  inferred.forEach(item=>{const label=typeof item.trace.metadata?.distinct_task_label==="string"?item.trace.metadata.distinct_task_label:"";const key=label||distinctTaskKey(item.result.task);const group=groups.get(key);if(group)group.push(item);else groups.set(key,[item])});
   return [...groups.entries()].map(([key,items])=>{
     const task=items[0].result.task;
+    const explicitLabel=items.map(item=>item.trace.metadata?.distinct_task_label).find((value):value is string=>typeof value==="string"&&value.trim().length>0);
     const riskOrder:Risk[]=["low","medium","high"];
     const riskLevel=items.map(item=>item.result.risk_level).sort((a,b)=>riskOrder.indexOf(b)-riskOrder.indexOf(a))[0]??"medium";
     const evidence=Object.fromEntries(distinctTaskFields.map(field=>[field,[...new Set(items.flatMap(item=>item.result.evidence[field]))].slice(0,3)])) as Record<DistinctTaskField,string[]>;
     return {
-      bucket_id:`task_${hash(key)}`,bucket_name:bucketName(task),task,traces:items.map(item=>item.trace.id),trace_count:items.length,
+      bucket_id:`task_${hash(key)}`,bucket_name:explicitLabel??bucketName(task),task,traces:items.map(item=>item.trace.id),trace_count:items.length,
       total_cost_usd:items.reduce((s,i)=>s+(i.trace.cost_usd??0),0),avg_cost_usd:average(items.map(i=>i.trace.cost_usd??0)),
       total_tokens:items.reduce((s,i)=>s+i.trace.total_tokens,0),avg_input_tokens:average(items.map(i=>i.trace.input_tokens)),
       avg_output_tokens:average(items.map(i=>i.trace.output_tokens)),avg_latency_ms:average(items.map(i=>i.trace.latency_ms??0)),

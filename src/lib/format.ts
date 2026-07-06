@@ -4,7 +4,7 @@ export const pct = (value: number) => `${value.toFixed(1)}%`;
 
 export const preview = (value = "", length = 360) => value.length > length ? `${value.slice(0, length).trim()}...` : value;
 
-export const stripJudgeMarker = (value = "") => value.replace(/^\[(PASS|FAIL_MINOR|FAIL_MAJOR|FAIL_CRITICAL)\]\s*/,"");
+export const stripJudgeMarker = (value = "") => value;
 
 export const compareText = (left: string, right: string) => left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 
