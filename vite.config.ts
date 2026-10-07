@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { getModel } from "./src/core/catalog";
+import { runFrontierProvider } from "./api/frontier-lab/_runner";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -82,6 +83,24 @@ export default defineConfig(({ mode }) => {
           return sendJson(res, 200, { runs, source: source === "openrouter" ? "openrouter" : "direct_family", label: config.label });
         } catch (error) {
           return sendJson(res, 500, { error: error instanceof Error ? error.message : "Live direct routing failed." });
+        }
+      });
+      server.middlewares.use("/api/frontier-lab/run", async (req, res) => {
+        if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
+        try {
+          const body = await readJsonBody(req);
+          const apiKey = serverOpenRouterKey();
+          const result = await runFrontierProvider({
+            caseId: String(body.caseId ?? ""),
+            harnessId: body.harnessId === "baseline" ? "baseline" : "improved",
+            repetition: Math.max(1, Number(body.repetition ?? 1)),
+            model: body.model,
+            apiKey,
+            assetBaseUrl: String(body.assetBaseUrl ?? "").trim() || `http://${req.headers.host ?? "127.0.0.1:5173"}`,
+          });
+          return sendJson(res, 200, result);
+        } catch (error) {
+          return sendJson(res, 500, { error: error instanceof Error ? error.message : "Frontier Model Lab run failed." });
         }
       });
     },

@@ -4,10 +4,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true
   },
-  "include": ["vite.config.ts", "scripts", "src/core", "src/types.ts"]
+  "include": ["vite.config.ts", "scripts", "src/core", "src/types.ts", "api/frontier-lab/_runner.ts"]
 }

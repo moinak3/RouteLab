@@ -1,6 +1,6 @@
 import type { DistinctTaskField } from "../types";
 
-export type Page = "Home" | "Overview" | "Traces" | "Distinct Tasks" | "Evals" | "Golden Dataset" | "Review Queue" | "Simulations" | "Recommendations" | "Fine-Tuning" | "Model Catalog";
+export type Page = "Home" | "Overview" | "Traces" | "Distinct Tasks" | "Evals" | "Golden Dataset" | "Review Queue" | "Simulations" | "Frontier Model Lab" | "Recommendations" | "Fine-Tuning" | "Model Catalog";
 
 export type ReviewDecision = "approve" | "reject" | "escalate" | "skip";
 

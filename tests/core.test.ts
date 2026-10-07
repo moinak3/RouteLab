@@ -4,7 +4,8 @@ import { calculateCost, enabledModels, getModel, modelCatalog, updateFamilyEnabl
 import { exactMatch, jsonSchema, regexEval, rubricJudge } from "../src/core/evaluators";
 import { buildWorkflowTrees, ingestRecords, ingestText } from "../src/core/ingestion";
 import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScript, recommendPolicy, recommendScriptAutomation } from "../src/core/recommendations";
-import { buildReviewQueue, REVIEW_LOW_SCORE_THRESHOLD, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
+import { buildReviewQueue, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
+import { traceUserFeedback } from "../src/core/traceFeedback";
 import { createSeedTraces, SEED_TASK_GROUP_COUNT, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
 import { cascade, costOnly, deterministicGenerate, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, replay } from "../src/core/simulations";
 import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/core/providerPricing";
@@ -248,6 +249,14 @@ describe("simulation and recommendations", () => {
     expect(distinctTaskBuckets.every((bucket) => bucket.trace_count === SEED_TRACES_PER_GROUP)).toBe(true);
     expect(traces.every((trace) => trace.prompt_text.includes("Account:"))).toBe(true);
     expect(traces.every((trace) => trace.metadata?.seeded_judge_score === undefined)).toBe(true);
+    expect(traces.every((trace) => typeof trace.metadata?.user_id === "string")).toBe(true);
+    expect(traces.filter((trace) => traceUserFeedback(trace) === "thumbs_up").length).toBeGreaterThanOrEqual(2);
+    expect(traces.filter((trace) => traceUserFeedback(trace) === "thumbs_down").length).toBeGreaterThanOrEqual(2);
+    expect(traces.some((trace) => traceUserFeedback(trace) === "none")).toBe(true);
+    expect(traceUserFeedback({ ...traces[0], metadata: { thumbs_up: true, thumbs_down: true } })).toBe("thumbs_down");
+    const safetyTraces = traces.filter((trace) => trace.metadata?.safety_signal);
+    expect(safetyTraces).toHaveLength(2);
+    expect(safetyTraces.every((trace) => trace.response_text === trace.metadata?._internal_weak_response)).toBe(true);
     const judgeResults = createTraceJudgeResults(traces);
     expect(new Set(judgeResults.map((result) => result.trace_id)).size).toBe(traces.length);
     const scoreCounts = judgeResults.reduce((counts, result) => counts.set(result.score, (counts.get(result.score) ?? 0) + 1), new Map<number, number>());
@@ -281,16 +290,70 @@ describe("simulation and recommendations", () => {
     expect(mixed.summary.simulated_cost_usd).toBeGreaterThan(cheap.summary.simulated_cost_usd);
     expect(mixed.summary.simulated_cost_usd).toBeLessThan(mixed.summary.baseline_cost_usd);
   });
-  it("samples low-score evals across Distinct Tasks instead of queueing every failure", () => {
-    const cheap = replay(traces, "deepseek-r1");
-    const queue = buildReviewQueue(traces, cheap.runs, cheap.evals, distinctTaskBuckets);
-    const lowScoreTraceIds = new Set(cheap.evals.filter((item) => !item.passed || item.score < REVIEW_LOW_SCORE_THRESHOLD).map((item) => item.trace_id));
-    const lowScoreDistinctTaskIds = new Set(distinctTaskBuckets.filter((bucket) => bucket.traces.some((traceId) => lowScoreTraceIds.has(traceId))).map((bucket) => bucket.bucket_id));
-    const queuedDistinctTaskIds = new Set(queue.reviewItems.map((item) => item.bucket?.bucket_id).filter(Boolean));
-    expect(queue.lowScoreCount).toBeGreaterThan(distinctTaskBuckets.length);
-    expect(queue.reviewItems).toHaveLength(Math.min(queue.lowScoreCount, REVIEW_QUEUE_MAX));
-    expect(queue.reviewItems.every((item) => !item.evalResult.passed || item.evalResult.score < REVIEW_LOW_SCORE_THRESHOLD)).toBe(true);
-    expect(queuedDistinctTaskIds.size).toBe(Math.min(lowScoreDistinctTaskIds.size, REVIEW_QUEUE_MAX));
+  it("selects trace reviews across three explained lanes without duplicating a trace", () => {
+    const judges = createTraceJudgeResults(traces);
+    const golden = createSimulatedGoldenDataset(traces, judges);
+    const queue = buildReviewQueue(traces, judges, distinctTaskBuckets, [golden]);
+    expect(queue.reviewItems.length).toBeLessThanOrEqual(REVIEW_QUEUE_MAX);
+    expect(queue.reviewItems.length).toBeGreaterThan(0);
+    expect(new Set(queue.reviewItems.map((item) => item.trace.id)).size).toBe(queue.reviewItems.length);
+    expect(Object.values(queue.laneCounts).reduce((sum, count) => sum + count, 0)).toBe(queue.reviewItems.length);
+    expect(queue.reviewItems.every((item) => item.reviewReason.length > 20)).toBe(true);
+    expect(queue.laneCounts.representative).toBe(queue.laneCounts.unusual);
+    expect(queue.laneCounts.unusual).toBe(queue.laneCounts.uncovered);
+    expect(queue.laneCounts.uncovered).toBeGreaterThan(0);
+    expect(queue.reviewItems.slice(0, 6).map((item) => item.lane)).toEqual([
+      "representative", "unusual", "uncovered", "representative", "unusual", "uncovered",
+    ]);
+    expect(queue.reviewItems.filter((item) => item.lane === "unusual" && item.reviewReason.includes("Safety/policy alert"))).toHaveLength(2);
+    expect(queue.reviewItems[1].reviewReason).toContain("Safety/policy alert");
+    expect(queue.reviewItems[4].reviewReason).toContain("Safety/policy alert");
+    expect(queue.reviewItems[1].reviewReason).toContain("may be a false pass");
+    expect(queue.coverage.coveredSignatures).toBeLessThan(queue.coverage.totalSignatures);
+    expect(queue.reviewItems.filter((item) => item.lane === "uncovered")
+      .every((item) => item.reviewReason.includes("No human-labeled golden eval example"))).toBe(true);
+    const thumbsDownReviews = queue.reviewItems.filter((item) => item.lane === "unusual" && traceUserFeedback(item.trace) === "thumbs_down");
+    expect(thumbsDownReviews.length).toBeGreaterThanOrEqual(2);
+    expect(thumbsDownReviews.every((item) => item.reviewReason.includes("thumbs down"))).toBe(true);
+    expect(buildReviewQueue(traces, judges, distinctTaskBuckets, [golden]).reviewItems.map((item) => item.trace.id))
+      .toEqual(queue.reviewItems.map((item) => item.trace.id));
+  });
+  it("can build a review queue before any full rubric has run", () => {
+    const queue = buildReviewQueue(traces, [], distinctTaskBuckets, []);
+    expect(queue.reviewItems).toHaveLength(REVIEW_QUEUE_MAX);
+    expect(queue.reviewItems.every((item) => item.judge === undefined)).toBe(true);
+    expect(queue.available.uncovered).toBe(traces.length);
+    expect(queue.available.unusual).toBe(0);
+  });
+  it("detects observed negative feedback and peer latency outliers", () => {
+    const peers = Array.from({ length: 30 }, (_, index) => ({
+      ...traces[0],
+      id: "review_peer_" + index,
+      timestamp: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      latency_ms: index === 29 ? 5000 : 1000 + index,
+      workflow_id: undefined,
+      metadata: { task_type: "classification_tagging", thumbs_down: index === 28 },
+    }));
+    const golden = {
+      id: "test_golden", name: "test.csv", created_at: "2026-01-01T00:00:00Z",
+      row_count: 1, columns: ["trace_id", "human_passed"],
+      rows: [{ trace_id: peers[0].id, human_passed: true }],
+    };
+    const queue = buildReviewQueue(peers, [], [], [golden], 9);
+    expect(queue.available.unusual).toBe(2);
+    expect(queue.reviewItems.some((item) => item.lane === "unusual" && item.reviewReason.includes("Latency 5,000 ms"))).toBe(true);
+    expect(queue.reviewItems.some((item) => item.lane === "unusual" && item.reviewReason.includes("negative feedback"))).toBe(true);
+    expect(queue.available.uncovered).toBe(0);
+  });
+  it("closes a signature coverage gap when a human-labeled example is added", () => {
+    const judges = createTraceJudgeResults(traces);
+    const golden = createSimulatedGoldenDataset(traces, judges);
+    const before = buildReviewQueue(traces, judges, distinctTaskBuckets, [golden]);
+    const uncovered = before.reviewItems.find((item) => item.lane === "uncovered")!;
+    const updated = { ...golden, rows: [...golden.rows, { trace_id: uncovered.trace.id, human_passed: true }] };
+    const after = buildReviewQueue(traces, judges, distinctTaskBuckets, [updated]);
+    expect(after.coverage.coveredSignatures).toBe(before.coverage.coveredSignatures + 1);
+    expect(after.available.uncovered).toBeLessThan(before.available.uncovered);
   });
   it("cascades from the cheapest to strongest model in the selected family", () => {
     const mixed = familyCascade(traces, "mistral-large-3");

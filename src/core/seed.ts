@@ -239,6 +239,28 @@ const groups: SeedGroup[] = [
 ];
 
 const accounts = ["Northstar", "Acme", "Greenbyte", "Atlas", "Waypoint", "Cobalt", "Helio", "Nimbus", "Redwood", "Summit", "Kite", "Harbor"];
+const sampleUserFeedback: Record<string, "thumbs_up" | "thumbs_down"> = {
+  trace_intent_classification_and_tagging_003: "thumbs_up",
+  trace_refund_and_billing_dispute_resolution_002: "thumbs_down",
+  trace_refund_and_billing_dispute_resolution_003: "thumbs_up",
+  trace_refund_and_billing_dispute_resolution_008: "thumbs_down",
+  trace_rag_grounded_policy_answers_001: "thumbs_up",
+  trace_rag_grounded_policy_answers_005: "thumbs_down",
+  trace_rag_grounded_policy_answers_011: "thumbs_down",
+  trace_csat_follow_up_drafting_001: "thumbs_up",
+  trace_troubleshooting_guided_flows_006: "thumbs_up",
+  trace_multilingual_reply_translation_009: "thumbs_up",
+};
+const sampleSafetySignals: Record<string, { signal: string; reason: string }> = {
+  trace_policy_compliance_review_011: {
+    signal: "customer_data_exposure",
+    reason: "The agent treats sharing a customer CSV in a public ticket as compliant.",
+  },
+  trace_policy_compliance_review_012: {
+    signal: "credential_disclosure",
+    reason: "The agent approves asking a customer to disclose an old password.",
+  },
+};
 const complexityScore = (complexity: Complexity) => ({ low: .12, medium: .18, high: .82 })[complexity];
 const tokenBase = (complexity: Complexity) => ({ low: 360, medium: 820, high: 1600 })[complexity];
 
@@ -252,6 +274,7 @@ export function createSeedTraces(): Trace[] {
     const id = `trace_${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${String(index + 1).padStart(3, "0")}`;
     const prompt = personalize(example.prompt, index);
     const reference = example.response;
+    const safetySignal = sampleSafetySignals[id];
     const modelId = group.currentModels[index % group.currentModels.length];
     const model = getModel(modelId)!;
     const base = tokenBase(group.complexity);
@@ -276,7 +299,7 @@ export function createSeedTraces(): Trace[] {
       model: modelId,
       messages: [{ role: "user", content: prompt }],
       prompt_text: prompt,
-      response_text: reference,
+      response_text: safetySignal && example.weak_response ? example.weak_response : reference,
       input_tokens: input,
       output_tokens: output,
       total_tokens: input + output,
@@ -294,6 +317,9 @@ export function createSeedTraces(): Trace[] {
         _internal_reference: reference,
         _internal_candidate_quality: index / SEED_TRACES_PER_GROUP < group.easyRate ? "passes" : "fails",
         _internal_weak_response: example.weak_response,
+        user_id: `user_${accounts[index % accounts.length].toLowerCase()}_${String(index + 1).padStart(3, "0")}`,
+        ...(sampleUserFeedback[id] ? { user_feedback: sampleUserFeedback[id] } : {}),
+        ...(safetySignal ? { safety_signal: safetySignal.signal, safety_reason: safetySignal.reason } : {}),
         task_type: group.key,
         distinct_task_label: group.label,
         domain: "customer_support",
