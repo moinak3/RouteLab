@@ -10,6 +10,7 @@ import {
   frontierModelAliases,
   frontierRoutingRecommendations,
   loadFrontierRuns,
+  p95,
   saveFrontierRuns,
   scoreFrontierRun,
   upsertFrontierRun,
@@ -52,6 +53,12 @@ const rawRun = (overrides: Partial<FrontierProviderRun> = {}): FrontierProviderR
 });
 
 describe("Frontier Model Lab", () => {
+  it("calculates P95 latency using the nearest-rank percentile", () => {
+    expect(p95([])).toBe(0);
+    expect(p95([100, 200, 300])).toBe(300);
+    expect(p95(Array.from({ length: 20 }, (_, index) => (index + 1) * 100))).toBe(1900);
+  });
+
   it("persists completed and interrupted runs across browser sessions", () => {
     const storage = new Map<string, string>();
     vi.stubGlobal("window", {

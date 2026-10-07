@@ -124,6 +124,7 @@ export type FrontierAggregate = {
   quality: number;
   reliability: number;
   p50LatencyMs: number;
+  p95LatencyMs: number;
   averageCostUsd?: number;
   costPerSuccessUsd?: number;
   attempts: number;
@@ -619,6 +620,12 @@ export const p50 = (values: number[]) => {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
+export const p95 = (values: number[]) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)];
+};
+
 export function aggregateFrontierResults(results: FrontierScoredRun[], byHarness = false): FrontierAggregate[] {
   const groups = new Map<string, FrontierScoredRun[]>();
   for (const result of results) {
@@ -635,6 +642,7 @@ export function aggregateFrontierResults(results: FrontierScoredRun[], byHarness
       quality: mean(runs.map((run) => run.quality)),
       reliability: successes.length / runs.length,
       p50LatencyMs: p50(runs.map((run) => run.latencyMs)),
+      p95LatencyMs: p95(runs.map((run) => run.latencyMs)),
       averageCostUsd: costs.length === runs.length ? mean(costs) : undefined,
       costPerSuccessUsd: costs.length === runs.length && successes.length ? costs.reduce((sum, value) => sum + value, 0) / successes.length : undefined,
       attempts: runs.length,
