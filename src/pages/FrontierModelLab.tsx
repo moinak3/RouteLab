@@ -11,6 +11,7 @@ import {
   p50,
   saveFrontierRuns,
   scoreFrontierRun,
+  upsertFrontierRun,
   type FrontierDimension,
   type FrontierEvalCase,
   type FrontierHarnessId,
@@ -226,7 +227,11 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
     };
     const tasks = harnesses.flatMap((harnessId) => selectedCases.flatMap((evalCase) => selectedModels.flatMap((model) => Array.from({ length: runsPerCase }, (_, index) => ({ harnessId, evalCase, model, repetition: index + 1 })) )));
     setProgress({ running: true, completed: 0, total: tasks.length, message: "Starting live provider runs" });
-    setHistory((items) => [run, ...items]);
+    setHistory((items) => {
+      const next = upsertFrontierRun(items, run);
+      saveFrontierRuns(next);
+      return next;
+    });
     setActiveRunId(run.id);
     setResultHarness(harnesses.includes("improved") ? "improved" : harnesses[0]);
     const scored: FrontierScoredRun[] = [];
@@ -237,6 +242,12 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
         setProgress((value) => ({ ...value, message: `${task.model.displayName} · ${task.evalCase.shortName} · run ${task.repetition}` }));
         const raw = await runOne(task.model, task.evalCase.id, task.harnessId, task.repetition);
         scored.push(scoreFrontierRun(task.evalCase, raw, task.model, threshold));
+        const checkpoint: FrontierLabRun = { ...run, results: [...scored] };
+        setHistory((items) => {
+          const next = upsertFrontierRun(items, checkpoint);
+          saveFrontierRuns(next);
+          return next;
+        });
         setProgress((value) => ({ ...value, completed: value.completed + 1 }));
       }
     };
@@ -257,7 +268,7 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
       results: scored,
     };
     setHistory((items) => {
-      const next = [completed, ...items.filter((item) => item.id !== completed.id)].slice(0, 12);
+      const next = upsertFrontierRun(items, completed);
       saveFrontierRuns(next);
       return next;
     });
@@ -304,8 +315,8 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
     </section>
 
     <section className="frontier-history panel">
-      <div className="panelhead"><div><p className="eyebrow">Demo reliability</p><h2>Live Run / Previous Run</h2></div><span>{history.length} locally saved</span></div>
-      {history.length ? <div className="frontier-history-list">{history.map((run) => <button type="button" className={run.id === activeRun?.id ? "active" : ""} onClick={() => { setActiveRunId(run.id); setResultHarness(run.harnesses.includes("improved") ? "improved" : run.harnesses[0]); }} key={run.id}><b>{run.status === "running" ? "Live Run" : "Previous Run"}</b><span>{new Date(run.completedAt ?? run.createdAt).toLocaleString()}</span><small>{run.modelConfigs.map((model) => model.displayName).join(" · ")}<br />{run.harnesses.map((item) => frontierHarnesses[item].name).join(" + ")} · {run.runsPerCase} runs/case</small></button>)}</div> : <div className="frontier-empty-state"><b>No measured run yet</b><p>Completed live runs appear here and remain available as an interview fallback on this device.</p></div>}
+      <div className="panelhead"><div><p className="eyebrow">Saved evaluation history</p><h2>Reopen earlier measured runs</h2><p className="frontier-history-note">Runs are checkpointed after every result and remain available after closing RouteLab on this browser and device.</p></div><span>{history.length} saved · up to 50 retained</span></div>
+      {history.length ? <div className="frontier-history-list">{history.map((run) => <button type="button" className={run.id === activeRun?.id ? "active" : ""} onClick={() => { setActiveRunId(run.id); setResultHarness(run.harnesses.includes("improved") ? "improved" : run.harnesses[0]); }} key={run.id}><b>{run.status === "running" ? "Live run" : run.status === "partial" ? "Interrupted or partial run" : "Completed run"}</b><span>{new Date(run.completedAt ?? run.createdAt).toLocaleString()}</span><small>{run.modelConfigs.map((model) => model.displayName).join(" · ")}<br />{run.harnesses.map((item) => frontierHarnesses[item].name).join(" + ")} · {run.runsPerCase} runs/case · {run.results.length} results saved</small></button>)}</div> : <div className="frontier-empty-state"><b>No measured run yet</b><p>Live runs will be saved here as soon as they begin and remain available on this device after the session ends.</p></div>}
     </section>
 
     {activeRun && activeRun.results.length ? <>

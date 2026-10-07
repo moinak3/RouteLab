@@ -2,12 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { runFrontierProvider } from "../api/frontier-lab/_runner";
 import {
   aggregateFrontierResults,
+  FRONTIER_RUN_HISTORY_LIMIT,
+  FRONTIER_STORAGE_KEY,
   frontierEvalCases,
   frontierHarnesses,
   frontierInvoiceMath,
   frontierModelAliases,
   frontierRoutingRecommendations,
+  loadFrontierRuns,
+  saveFrontierRuns,
   scoreFrontierRun,
+  upsertFrontierRun,
   type FrontierLabRun,
   type FrontierModelConfig,
   type FrontierProviderRun,
@@ -47,6 +52,53 @@ const rawRun = (overrides: Partial<FrontierProviderRun> = {}): FrontierProviderR
 });
 
 describe("Frontier Model Lab", () => {
+  it("persists completed and interrupted runs across browser sessions", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+    });
+    const baseRun: FrontierLabRun = {
+      id: "saved-run",
+      createdAt: new Date(0).toISOString(),
+      status: "running",
+      source: "live",
+      modelConfigs: [model("model-a", "Model A")],
+      caseIds: [frontierEvalCases[0].id],
+      harnesses: ["improved"],
+      runsPerCase: 3,
+      qualityThreshold: .9,
+      results: [],
+    };
+    saveFrontierRuns([baseRun]);
+    expect(storage.has(FRONTIER_STORAGE_KEY)).toBe(true);
+    expect(loadFrontierRuns()[0]).toMatchObject({ id: "saved-run", status: "partial" });
+    vi.unstubAllGlobals();
+  });
+
+  it("upserts run checkpoints and retains the newest history limit", () => {
+    const makeRun = (id: string): FrontierLabRun => ({
+      id,
+      createdAt: new Date(0).toISOString(),
+      status: "completed",
+      source: "live",
+      modelConfigs: [],
+      caseIds: [],
+      harnesses: ["improved"],
+      runsPerCase: 1,
+      qualityThreshold: .9,
+      results: [],
+    });
+    const runs = Array.from({ length: FRONTIER_RUN_HISTORY_LIMIT }, (_, index) => makeRun(`run-${index}`));
+    const checkpoint = { ...makeRun("run-10"), status: "partial" as const };
+    const next = upsertFrontierRun(runs, checkpoint);
+    expect(next).toHaveLength(FRONTIER_RUN_HISTORY_LIMIT);
+    expect(next[0]).toEqual(checkpoint);
+    expect(next.filter((run) => run.id === checkpoint.id)).toHaveLength(1);
+  });
+
   it("reconciles the disputed invoice fixture arithmetic", () => {
     expect(frontierInvoiceMath.billableOverageUnits).toBe(1_500_000);
     expect(frontierInvoiceMath.overageChargeUsd).toBe(3_000);

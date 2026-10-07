@@ -131,6 +131,7 @@ export type FrontierAggregate = {
 };
 
 export const FRONTIER_STORAGE_KEY = "routelab.frontier-model-lab.runs.v1";
+export const FRONTIER_RUN_HISTORY_LIMIT = 50;
 
 export const frontierInvoiceMath = {
   baseSubscriptionUsd: 8_500,
@@ -730,7 +731,11 @@ export function loadFrontierRuns(): FrontierLabRun[] {
   if (!browser) return [];
   try {
     const parsed = JSON.parse(browser.localStorage.getItem(FRONTIER_STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((run): run is FrontierLabRun => Boolean(run && typeof run === "object" && typeof run.id === "string" && Array.isArray(run.results)))
+      .map((run) => run.status === "running" ? { ...run, status: "partial" as const } : run)
+      .slice(0, FRONTIER_RUN_HISTORY_LIMIT);
   } catch {
     return [];
   }
@@ -739,5 +744,13 @@ export function loadFrontierRuns(): FrontierLabRun[] {
 export function saveFrontierRuns(runs: FrontierLabRun[]) {
   const browser = (globalThis as unknown as { window?: { localStorage: { setItem(key: string, value: string): void } } }).window;
   if (!browser) return;
-  browser.localStorage.setItem(FRONTIER_STORAGE_KEY, JSON.stringify(runs.slice(0, 12)));
+  try {
+    browser.localStorage.setItem(FRONTIER_STORAGE_KEY, JSON.stringify(runs.slice(0, FRONTIER_RUN_HISTORY_LIMIT)));
+  } catch {
+    // Keep the active evaluation usable when browser storage is unavailable or full.
+  }
+}
+
+export function upsertFrontierRun(runs: FrontierLabRun[], run: FrontierLabRun): FrontierLabRun[] {
+  return [run, ...runs.filter((item) => item.id !== run.id)].slice(0, FRONTIER_RUN_HISTORY_LIMIT);
 }
