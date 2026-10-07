@@ -196,13 +196,6 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
 
   const toggleCase = (id: string) => setSelectedCaseIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
 
-  const enableDemoMode = () => {
-    setSelectedCaseIds(defaultDemoCaseIds);
-    setRunsPerCase(3);
-    setHarnessSelection("improved");
-    setQualityThresholdPct(90);
-  };
-
   const toggleRunSettings = () => {
     setShowRunSettings((isOpen) => {
       if (isOpen) setShowHarnessDiff(false);
@@ -281,8 +274,7 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
 
   return <div className="frontier-lab">
     <section className="frontier-intro panel">
-      <div><p className="eyebrow">Model × workflow × harness</p><h2>Comparing frontier model performance on a standard set of tasks</h2><p>Compare performance of each of the 8 test cases through Astra, Sol and Opus 5.5 (live calls) and compare quality, cost and latency across the 3 models.</p></div>
-      <button type="button" className="primary" onClick={enableDemoMode}>Demo Mode</button>
+      <div><p className="eyebrow">Model × workflow × harness</p><h2>Comparing frontier model performance on a standard set of tasks</h2><p>Compare performance of 8 tasks cases across GPT Astra 6, GPT Sol 6.1 and Opus 5.5 (live calls) and compare quality, cost and latency across the 3 models.</p></div>
     </section>
 
     <section className="frontier-config panel">
