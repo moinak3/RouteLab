@@ -413,7 +413,7 @@ export const frontierEvalCases: FrontierEvalCase[] = [
     name: "Pro Plan Member Limit",
     shortName: "Simple retrieval",
     category: "Simple control case",
-    hypothesis: "Frontier models should be effectively equivalent on straightforward grounded retrieval.",
+    hypothesis: "Frontier models should be effectively equivalent when answering from simple, pre-supplied context.",
     userMessage: "How many members can I have on Pro?",
     context: [{ title: "Northstar Pro", content: "Northstar Pro supports up to 100 members." }],
     documents: [],

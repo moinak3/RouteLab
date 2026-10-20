@@ -142,6 +142,16 @@ function TraceViewer({ results, initialIndex, onClose }: { results: FrontierScor
 }
 
 function EvalCaseDetails({ evalCase, onClose, onInspectPdf }: { evalCase: FrontierEvalCase; onClose: () => void; onInspectPdf: () => void }) {
+  const evidenceMode = evalCase.documents.length ? {
+    label: "Attached document images",
+    detail: "The same ordered document page images are sent directly to every selected model. RouteLab does not run a separate retriever for this case.",
+  } : evalCase.context.length ? {
+    label: "Pre-supplied inline context",
+    detail: "The fixture's context blocks are inserted directly into the model request. No file, vector database, or retrieval API selects the evidence.",
+  } : {
+    label: "User request only",
+    detail: "No external evidence or retrieval step is included in this case.",
+  };
   return <div className="frontier-drawer-layer" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="frontier-drawer frontier-case-drawer" role="dialog" aria-modal="true" aria-label={`${evalCase.name} eval details`}>
       <div className="frontier-drawer-head">
@@ -153,6 +163,7 @@ function EvalCaseDetails({ evalCase, onClose, onInspectPdf }: { evalCase: Fronti
         <h3>{evalCase.hypothesis}</h3>
         <p>The same request, context, tools, and pass criteria are used for every selected model.</p>
       </section>
+      <section className="frontier-evidence-delivery"><p className="eyebrow">How evidence reaches the model</p><h3>{evidenceMode.label}</h3><p>{evidenceMode.detail}</p>{evalCase.context.length ? <div className="frontier-evidence-sources">{evalCase.context.map((block) => <div key={`${block.title}_${block.date}`}><b>{block.title}</b>{block.date ? <small>{block.date}</small> : null}<span>{block.content}</span></div>)}</div> : null}{evalCase.id === "pro-plan-member-limit" ? <strong>This is a grounded-answer and tool-restraint control, not a retrieval-quality test.</strong> : null}</section>
       <section><h3>User request</h3><blockquote>{evalCase.userMessage}</blockquote></section>
       <section><h3>Expected behavior</h3><ul>{evalCase.expectedBehavior.map((item) => <li key={item}>{item}</li>)}</ul></section>
       <section><h3>Deterministic pass checks</h3><div className="frontier-case-checks">{evalCase.deterministicAssertions.map((assertion) => <div key={assertion.id}><span>{assertion.dimension.replaceAll("_", " ")}</span><b>{assertion.label}</b></div>)}</div></section>
@@ -321,18 +332,6 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
       <section className="frontier-insights-grid">
         <div className="panel frontier-takeaways"><p className="eyebrow">What did we learn?</p><h2>Only claims supported by this run</h2><ol>{takeaways.map((item) => <li key={item}>{item}</li>)}</ol></div>
         <div className="panel frontier-routing"><p className="eyebrow">Workload-specific routing</p><h2>Lowest-cost measured model above the bar</h2><div>{routing.map((item) => <article key={item.caseId}><b>{item.caseName}</b><strong>{item.recommendedModel ?? "No passing route"}</strong><p>{item.reason}</p></article>)}</div></div>
-      </section>
-
-      <section className="panel frontier-harness-comparison">
-        <div className="panelhead"><div><p className="eyebrow">Model vs harness</p><h2>Is capability or scaffolding the binding constraint?</h2></div><span>{activeRun.harnesses.length === 2 ? "Measured comparison" : "Run Compare both to populate"}</span></div>
-        {activeRun.harnesses.length === 2 ? <div className="tablewrap"><table><thead><tr><th>Workflow</th><th>Model</th><th>Baseline</th><th>Improved</th><th>Measured interpretation</th></tr></thead><tbody>{activeRun.caseIds.flatMap((caseId) => activeRun.modelConfigs.map((model) => {
-          const baseline = activeRun.results.filter((result) => result.caseId === caseId && result.modelAliasId === model.id && result.harnessId === "baseline");
-          const improved = activeRun.results.filter((result) => result.caseId === caseId && result.modelAliasId === model.id && result.harnessId === "improved");
-          const baseRate = baseline.length ? baseline.filter((result) => result.passed).length / baseline.length : 0;
-          const improvedRate = improved.length ? improved.filter((result) => result.passed).length / improved.length : 0;
-          const interpretation = baseRate < activeRun.qualityThreshold && improvedRate >= activeRun.qualityThreshold ? "Harness improvement closed the model-quality gap." : improvedRate < activeRun.qualityThreshold ? "Still below the bar; capability may be binding." : Math.abs(improvedRate - baseRate) < 0.01 ? "No material harness effect in this run." : "Harness changed measured reliability.";
-          return <tr key={`${caseId}_${model.id}`}><td>{frontierEvalCases.find((item) => item.id === caseId)!.name}</td><td>{model.displayName}</td><td>{baseline.filter((result) => result.passed).length}/{baseline.length}</td><td>{improved.filter((result) => result.passed).length}/{improved.length}</td><td>{interpretation}</td></tr>;
-        }))}</tbody></table></div> : <div className="frontier-empty-state"><b>No paired harness measurement</b><p>Select “Compare both” and rerun identical cases to determine whether improved scaffolding closes a model gap.</p></div>}
       </section>
     </> : null}
 
