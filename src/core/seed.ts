@@ -1,5 +1,5 @@
 import { calculateCost, getModel } from "./catalog";
-import type { Complexity, Risk, TaskType, Trace, TraceSpan, WorkflowRole } from "../types";
+import type { Complexity, KnownTaskSignature, Risk, TaskType, Trace, TraceSpan, WorkflowRole } from "../types";
 
 export const SEED_TRACES_PER_GROUP = 12;
 export const SEED_TASK_GROUP_COUNT = 16;
@@ -237,6 +237,14 @@ const groups: SeedGroup[] = [
     ],
   },
 ];
+
+const signatureId = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+export const knownDistinctTaskSignatures: KnownTaskSignature[] = groups.map((group) => ({
+  id: signatureId(group.label),
+  label: group.label,
+  risk_level: group.risk,
+  description: `${group.label}. Representative request: ${group.examples[0].prompt}`,
+}));
 
 const accounts = ["Northstar", "Acme", "Greenbyte", "Atlas", "Waypoint", "Cobalt", "Helio", "Nimbus", "Redwood", "Summit", "Kite", "Harbor"];
 const sampleUserFeedback: Record<string, "thumbs_up" | "thumbs_down"> = {

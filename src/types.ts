@@ -5,6 +5,17 @@ export type TraceSpan = {
   id: string; parent_id?: string; type: "llm" | "tool" | "retriever" | "function" | "chain" | "agent" | "unknown";
   name?: string; input?: unknown; output?: unknown; metadata?: Record<string, unknown>;
 };
+export type KnownTaskSignature = {
+  id: string; label: string; description: string; risk_level: Risk;
+};
+export type TraceSignatureDecision = {
+  provider: "jev"; model: string; signature_id: string; signature_label: string;
+  confidence: number; probabilities: Record<string, number>;
+  runner_up?: { signature_id: string; signature_label: string; confidence: number };
+  status: "matched" | "low_confidence" | "unknown" | "timeout" | "error" | "provider_unavailable";
+  routing_action: "signature_route" | "fallback_model";
+  confidence_threshold: number; latency_ms: number; reason: string; error?: string;
+};
 export type Trace = {
   id: string; timestamp: string; provider?: string; model: string; messages: Message[];
   prompt_text: string; response_text?: string; input_tokens: number; output_tokens: number;
@@ -12,6 +23,7 @@ export type Trace = {
   workflow_id?: string; node_id?: string; parent_node_id?: string; workflow_role?: WorkflowRole; span_name?: string;
   source?: "langsmith" | "braintrust" | "helicone" | "litellm" | "csv" | "json" | "unknown";
   spans?: TraceSpan[]; error_type?: string; metadata?: Record<string, unknown>;
+  signature_decision?: TraceSignatureDecision;
 };
 export type NormalizedTrace = Trace;
 export type TaskType =

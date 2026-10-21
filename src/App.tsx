@@ -4,8 +4,9 @@ import { enabledModels, updateFamilyEnabled, updateModelEnabled, updateModelPric
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
+import { applyJevSignatureDecisions, classifyTraceSignaturesWithJev } from "./core/jevSignatureGate";
 import { recommendPolicy } from "./core/recommendations";
-import { createSeedTraces } from "./core/seed";
+import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
 import { Evals } from "./pages/Evals";
@@ -82,15 +83,25 @@ export default function App() {
     if (recommendationCandidate !== DEEPSEEK_RECOMMENDATION_SCOPE && !activeModelIds.includes(recommendationCandidate)) setRecommendationCandidate(DEEPSEEK_RECOMMENDATION_SCOPE);
   }, [activeModels, activeModelIds, candidate, recommendationCandidate]);
 
-  function applyUploadedText(text: string, fileName: string) {
+  async function applyUploadedText(text: string, fileName: string) {
     const result = ingestText(text, fileName);
     setUploadErrors(result.errors.slice(0, 8).map((error) => `Row ${error.row}: ${error.reason}`));
     if (result.traces.length) {
-      setTraces(result.traces);
-      setTraceJudgeResults(createTraceJudgeResults(result.traces));
+      setNotice(`Classifying ${result.traces.length.toLocaleString()} incoming traces with Jev...`);
+      let classifiedTraces = result.traces;
+      let gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
+      try {
+        const gate = await classifyTraceSignaturesWithJev(result.traces, knownDistinctTaskSignatures);
+        classifiedTraces = applyJevSignatureDecisions(result.traces, gate.decisions);
+        gateSummary = `${gate.summary.matched} signature routes · ${gate.summary.fallback} fallback routes`;
+      } catch {
+        gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
+      }
+      setTraces(classifiedTraces);
+      setTraceJudgeResults(createTraceJudgeResults(classifiedTraces));
       setPage("Overview");
       setUploadOpen(false);
-      setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(result.traces).length} distinct tasks classified${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
+      setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} distinct tasks · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
     } else {
       setNotice(result.errors.length ? `${result.errors.length} rows could not be ingested` : "No LLM calls found in upload");
     }
@@ -98,7 +109,7 @@ export default function App() {
 
   async function upload(file?: File) {
     if (!file) return;
-    applyUploadedText(await file.text(), file.name);
+    await applyUploadedText(await file.text(), file.name);
   }
 
   function loadExampleDataset() {

@@ -1551,3 +1551,14 @@ dt{font-size:9px}dd{font-size:12px}.sample{font-size:11px}
   font-size:12px;
   line-height:1.45;
 }
+.signature-decision{display:grid;gap:12px}
+.signature-decision-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.signature-decision-head h3{margin:4px 0 0;color:#f4fbf6}
+.signature-decision-head>span{padding:5px 8px;border-radius:999px;font-size:9px;font-weight:900;text-transform:uppercase;white-space:nowrap}
+.signature-decision-head>span.matched{background:rgba(88,240,132,.13);color:#b7ff6d}
+.signature-decision-head>span.fallback{background:rgba(255,188,112,.14);color:#ffc98c}
+.signature-decision-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.signature-decision-metrics>div{display:grid;gap:4px;padding:9px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.035)}
+.signature-decision-metrics small{color:#8fa49a;font-size:8px;text-transform:uppercase}
+.signature-decision-metrics b{color:#fff}
+.signature-decision p{margin:0;color:#b8c8bf;line-height:1.5}
