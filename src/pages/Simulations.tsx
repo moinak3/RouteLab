@@ -8,6 +8,7 @@ import type { CandidateRun, DistinctTaskBucket, EvalResult, GatewayProvider, Tra
 import { money, pct, preview, stripJudgeMarker } from "../lib/format";
 import { distinctTaskValue } from "../components/DistinctTaskDisplay";
 import { ModelOptions } from "../components/ModelOptions";
+import { RoutingPolicyPublisher } from "../components/RoutingPolicyPublisher";
 import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, reviseDraftRoutingPolicy } from "../core/routingDraft";
 import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useRoutingPolicyDraft";
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
@@ -370,6 +371,16 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 </div>
 <div className="policy-flow"><div><small>Default route for all requests</small><b>{fallbackModel?.display_name ?? "Select a fallback"}</b><span>Includes unknown and low-confidence signatures</span></div><i>except</i><div><small>Approved task-signature overrides</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} active override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Promoted from measured simulation results</span></div></div>
 {Object.values(draftPolicy.overrides).length > 0 && <div className="policy-overrides"><h3>Current task overrides</h3>{Object.values(draftPolicy.overrides).map(override => <article key={override.taskId}><div><small>{override.taskName}</small><b>{override.modelName}{override.provider ? ` via ${override.provider}` : ""}</b></div><p>{pct(override.passRate * 100)} pass · {changeLabel(override.costDeltaPct)} cost · {changeLabel(override.latencyDeltaPct)} latency · {override.replayCount} traces</p><button type="button" onClick={() => removeTaskOverride(override.taskId)}>Remove override</button></article>)}</div>}
+<RoutingPolicyPublisher
+  signatures={distinctTaskBuckets.map((bucket) => ({
+    id: bucket.bucket_id,
+    label: bucket.bucket_name,
+    description: `${bucket.task.task_type} in ${bucket.task.domain}; ${bucket.task.complexity} complexity; ${bucket.task.grounding_requirement}; ${bucket.task.output_format} output`,
+    riskLevel: bucket.risk_level,
+  }))}
+  draftRevision={draftStatus.revision}
+  draftSaved={draftStatus.state === "saved"}
+/>
 </section>
 <section className="panel task-impact-panel">
 <div className="panelhead">
