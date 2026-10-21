@@ -79,8 +79,8 @@ const steps = [
   {
     title: "Build the Routing Policy",
     text: "Start with one general fallback, then promote measured task-model pairs into explicit overrides only after they clear quality, latency, and cost guardrails.",
-    image: "/marketing/recommendations.jpg",
-    alt: "RouteLab recommendations view",
+    image: "/marketing/policy-builder.jpg",
+    alt: "RouteLab routing policy builder showing the general fallback and task-specific overrides",
   },
   {
     title: "Publish a Versioned Policy",
@@ -91,8 +91,8 @@ const steps = [
   {
     title: "Enforce Locally, Upstream of the Gateway",
     text: "A thin customer-hosted decision layer classifies each request, applies the approved policy, and gives OpenRouter, Vercel AI Gateway, or another gateway the model decision to execute.",
-    image: "/marketing/recommendations.jpg",
-    alt: "RouteLab policy export and recommendations view",
+    image: "/marketing/policy-enforcement.jpg",
+    alt: "RouteLab latest effective policy showing the fallback and per-task routing state",
   },
 ];
 

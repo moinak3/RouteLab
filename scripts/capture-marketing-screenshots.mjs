@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 
-const pageTarget = await fetch("http://127.0.0.1:9222/json/new?http://127.0.0.1:5173/", { method: "PUT" }).then((response) => response.json());
+const appUrl = process.env.ROUTELAB_URL ?? "http://127.0.0.1:5173/";
+const pageTarget = await fetch(`http://127.0.0.1:9222/json/new?${encodeURIComponent(appUrl)}`, { method: "PUT" }).then((response) => response.json());
 const socket = new WebSocket(pageTarget.webSocketDebuggerUrl);
 let id = 0;
 const pending = new Map();
@@ -38,24 +39,24 @@ async function capture(name) {
 
 await send("Page.enable");
 await send("Runtime.enable");
-await send("Page.navigate", { url: "http://127.0.0.1:5173/" });
+await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+await send("Page.navigate", { url: appUrl });
 await wait(900);
-await evaluate(`Array.from(document.querySelectorAll('button')).find((button)=>button.textContent?.includes('Run the 48-hour assessment'))?.click()`);
+await evaluate(`Array.from(document.querySelectorAll('button')).find((button)=>button.textContent?.trim()==='Get started')?.click()`);
 await wait(200);
 await evaluate(`const input=document.querySelector('input[type=password]'); if(input){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Mochinder'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);
 await wait(150);
 await evaluate(`Array.from(document.querySelectorAll('button')).find((button)=>button.textContent?.includes('Unlock RouteLab'))?.click()`);
 await wait(900);
 
-for (const [page, file] of [
-  ["Traces", "traces"],
-  ["Golden Dataset", "evals"],
-  ["Simulations", "simulations"],
-  ["Recommendations", "recommendations"],
-]) {
-  await evaluate(`Array.from(document.querySelectorAll('aside nav button,.mobile-nav button')).find((button)=>button.textContent?.trim()==='${page}')?.click()`);
-  await wait(900);
-  await capture(file);
-}
+await evaluate(`Array.from(document.querySelectorAll('aside nav button,.mobile-nav button')).find((button)=>button.textContent?.trim()==='Routing Simulations')?.click()`);
+await wait(500);
+await evaluate(`document.querySelector('.routing-policy-builder')?.scrollIntoView({block:'start'})`);
+await capture("policy-builder");
+
+await evaluate(`Array.from(document.querySelectorAll('aside nav button,.mobile-nav button')).find((button)=>button.textContent?.trim()==='Overview')?.click()`);
+await wait(500);
+await evaluate(`document.querySelector('.overview-routing-state')?.scrollIntoView({block:'start'})`);
+await capture("policy-enforcement");
 
 socket.close();
