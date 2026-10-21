@@ -264,7 +264,6 @@ export default function App() {
         <small className="nav-group-label advanced">Advanced</small>
         {advancedNav.map((item) => <button type="button" className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}
       </nav>
-      <div className="privacy"><span className="pulse" /><b>Local mode</b><small>External models disabled</small></div>
     </aside>
     <main>
       {page !== "Benchmarking" ? <header><div><p className="eyebrow">Intelligent model simulations - the right model to tradeoff cost, quality and latency for your business</p><h1>{topLevelLabel(page)}</h1></div><div className="actions"><button type="button" className="upload" onClick={()=>setUploadOpen(true)}>Upload traces</button><button className="primary" onClick={() => setPage("Simulations")}>Run simulation</button></div></header> : null}
