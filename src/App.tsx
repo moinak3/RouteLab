@@ -40,7 +40,7 @@ const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Trace Library", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }] },
   { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }] },
-  { label: "Model Trials", page: "Simulations", pages: ["Simulations"], icon: "M" },
+  { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
   { label: "Routes", page: "Recommendations", pages: ["Recommendations", "Fine-Tuning"], icon: "R", children: [{ label: "Routing Decisions", page: "Recommendations" }, { label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }] },
 ];
 const advancedNav: NavDestination[] = [
