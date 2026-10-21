@@ -32,6 +32,12 @@ export type DraftRoutingPolicy = {
   updatedAt: string;
 };
 
+export type RoutingPolicyDraftEnvelope = {
+  draft: DraftRoutingPolicy | null;
+  revision: number;
+  updatedAt: string | null;
+};
+
 export const ROUTING_DRAFT_STORAGE_KEY = "routelab-routing-policy-draft-v1";
 
 export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
@@ -57,11 +63,51 @@ export function loadDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPol
 }
 
 export function saveDraftRoutingPolicy(policy: DraftRoutingPolicy) {
-  if (typeof window !== "undefined") window.localStorage.setItem(ROUTING_DRAFT_STORAGE_KEY, JSON.stringify(policy));
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(ROUTING_DRAFT_STORAGE_KEY, JSON.stringify(policy));
+    window.dispatchEvent(new CustomEvent("routelab-routing-policy-updated", { detail: policy }));
+  }
 }
 
 export function reviseDraftRoutingPolicy(policy: DraftRoutingPolicy, changes: Partial<DraftRoutingPolicy>): DraftRoutingPolicy {
   return { ...policy, ...changes, version: policy.version + 1, updatedAt: new Date().toISOString() };
+}
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+function isDraftTaskOverride(value: unknown): value is DraftTaskOverride {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Partial<DraftTaskOverride>;
+  return typeof item.taskId === "string"
+    && typeof item.taskName === "string"
+    && typeof item.modelId === "string"
+    && typeof item.modelName === "string"
+    && (item.provider === undefined || typeof item.provider === "string")
+    && isFiniteNumber(item.passRate)
+    && isFiniteNumber(item.costDeltaPct)
+    && isFiniteNumber(item.latencyDeltaPct)
+    && isFiniteNumber(item.replayCount)
+    && typeof item.updatedAt === "string";
+}
+
+export function isDraftRoutingPolicy(value: unknown): value is DraftRoutingPolicy {
+  if (!value || typeof value !== "object") return false;
+  const policy = value as Partial<DraftRoutingPolicy>;
+  if (typeof policy.fallbackModelId !== "string"
+    || !isFiniteNumber(policy.minimumPassRate)
+    || !isFiniteNumber(policy.maximumLatencyIncreasePct)
+    || !isFiniteNumber(policy.version)
+    || typeof policy.updatedAt !== "string"
+    || !policy.overrides
+    || typeof policy.overrides !== "object"
+    || Array.isArray(policy.overrides)) return false;
+  return Object.values(policy.overrides).every(isDraftTaskOverride);
+}
+
+export function initialDraftSync(localDraft: DraftRoutingPolicy, serverDraft: DraftRoutingPolicy | null) {
+  return serverDraft
+    ? { draft: serverDraft, shouldImportLocal: false }
+    : { draft: localDraft, shouldImportLocal: true };
 }
 
 export type RouteCandidateAssessment = {

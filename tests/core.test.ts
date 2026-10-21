@@ -16,7 +16,7 @@ import { analyzeFineTuneOpportunity, calibrateGoldenDataset, createSimulatedGold
 import { createTraceJudgeResults } from "../src/core/traceJudge";
 import { basetenModelRepo, buildBasetenTrainingJobPayload, toSupervisedFineTuneJsonl } from "../src/core/basetenFineTuning";
 import { overviewEconomics } from "../src/core/economics";
-import { assessRouteCandidate, createDraftRoutingPolicy, reviseDraftRoutingPolicy } from "../src/core/routingDraft";
+import { assessRouteCandidate, createDraftRoutingPolicy, initialDraftSync, isDraftRoutingPolicy, reviseDraftRoutingPolicy } from "../src/core/routingDraft";
 
 const traces = createSeedTraces();
 const distinctTaskBuckets = createDistinctTaskBuckets(traces);
@@ -90,6 +90,17 @@ describe("analysis and risk inference", () => {
     const revised = reviseDraftRoutingPolicy(initial, { fallbackModelId: "deepseek-r1" });
     expect(revised.version).toBe(initial.version + 1);
     expect(revised.fallbackModelId).toBe("deepseek-r1");
+  });
+  it("imports a browser draft only when cloud storage has no draft", () => {
+    const local = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { fallbackModelId: "deepseek-r1" });
+    const cloud = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { minimumPassRate: .95 });
+    expect(initialDraftSync(local, null)).toEqual({ draft: local, shouldImportLocal: true });
+    expect(initialDraftSync(local, cloud)).toEqual({ draft: cloud, shouldImportLocal: false });
+  });
+  it("rejects malformed routing policy payloads", () => {
+    expect(isDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"))).toBe(true);
+    expect(isDraftRoutingPolicy({ fallbackModelId: "gpt-5.5-pro", overrides: {} })).toBe(false);
+    expect(isDraftRoutingPolicy({ ...createDraftRoutingPolicy("gpt-5.5-pro"), overrides: { task: { taskId: "task" } } })).toBe(false);
   });
   it("calculates consistent dashboard metrics", () => {
     const metrics = dashboardMetrics(traces);

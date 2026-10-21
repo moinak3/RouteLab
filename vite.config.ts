@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 import { getModel } from "./src/core/catalog";
 import { runFrontierProvider } from "./api/frontier-lab/_runner";
 import { runJevSignatureGate } from "./api/jev/_runner";
+import { getRoutingPolicyDraft, PolicyStoreConflictError, PolicyStoreUnavailableError, saveRoutingPolicyDraft } from "./api/routing-policy/_store";
+import { isDraftRoutingPolicy } from "./src/core/routingDraft";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -120,6 +122,24 @@ export default defineConfig(({ mode }) => {
           }));
         } catch (error) {
           return sendJson(res, 500, { error: error instanceof Error ? error.message : "Jev signature gate failed." });
+        }
+      });
+      server.middlewares.use("/api/routing-policy/draft", async (req, res) => {
+        const databaseUrl = String(process.env.DATABASE_URL ?? loadedEnv.DATABASE_URL ?? "").trim();
+        const workspaceId = String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? loadedEnv.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
+        try {
+          if (req.method === "GET") return sendJson(res, 200, await getRoutingPolicyDraft(databaseUrl, workspaceId));
+          if (req.method !== "PUT") return sendJson(res, 405, { error: "Method not allowed." });
+          const body = await readJsonBody(req);
+          const expectedRevision = Number(body.expectedRevision);
+          if (!isDraftRoutingPolicy(body.draft) || !Number.isInteger(expectedRevision) || expectedRevision < 0) {
+            return sendJson(res, 400, { error: "A valid routing policy draft and expected revision are required." });
+          }
+          return sendJson(res, 200, await saveRoutingPolicyDraft(databaseUrl, workspaceId, body.draft, expectedRevision));
+        } catch (error) {
+          if (error instanceof PolicyStoreUnavailableError) return sendJson(res, 503, { error: error.message });
+          if (error instanceof PolicyStoreConflictError) return sendJson(res, 409, error.current);
+          return sendJson(res, 500, { error: error instanceof Error ? error.message : "Routing policy storage failed." });
         }
       });
     },

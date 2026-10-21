@@ -13,6 +13,7 @@
     "seed": "node --import tsx scripts/export-seed.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
     "@vitejs/plugin-react": "^4.5.2",
     "ajv": "^8.17.1",
     "papaparse": "^5.5.3",

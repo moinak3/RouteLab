@@ -8,7 +8,8 @@ import type { CandidateRun, DistinctTaskBucket, EvalResult, GatewayProvider, Tra
 import { money, pct, preview, stripJudgeMarker } from "../lib/format";
 import { distinctTaskValue } from "../components/DistinctTaskDisplay";
 import { ModelOptions } from "../components/ModelOptions";
-import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, loadDraftRoutingPolicy, reviseDraftRoutingPolicy, saveDraftRoutingPolicy, type DraftRoutingPolicy } from "../core/routingDraft";
+import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, reviseDraftRoutingPolicy } from "../core/routingDraft";
+import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useRoutingPolicyDraft";
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
     buckets: DistinctTaskBucket[];
     selectedIds: string[];
@@ -74,6 +75,13 @@ const compactMoney = (value: number) => value < .01 ? `$${value.toFixed(5)}` : m
 const scoreLabel = (value?: number) => Number.isFinite(value) ? pct((value ?? 0) * 100) : "Not scored";
 const changeLabel = (value: number) => `${value > 0 ? "+" : ""}${pct(value)}`;
 const pointChangeLabel = (value?: number) => value === undefined ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(1)} pts`;
+const policySaveLabel = (state: RoutingPolicySaveState) => ({
+    loading: "Loading saved draft",
+    saving: "Saving to cloud",
+    saved: "Saved to cloud",
+    offline: "Saved in this browser",
+    conflict: "Newer cloud draft found",
+})[state];
 function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     liveDirect: LiveDirectState | null;
     pendingLiveReplay: PendingLiveReplay | null;
@@ -163,7 +171,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
             ?? activeModels[0]?.id
             ?? "";
     }, [activeModels, traces]);
-    const [draftPolicy, setDraftPolicy] = useState<DraftRoutingPolicy>(() => loadDraftRoutingPolicy(defaultFallbackModelId));
+    const { draftPolicy, setDraftPolicy, status: draftStatus, useServerDraft, retryMyDraft } = useRoutingPolicyDraft(defaultFallbackModelId);
     const dateTraces = useMemo(() => filterTracesByRange(traces, dateRange), [traces, dateRange]);
     const dateTraceIds = useMemo(() => new Set(dateTraces.map(trace => trace.id)), [dateTraces]);
     const callCounts = useMemo(() => new Map(distinctTaskBuckets.map(bucket => [bucket.bucket_id, bucket.traces.filter(id => dateTraceIds.has(id)).length])), [distinctTaskBuckets, dateTraceIds]);
@@ -204,9 +212,6 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
             setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { fallbackModelId: defaultFallbackModelId }));
         }
     }, [activeModels, defaultFallbackModelId, draftPolicy.fallbackModelId]);
-    useEffect(() => {
-        saveDraftRoutingPolicy(draftPolicy);
-    }, [draftPolicy]);
     useEffect(() => { liveAbortRef.current?.abort(); liveAbortRef.current = null; setLiveDirect(null); setPendingLiveReplay(null); setLiveStatus({ state: "idle", message: "" }); }, [candidate, availableTraces, requestLimit.count, dateRange]);
     const runDirect = async () => {
         const nextSeed = Date.now() + Math.floor(Math.random() * 1000000);
@@ -357,7 +362,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span>
 <span>Candidate pass rate: {pct(simulation.summary.pass_rate * 100)}</span>{strategy === "family_cascade" && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
 <section className="panel routing-policy-builder">
-<div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Set the fallback, then approve task-specific overrides</h2><p className="impact-explainer">This is the latest saved policy state. Unknown, low-confidence, and unapproved requests always use the general fallback.</p></div><span>Policy v{draftPolicy.version} · saved locally</span></div>
+<div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Set the fallback, then approve task-specific overrides</h2><p className="impact-explainer">This draft auto-saves. Unknown, low-confidence, and unapproved requests always use the general fallback.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
 <div className="routing-policy-controls">
 <label><small>General fallback model</small><select value={draftPolicy.fallbackModelId} onChange={event => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { fallbackModelId: event.target.value }))}><ModelOptions models={activeModels}/></select><em>Used for every request unless an approved task override matches.</em></label>
 <label><small>Minimum eval pass rate</small><div className="policy-threshold"><input type="number" min="0" max="100" step="1" value={Math.round(draftPolicy.minimumPassRate * 100)} onChange={event => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { minimumPassRate: Math.min(1, Math.max(0, Number(event.target.value) / 100)) }))}/><span>%</span></div><em>A candidate must meet this task-level quality bar.</em></label>
