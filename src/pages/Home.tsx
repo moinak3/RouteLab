@@ -147,7 +147,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <a href="#problem">Problem</a>
           <a href="#why-now">Why now</a>
           <a href="#how-it-works">How it works</a>
-          <button type="button" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
+          <button type="button" onClick={openPasswordPrompt}>Get started</button>
         </div>
       </nav>
 
@@ -160,7 +160,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
             measured task-specific overrides, and a local decision layer upstream of your gateway.
           </p>
           <div className="home-cta-row">
-            <button type="button" className="primary" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
+            <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
             <span>A time-boxed savings assessment on your own traces. No production traffic, no live router, no risk.</span>
           </div>
           <div className="home-hero-stats" aria-label="RouteLab proof points">
@@ -317,7 +317,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-final">
         <h2>Start with traces. Leave with an inference policy.</h2>
         <p>Classify recurring tasks, calibrate the quality bar, simulate candidate models, approve task-level overrides, and publish the policy to a local decision layer.</p>
-        <button type="button" className="primary" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
+        <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
       </section>
 
       {isPasswordOpen && (
