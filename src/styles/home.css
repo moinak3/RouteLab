@@ -414,8 +414,8 @@
 }
 .home-assessment-card>div{
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:8px;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
 }
 .home-assessment-card p{
   display:grid;
@@ -433,9 +433,10 @@
 }
 .home-assessment-card strong{
   color:#58f084;
-  font-size:28px;
-  line-height:1;
-  letter-spacing:-.05em;
+  font-size:22px;
+  line-height:1.1;
+  letter-spacing:-.025em;
+  overflow-wrap:anywhere;
 }
 .home-icp{
   display:grid;
