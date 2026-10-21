@@ -29,6 +29,30 @@ const initialGoldenDatasets = [createSimulatedGoldenDataset(initialTraces, initi
 const DEEPSEEK_RECOMMENDATION_SCOPE = "deepseek_family";
 const APP_PASSWORD = "Mochinder";
 
+type NavDestination = { label: string; page: Page; pages: Page[]; icon: string };
+const workflowNav: NavDestination[] = [
+  { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
+  { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W" },
+  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q" },
+  { label: "Model Trials", page: "Simulations", pages: ["Simulations"], icon: "M" },
+  { label: "Routes", page: "Recommendations", pages: ["Recommendations", "Fine-Tuning"], icon: "R" },
+];
+const advancedNav: NavDestination[] = [
+  { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
+  { label: "Settings", page: "Model Catalog", pages: ["Model Catalog"], icon: "S" },
+];
+const sectionTabs: Partial<Record<Page, Array<{ label: string; page: Page }>>> = {
+  Traces: [{ label: "Trace Library", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }],
+  "Distinct Tasks": [{ label: "Trace Library", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }],
+  Evals: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }],
+  "Golden Dataset": [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }],
+  "Review Queue": [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }],
+  Recommendations: [{ label: "Routing Decisions", page: "Recommendations" }, { label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }],
+  "Fine-Tuning": [{ label: "Routing Decisions", page: "Recommendations" }, { label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }],
+};
+
+const topLevelLabel = (page: Page) => [...workflowNav, ...advancedNav].find((item) => item.pages.includes(page))?.label ?? page;
+
 export default function App() {
   const [page, setPage] = useState<Page>("Home");
   const [traces, setTraces] = useState<Trace[]>(initialTraces);
@@ -53,8 +77,7 @@ export default function App() {
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
-  const nav: Page[] = ["Overview", "Traces", "Distinct Tasks", "Evals", "Golden Dataset", "Simulations", "Recommendations", "Fine-Tuning", "Model Catalog", "Review Queue", "Benchmarking"];
-  const pageLabel = (item: Page) => item;
+  const visibleSectionTabs = sectionTabs[page] ?? [];
 
   useEffect(() => {
     if (!notice) return;
@@ -220,12 +243,13 @@ export default function App() {
   return <div className="shell">
     <aside>
       <div className="brand"><span className="brandmark">R</span><div><b>RouteLab</b><small>Routing intelligence</small></div></div>
-      <nav>{nav.map((item) => <button className={page === item ? "active" : ""} onClick={() => setPage(item)} key={item}><span>{item[0]}</span>{pageLabel(item)}</button>)}</nav>
+      <nav aria-label="Primary navigation"><small className="nav-group-label">Workflow</small>{workflowNav.map((item) => <button className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}<small className="nav-group-label advanced">Advanced</small>{advancedNav.map((item) => <button className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}</nav>
       <div className="privacy"><span className="pulse" /><b>Local mode</b><small>External models disabled</small></div>
     </aside>
     <main>
-      {page !== "Benchmarking" ? <header><div><p className="eyebrow">Intelligent model simulations - the right model to tradeoff cost, quality and latency for your business</p><h1>{pageLabel(page)}</h1></div><div className="actions"><button type="button" className="upload" onClick={()=>setUploadOpen(true)}>Upload traces</button><button className="primary" onClick={() => setPage("Simulations")}>Run simulation</button></div></header> : null}
-      <div className="mobile-nav" aria-label="Mobile navigation">{nav.map(item=><button type="button" className={page===item?"active":""} onClick={()=>setPage(item)} key={item}>{pageLabel(item)}</button>)}</div>
+      {page !== "Benchmarking" ? <header><div><p className="eyebrow">Intelligent model simulations - the right model to tradeoff cost, quality and latency for your business</p><h1>{topLevelLabel(page)}</h1></div><div className="actions"><button type="button" className="upload" onClick={()=>setUploadOpen(true)}>Upload traces</button><button className="primary" onClick={() => setPage("Simulations")}>Run simulation</button></div></header> : null}
+      <div className="mobile-nav" aria-label="Mobile navigation">{[...workflowNav,...advancedNav].map(item=><button type="button" className={item.pages.includes(page)?"active":""} onClick={()=>setPage(item.page)} key={item.label}>{item.label}</button>)}</div>
+      {visibleSectionTabs.length>0&&<nav className="section-tabs" aria-label={`${topLevelLabel(page)} sections`}>{visibleSectionTabs.map(tab=><button type="button" className={page===tab.page?"active":""} onClick={()=>setPage(tab.page)} key={tab.page}>{tab.label}</button>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} policy={policy} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
