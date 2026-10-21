@@ -7,7 +7,7 @@ import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScri
 import { buildReviewQueue, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
 import { traceUserFeedback } from "../src/core/traceFeedback";
 import { createSeedTraces, SEED_TASK_GROUP_COUNT, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
-import { cascade, costOnly, deterministicGenerate, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, replay } from "../src/core/simulations";
+import { cascade, costOnly, deterministicGenerate, distinctTaskImpactBreakdown, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, replay } from "../src/core/simulations";
 import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/core/providerPricing";
 import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
@@ -16,6 +16,7 @@ import { analyzeFineTuneOpportunity, calibrateGoldenDataset, createSimulatedGold
 import { createTraceJudgeResults } from "../src/core/traceJudge";
 import { basetenModelRepo, buildBasetenTrainingJobPayload, toSupervisedFineTuneJsonl } from "../src/core/basetenFineTuning";
 import { overviewEconomics } from "../src/core/economics";
+import { assessRouteCandidate, createDraftRoutingPolicy, reviseDraftRoutingPolicy } from "../src/core/routingDraft";
 
 const traces = createSeedTraces();
 const distinctTaskBuckets = createDistinctTaskBuckets(traces);
@@ -75,6 +76,21 @@ describe("ingestion and costs", () => {
   });
 });
 describe("analysis and risk inference", () => {
+  it("only promotes task routes that clear quality, cost, latency, and evidence guardrails", () => {
+    const eligible = assessRouteCandidate({ passRate: .94, costDeltaPct: -42, latencyDeltaPct: 8, replayCount: 12 });
+    const lowQuality = assessRouteCandidate({ passRate: .82, costDeltaPct: -60, latencyDeltaPct: -12, replayCount: 12 });
+    const slower = assessRouteCandidate({ passRate: .96, costDeltaPct: -55, latencyDeltaPct: 30, replayCount: 12 });
+    expect(eligible.eligible).toBe(true);
+    expect(lowQuality.eligible).toBe(false);
+    expect(slower.checks.find((check) => !check.passed)?.label).toBe("Latency");
+  });
+
+  it("versions every routing policy edit", () => {
+    const initial = createDraftRoutingPolicy("gpt-5.5-pro");
+    const revised = reviseDraftRoutingPolicy(initial, { fallbackModelId: "deepseek-r1" });
+    expect(revised.version).toBe(initial.version + 1);
+    expect(revised.fallbackModelId).toBe("deepseek-r1");
+  });
   it("calculates consistent dashboard metrics", () => {
     const metrics = dashboardMetrics(traces);
     expect(metrics.totalRequests).toBe(SEED_TRACE_COUNT);
@@ -278,6 +294,16 @@ describe("simulation and recommendations", () => {
       const breakdown = monthlyDistinctTaskBreakdown(traces, distinctTaskBuckets, "deepseek-r1", strategy);
       expect(breakdown.reduce((sum, row) => sum + row.monthly_savings_usd, 0)).toBeCloseTo(result.summary.estimated_savings_usd * MONTHLY_MULTIPLIER);
     }
+  });
+  it("shows cost, latency, and eval pass-rate impact for every Distinct Task", () => {
+    const result = replay(traces, "deepseek-r1");
+    const judges = createTraceJudgeResults(traces);
+    const impact = distinctTaskImpactBreakdown(traces, distinctTaskBuckets, result, judges);
+    expect(impact).toHaveLength(distinctTaskBuckets.length);
+    expect(impact.reduce((sum, row) => sum + row.cost.before_monthly_usd, 0)).toBeCloseTo(result.summary.baseline_cost_usd * MONTHLY_MULTIPLIER);
+    expect(impact.reduce((sum, row) => sum + row.cost.after_monthly_usd, 0)).toBeCloseTo(result.summary.simulated_cost_usd * MONTHLY_MULTIPLIER);
+    expect(impact.every((row) => row.trace_count > 0 && row.latency.before_ms > 0 && row.latency.after_ms > 0)).toBe(true);
+    expect(impact.every((row) => row.quality.before_pass_rate !== undefined && row.quality.candidate_scored === row.trace_count)).toBe(true);
   });
   it("runs replay and cascade", () => {
     const cheap = replay(traces, "deepseek-r1");

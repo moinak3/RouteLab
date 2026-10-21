@@ -1,20 +1,18 @@
 import { useState, type FormEvent } from "react";
 
 const heroStats = [
-  { value: "Up to 80%", label: "guardrail-approved savings observed on simulated support workloads" },
-  { value: "Cache + route", label: "guardrail-approved cost levers before tuning" },
-  { value: "Human + eval", label: "golden dataset calibration" },
+  { value: "Per task", label: "model decisions backed by calibrated evals" },
+  { value: "Fallback first", label: "unknown and low-confidence requests stay protected" },
+  { value: "Gateway-ready", label: "versioned policy for local enforcement" },
 ];
 
 const previewItems = [
   { title: "Trace ingestion", action: "observe" },
-  { title: "Distinct tasks", action: "classify" },
-  { title: "Import or create evals", action: "define" },
-  { title: "Calibrate with human judge scores", action: "verify" },
-  { title: "Prompt simulations", action: "replay" },
-  { title: "Recommendations", action: "route" },
-  { title: "Prompt caching", action: "cache" },
-  { title: "Fine-tune when evidence beats prompting", action: "train" },
+  { title: "Task signatures", action: "classify" },
+  { title: "Calibrated quality gates", action: "prove" },
+  { title: "Routing simulations", action: "compare" },
+  { title: "Routing policy", action: "approve" },
+  { title: "Local decision layer", action: "enforce" },
 ];
 
 const pains = [
@@ -28,7 +26,7 @@ const pains = [
   },
   {
     title: "Fragment",
-    text: "Gateways, evals, golden datasets, logs, prompt caching, model experiments, and fine-tuning workflows live in separate tools, so no system owns model allocation.",
+    text: "Gateways execute calls and observability tools explain history, but no system owns the evidence-backed policy that decides which model should serve each task.",
   },
 ];
 
@@ -43,7 +41,7 @@ const allocationLayers = [
   },
   {
     title: "RouteLab",
-    items: ["Classify tasks", "Calibrate evals with golden data", "Simulate, cache, route, and fine-tune"],
+    items: ["Classify task signatures", "Calibrate task-level quality gates", "Publish versioned model-allocation policies"],
   },
 ];
 
@@ -79,30 +77,30 @@ const steps = [
     alt: "RouteLab Simulations tab showing model replay results",
   },
   {
-    title: "Generate Recommendations",
-    text: "Turn simulation and eval evidence into route recommendations that preserve quality and latency guardrails while reducing spend.",
+    title: "Build the Routing Policy",
+    text: "Start with one general fallback, then promote measured task-model pairs into explicit overrides only after they clear quality, latency, and cost guardrails.",
     image: "/marketing/recommendations.jpg",
     alt: "RouteLab recommendations view",
   },
   {
-    title: "Find Prompt Caching Savings",
-    text: "Detect stable prompt prefixes, show exactly where cache_control markers should go, and calculate provider-level savings before changing model behavior.",
+    title: "Publish a Versioned Policy",
+    text: "Turn approved overrides into an auditable, signed policy bundle with confidence thresholds, fallback behavior, and rollback history.",
     image: "/marketing/simulations.jpg",
     alt: "RouteLab simulations view showing model comparison results",
   },
   {
-    title: "Recommend Fine-Tuning Only When the Evidence Says So",
-    text: "Detect stable high-context patterns, recommend fine-tuning only when caching, prompting, RAG, and routing are insufficient, and help users launch an open-weight workflow.",
+    title: "Enforce Locally, Upstream of the Gateway",
+    text: "A thin customer-hosted decision layer classifies each request, applies the approved policy, and gives OpenRouter, Vercel AI Gateway, or another gateway the model decision to execute.",
     image: "/marketing/recommendations.jpg",
     alt: "RouteLab policy export and recommendations view",
   },
 ];
 
 const assessmentRoutes = [
-  { value: "55%", label: "direct cheap" },
-  { value: "20%", label: "cascade" },
-  { value: "15%", label: "prompt cache" },
-  { value: "10%", label: "keep premium" },
+  { value: "Default", label: "general fallback" },
+  { value: "Per task", label: "approved overrides" },
+  { value: "Unknown", label: "use fallback" },
+  { value: "Versioned", label: "auditable policy" },
 ];
 
 const supportReasons = [
@@ -115,14 +113,13 @@ const supportReasons = [
 
 const proof = [
   "Trace-native workflow intelligence",
-  "Distinct task classification",
-  "Eval creation and import",
-  "Golden dataset calibration",
-  "Prompt cache marker recommendations",
-  "Script automation detection",
-  "Gateway config export",
-  "Provider and model-family agnostic",
-  "Simulations, recommendations, and fine-tuning",
+  "Known task signatures plus unknown",
+  "Calibrated task-level quality gates",
+  "Cost, latency, and quality simulations",
+  "General fallback plus approved overrides",
+  "Versioned and auditable policies",
+  "Customer-hosted decision layer",
+  "Gateway and model agnostic",
 ];
 
 export function Home({ onGetStarted }: { onGetStarted: (password: string) => boolean }) {
@@ -156,11 +153,11 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
 
       <section className="home-hero">
         <div className="home-hero-copy">
-          <p className="eyebrow">Built first for high-volume AI support teams</p>
-          <h1>Find the cheapest model that passes your evals. For every AI workflow.</h1>
+          <p className="eyebrow">The policy engine for AI inference</p>
+          <h1>Decide which model should serve every AI task.</h1>
           <p>
-            Start with the traces you already have. Leave with calibrated evals, guardrail-approved model recommendations,
-            and fine-tuning candidates backed by evidence.
+            RouteLab turns production traces and calibrated evals into an auditable model-allocation policy: one conservative fallback,
+            measured task-specific overrides, and a local decision layer upstream of your gateway.
           </p>
           <div className="home-cta-row">
             <button type="button" className="primary" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
@@ -174,7 +171,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
               </div>
             ))}
           </div>
-          <a className="home-method-link" href="#how-it-works">Measured as monthly projection = uploaded sample × observed run rate, after quality and latency guardrails. See how the math works →</a>
+          <a className="home-method-link" href="#how-it-works">See how traces become a versioned routing policy →</a>
         </div>
         <div className="home-product-preview" aria-label="RouteLab workflow preview">
           {previewItems.map((item, index) => (
@@ -190,8 +187,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-assessment home-assessment-condensed">
         <div>
           <p className="eyebrow">48-hour model spend assessment</p>
-          <h2>Evidence before routing changes.</h2>
-          <p>Import traces, calibrate evals, replay candidate models, and leave with guardrail-approved savings math your team can audit.</p>
+          <h2>Build the policy before changing production.</h2>
+          <p>Import traces, establish task signatures, calibrate quality gates, replay candidate models, and leave with an allocation policy your team can audit.</p>
         </div>
       </section>
 
@@ -229,16 +226,16 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <small>margin leak</small>
           <i />
           <span>The new control plane</span>
-          <b>Portfolio of models, evals, cache markers, and fine-tunes per task</b>
-          <small>proved allocation</small>
+          <b>One fallback plus eval-approved model overrides per task</b>
+          <small>inference policy</small>
         </div>
       </section>
 
       <section className="home-allocation">
         <div className="home-section-head">
-          <h2>Not routing. Model allocation.</h2>
-          <p>RouteLab is the allocation layer above gateways, eval tools, prompt caching, and fine-tuning workflows: prove what should move, what should stay, what should be cached, and what should be trained.</p>
-          <p>RouteLab decides the routes. Your gateway executes them — export recommendations as OpenRouter, LiteLLM, or JSON configs.</p>
+          <h2>The policy engine above your gateway.</h2>
+          <p>RouteLab decides which model is eligible for each recurring task. OpenRouter, Vercel AI Gateway, or your existing gateway executes the resulting call.</p>
+          <p>RouteLab Cloud builds and validates the policy. A thin customer-hosted decision layer applies the latest approved version locally, with conservative fallback for uncertainty or failure.</p>
         </div>
         <div className="home-allocation-grid">
           {allocationLayers.map((layer) => (
@@ -252,8 +249,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
 
       <section className="home-steps" id="how-it-works">
         <div className="home-section-head">
-          <h2>Traces become model allocation decisions.</h2>
-          <p>The loop starts with uploaded traces and becomes a calibrated operating system for routing, evaluation, prompt caching, and fine-tuning.</p>
+          <h2>Traces become an enforceable inference policy.</h2>
+          <p>The loop starts with historical evidence, produces a task-level policy, and keeps that policy current as workloads, models, prices, and prompts change.</p>
           <p>Today RouteLab optimizes per-request workloads — classification, RAG answers, drafting, tool calls. Trajectory-level simulation for multi-step agents is on the roadmap.</p>
         </div>
         <div className="home-step-grid">
@@ -273,16 +270,16 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       <section className="home-assessment">
         <div>
           <p className="eyebrow">48-hour model spend assessment</p>
-          <h2>A savings assessment that pays for itself.</h2>
+          <h2>Build an inference policy your team can trust.</h2>
           <p>
             Do not trust a live router on day one. Import traces, define evals, calibrate those evals with golden data,
-            replay candidate models, identify guardrail-approved savings, place prompt-cache markers, and decide where fine-tuning can reduce repeated context cost.
+            replay candidate models, and approve only the task-specific routes that clear your quality, latency, and cost requirements.
             Allocation is not a one-time decision. Every new model release, price drop, and prompt change re-opens the question — RouteLab re-runs the evidence automatically.
           </p>
         </div>
         <div className="home-assessment-card">
           <span>After RouteLab assessment</span>
-          <b>Each distinct task gets the cheapest guardrail-approved route, cache marker, or fine-tuning path.</b>
+          <b>Every request gets the general fallback unless a measured task-specific override has earned approval.</b>
           <div>
             {assessmentRoutes.map((route) => (
               <p key={route.label}><strong>{route.value}</strong>{route.label}</p>
@@ -308,8 +305,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
 
       <section className="home-allocation">
         <div className="home-section-head">
-          <h2>Why this is not only a gateway, eval stack, or fine-tuning platform.</h2>
-          <p>Fine-tuning platforms train a cheaper model for everything. RouteLab proves, per task, whether prompting, routing, cascading, scripting, or fine-tuning wins — and only then recommends training.</p>
+          <h2>Gateways execute. Observability explains. RouteLab decides.</h2>
+          <p>RouteLab connects task classification, calibrated quality evidence, and model simulations into the policy layer that those systems do not own.</p>
         </div>
       </section>
 
@@ -318,8 +315,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
       </section>
 
       <section className="home-final">
-        <h2>Start with traces. Leave with a calibrated model strategy.</h2>
-        <p>Classify tasks, create evals, verify them with golden data, simulate candidates, place cache markers, generate recommendations, and fine-tune when the evidence says it is worth it.</p>
+        <h2>Start with traces. Leave with an inference policy.</h2>
+        <p>Classify recurring tasks, calibrate the quality bar, simulate candidate models, approve task-level overrides, and publish the policy to a local decision layer.</p>
         <button type="button" className="primary" onClick={openPasswordPrompt}>Run the 48-hour assessment</button>
       </section>
 

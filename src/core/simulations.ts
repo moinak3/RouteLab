@@ -1,7 +1,7 @@
 import { calculateCost, getModel, isModelEnabled, modelCatalog } from "./catalog";
 import { evaluateTrace } from "./evaluators";
 import { calculateProviderCost, cheapestProviderQuoteForModel } from "./providerPricing";
-import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket, InferenceProviderQuote } from "../types";
+import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket, InferenceProviderQuote, TraceJudgeResult } from "../types";
 
 export type SimulationSummary = {
   baseline_cost_usd: number; simulated_cost_usd: number; estimated_savings_usd: number; estimated_savings_pct: number;
@@ -9,8 +9,17 @@ export type SimulationSummary = {
   pass_rate: number; severe_failure_rate: number; escalation_rate?: number;
 };
 export type ReplayResult = { runs: CandidateRun[]; evals: EvalResult[]; summary: SimulationSummary };
+export type DistinctTaskImpact = {
+  distinct_task_bucket_id: string;
+  name: string;
+  trace_count: number;
+  cost: { before_monthly_usd: number; after_monthly_usd: number; delta_pct: number };
+  latency: { before_ms: number; after_ms: number; delta_pct: number };
+  quality: { before_pass_rate?: number; after_pass_rate: number; delta_points?: number; baseline_scored: number; candidate_scored: number };
+};
 export const MONTHLY_MULTIPLIER = 30;
 const avg = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+const percentChange = (before: number, after: number) => before ? (after - before) / before * 100 : 0;
 const summarize = (traces: Trace[], runs: CandidateRun[], evals: EvalResult[], escalationRate?: number): SimulationSummary => {
   const baseline = traces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
   const simulated = runs.reduce((sum, run) => sum + run.cost_usd, 0);
@@ -146,5 +155,47 @@ export function monthlyDistinctTaskBreakdownFromRuns(traces: Trace[], runs: Cand
       simulated_monthly_cost_usd: simulated * MONTHLY_MULTIPLIER,
       monthly_savings_usd: (current - simulated) * MONTHLY_MULTIPLIER,
     };
+  });
+}
+
+export function distinctTaskImpactBreakdown(
+  traces: Trace[],
+  buckets: DistinctTaskBucket[],
+  result: ReplayResult,
+  baselineJudges: TraceJudgeResult[],
+): DistinctTaskImpact[] {
+  const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
+  const runsByTraceId = new Map(result.runs.map((run) => [run.trace_id, run]));
+  const evalsByTraceId = new Map(result.evals.map((evaluation) => [evaluation.trace_id, evaluation]));
+  const judgesByTraceId = new Map(baselineJudges.map((judge) => [judge.trace_id, judge]));
+
+  return buckets.flatMap((bucket) => {
+    const selectedTraces = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
+    if (!selectedTraces.length) return [];
+
+    const selectedRuns = selectedTraces.map((trace) => runsByTraceId.get(trace.id)).filter((run): run is CandidateRun => Boolean(run));
+    const selectedEvals = selectedTraces.map((trace) => evalsByTraceId.get(trace.id)).filter((evaluation): evaluation is EvalResult => Boolean(evaluation));
+    const selectedJudges = selectedTraces.map((trace) => judgesByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
+    const beforeCost = selectedTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0) * MONTHLY_MULTIPLIER;
+    const afterCost = selectedRuns.reduce((sum, run) => sum + run.cost_usd, 0) * MONTHLY_MULTIPLIER;
+    const beforeLatency = avg(selectedTraces.map((trace) => trace.latency_ms ?? 0));
+    const afterLatency = avg(selectedRuns.map((run) => run.latency_ms));
+    const beforePassRate = selectedJudges.length ? selectedJudges.filter((judge) => judge.passed).length / selectedJudges.length : undefined;
+    const afterPassRate = selectedEvals.length ? selectedEvals.filter((evaluation) => evaluation.passed).length / selectedEvals.length : 0;
+
+    return [{
+      distinct_task_bucket_id: bucket.bucket_id,
+      name: bucket.bucket_name,
+      trace_count: selectedTraces.length,
+      cost: { before_monthly_usd: beforeCost, after_monthly_usd: afterCost, delta_pct: percentChange(beforeCost, afterCost) },
+      latency: { before_ms: beforeLatency, after_ms: afterLatency, delta_pct: percentChange(beforeLatency, afterLatency) },
+      quality: {
+        before_pass_rate: beforePassRate,
+        after_pass_rate: afterPassRate,
+        delta_points: beforePassRate === undefined ? undefined : (afterPassRate - beforePassRate) * 100,
+        baseline_scored: selectedJudges.length,
+        candidate_scored: selectedEvals.length,
+      },
+    }];
   });
 }

@@ -41,13 +41,14 @@ const workflowNav: NavDestination[] = [
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Trace Library", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }] },
   { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }] },
   { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
-  { label: "Routes", page: "Recommendations", pages: ["Recommendations", "Fine-Tuning"], icon: "R", children: [{ label: "Routing Decisions", page: "Recommendations" }, { label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }] },
 ];
 const advancedNav: NavDestination[] = [
+  { label: "Routes", page: "Recommendations", pages: ["Recommendations", "Fine-Tuning"], icon: "R", children: [{ label: "Routing Decisions", page: "Recommendations" }, { label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }] },
   { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
   { label: "Settings", page: "Model Catalog", pages: ["Model Catalog"], icon: "S" },
 ];
-const topLevelLabel = (page: Page) => [...workflowNav, ...advancedNav].find((item) => item.pages.includes(page))?.label ?? page;
+const allNav = [...workflowNav, ...advancedNav];
+const topLevelLabel = (page: Page) => allNav.find((item) => item.pages.includes(page))?.label ?? page;
 
 export default function App() {
   const [page, setPage] = useState<Page>("Home");
@@ -74,7 +75,7 @@ export default function App() {
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
-  const activeSectionChildren = workflowNav.find((item) => item.pages.includes(page))?.children ?? [];
+  const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
 
   useEffect(() => {
     if (!notice) return;
@@ -87,7 +88,7 @@ export default function App() {
   }, [page]);
 
   useEffect(() => {
-    const activeGroup = workflowNav.find((item) => item.children?.length && item.pages.includes(page));
+    const activeGroup = allNav.find((item) => item.children?.length && item.pages.includes(page));
     if (activeGroup) setExpandedNav((expanded) => ({ ...expanded, [activeGroup.label]: true }));
   }, [page]);
 
@@ -262,15 +263,28 @@ export default function App() {
           </div>}
         </div> : <button type="button" className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}
         <small className="nav-group-label advanced">Advanced</small>
-        {advancedNav.map((item) => <button type="button" className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}
+        {advancedNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
+          <button
+            type="button"
+            className={`nav-parent ${item.pages.includes(page) ? "active" : ""}`}
+            onClick={() => setExpandedNav((expanded) => ({ ...expanded, [item.label]: !expanded[item.label] }))}
+            aria-expanded={Boolean(expandedNav[item.label])}
+            aria-controls={`${item.label.toLowerCase()}-submenu`}
+          >
+            <span>{item.icon}</span>{item.label}<i className="nav-caret" aria-hidden="true">{expandedNav[item.label] ? "-" : "+"}</i>
+          </button>
+          {expandedNav[item.label] && <div className="nav-submenu" id={`${item.label.toLowerCase()}-submenu`}>
+            {item.children.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}
+          </div>}
+        </div> : <button type="button" className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}
       </nav>
     </aside>
     <main>
       {page !== "Benchmarking" ? <header><div><p className="eyebrow">Intelligent model simulations - the right model to tradeoff cost, quality and latency for your business</p><h1>{topLevelLabel(page)}</h1></div><div className="actions"><button type="button" className="upload" onClick={()=>setUploadOpen(true)}>Upload traces</button><button className="primary" onClick={() => setPage("Simulations")}>Run simulation</button></div></header> : null}
-      <div className="mobile-nav" aria-label="Mobile navigation">{[...workflowNav,...advancedNav].map(item=><button type="button" className={item.pages.includes(page)?"active":""} onClick={()=>setPage(item.page)} key={item.label}>{item.label}</button>)}</div>
+      <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><button type="button" className={item.pages.includes(page)?"active":""} onClick={()=>setPage(item.page)} key={item.label}>{item.label}</button>)}</div>
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
-      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} policy={policy} />}
+      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
       {page === "Distinct Tasks" && <DistinctTasks traces={traces} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
