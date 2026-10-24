@@ -1710,6 +1710,7 @@ html,body,#root{max-width:100%;overflow-x:clip}
 .shell main h3,.shell main h4{font-size:18px!important;font-weight:600!important;color:var(--text-1)!important;letter-spacing:0!important}
 .shell main b,.shell main strong,.shell main th,.shell main summary{font-weight:600!important;color:var(--text-1)!important}
 .shell main button,.shell main input,.shell main select,.shell main textarea,.shell main td,.shell main th{font-size:13px!important}
+.shell main input,.shell main select,.shell main textarea{background:var(--surface-3)!important;color:var(--text-1)!important;border-color:var(--line-strong)!important}
 .shell main small,.shell main label,.shell main .eyebrow,.shell main dt,.shell main code,.shell main pre{font-size:12px!important}
 .shell main .eyebrow,.shell main dt,.shell main small{color:var(--text-2)!important}
 .shell main .primary,.shell main .primary *{color:var(--on-accent)!important}
@@ -1727,6 +1728,13 @@ html,body,#root{max-width:100%;overflow-x:clip}
 .response-snapshot,.review-facts b,.review-user-feedback span,.review-workflow p{font-family:var(--font-mono)!important}
 .review-code p,.golden-table td{font-family:var(--font-mono)!important}
 .eval-meta-grid>div:first-child b{font-family:var(--font-mono)!important}
+.eval-ready{background:rgba(88,240,132,.12)!important;color:var(--pass)!important;border:1px solid rgba(88,240,132,.26)!important}
+.range-tabs button.active{background:var(--surface-3)!important;color:var(--text-1)!important}
+.rejected-alternative .comparison{background:var(--surface-2)!important;border-color:var(--line)!important}
+.toggle-control,.toggle-control.small{background:var(--surface-2)!important;color:var(--text-2)!important}
+.cluster-card.model.disabled{background:var(--surface)!important}
+.shell>aside *{color:var(--text-2)!important}
+.shell>aside :is(.brand b,button.active){color:var(--text-1)!important}
 @media(max-width:1200px){.fine-tune-recommendation-layout{grid-template-columns:1fr!important}.fine-tune-rec-card,.fine-tune-json-panel{grid-column:1!important}.fine-tune-signature-grid,.prompt-cache-signatures{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:960px){.fine-tune-signature-grid,.prompt-cache-signatures{grid-template-columns:1fr!important}.frontier-case-grid{grid-template-columns:1fr!important}.frontier-case-option.centerpiece{grid-column:auto!important}}
 @media(max-width:640px){.rec-card-head,.prompt-cache-head{display:grid!important}.rec-metrics,.rec-evidence-grid,.prompt-cache-grid,.prompt-cache-providers{grid-template-columns:1fr!important}.calibration-metrics{grid-template-columns:1fr!important}.golden-browser{grid-template-columns:1fr!important}}

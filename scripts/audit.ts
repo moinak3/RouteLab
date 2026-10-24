@@ -43,6 +43,18 @@ async function navigate(page: Page, route: readonly string[]) {
   await page.waitForTimeout(150);
 }
 
+async function loadImages(page: Page) {
+  await page.locator("img").evaluateAll(async (images: HTMLImageElement[]) => {
+    images.forEach((image) => { image.loading = "eager"; });
+    await Promise.all(images.map((image) => image.complete
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        })));
+  });
+}
+
 async function inspect(page: Page, label: string) {
   const result = await page.evaluate(() => {
     const visible = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter((element) => {
@@ -91,6 +103,7 @@ for (const [width, height] of viewports) {
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await loadImages(page);
   await inspect(page, `Landing ${width}x${height}`).catch((error) => failures.push(String(error)));
   await page.screenshot({ path: path.join(temporaryDir, `after-landing-${width}.png`), fullPage: true });
   await unlock(page);

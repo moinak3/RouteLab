@@ -12,6 +12,7 @@
     "eval:distinct-tasks": "node --import tsx scripts/eval-distinct-tasks.ts",
     "seed": "node --import tsx scripts/generate-demo-data.ts",
     "capture:screenshots": "node --import tsx scripts/capture-screenshots.ts",
+    "capture:before": "node --import tsx scripts/capture-before.ts",
     "audit:ui": "node --import tsx scripts/audit.ts"
   },
   "dependencies": {

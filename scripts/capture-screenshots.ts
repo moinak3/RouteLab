@@ -44,8 +44,9 @@ const browser = await chromium.launch({ headless: true, executablePath: chrome }
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 const page = await context.newPage();
 await unlock(page);
+await page.locator(".overview-decision-summary").getByText("Saved · not published").waitFor();
 
-await capture(page, page.locator(".overview-decision-summary"), "hero-policy");
+await capture(page, page.locator(".overview-routing-state"), "hero-policy");
 await openTopLevel(page, "Traces");
 await capture(page, page.locator(".traces-page > .panel"), "observe");
 await openTopLevel(page, "Tasks");
