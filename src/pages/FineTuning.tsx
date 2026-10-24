@@ -69,6 +69,7 @@ function RecommendationCard({ report, compact = false }: { report: FineTuningRec
 
 function PromptCachingCard({ opportunity }: { opportunity: PromptCachingOpportunity }) {
   const topProvider = opportunity.per_provider[0];
+  const readableCacheCopy = (value: string) => value.replaceAll("cache_control", "cache control");
   return <article className={`prompt-cache-card ${opportunity.recommendation}`}>
     <div className="prompt-cache-head">
       <div>
@@ -78,7 +79,7 @@ function PromptCachingCard({ opportunity }: { opportunity: PromptCachingOpportun
       </div>
       <strong>{topProvider ? preciseMoney(topProvider.monthly_savings) : "$0"}<small>/mo</small></strong>
     </div>
-    <p>{opportunity.primary_reason}</p>
+    <p>{readableCacheCopy(opportunity.primary_reason)}</p>
     <div className="prompt-cache-grid">
       <span><b>{opportunity.stable_prefix_tokens.toLocaleString()}</b>stable prefix tokens</span>
       <span><b>{pct(opportunity.prefix_similarity_pct)}</b>prompt similarity</span>
@@ -87,7 +88,7 @@ function PromptCachingCard({ opportunity }: { opportunity: PromptCachingOpportun
     <div className="prompt-cache-marker">
       <b>Where to place it</b>
       <code>{opportunity.suggested_cache_control_path}</code>
-      <p>{opportunity.marker_instruction}</p>
+      <p>{readableCacheCopy(opportunity.marker_instruction)}</p>
       <small>{opportunity.sample_prefix_preview}</small>
     </div>
     <div className="prompt-cache-providers">

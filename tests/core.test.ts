@@ -442,7 +442,7 @@ describe("simulation and recommendations", () => {
   });
   it("surfaces scriptable tool-call signature clusters", () => {
     const recommendations = recommendScriptAutomation(traces);
-    const stable = recommendations.find((recommendation) => recommendation.cluster_name.includes("Order Api"));
+    const stable = recommendations.find((recommendation) => recommendation.cluster_name.includes("Order API"));
     expect(stable).toBeTruthy();
     expect(stable?.instance_count).toBeGreaterThanOrEqual(3);
     expect(stable?.pattern_match_pct).toBeGreaterThan(90);

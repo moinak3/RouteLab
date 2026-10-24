@@ -24,8 +24,9 @@ describe("deterministic demo data", () => {
     traces.forEach((trace) => {
       const account = trace.prompt_text.match(/Account: ([^.]+)\./)?.[1];
       expect(account).toBeTruthy();
+      const displayedEvidence = [trace.prompt_text, trace.response_text, JSON.stringify(trace.spans ?? [])].join(" ");
       const named = ["Northstar", "Acme", "Greenbyte", "Atlas", "Waypoint", "Cobalt", "Helio", "Nimbus", "Redwood", "Summit", "Kite", "Harbor"]
-        .filter((name) => trace.prompt_text.includes(name));
+        .filter((name) => displayedEvidence.includes(name));
       expect(named.every((name) => name === account)).toBe(true);
     });
   });

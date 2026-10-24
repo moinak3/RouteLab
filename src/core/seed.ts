@@ -273,10 +273,15 @@ const sampleSafetySignals: Record<string, { signal: string; reason: string }> = 
 const complexityScore = (complexity: Complexity) => ({ low: .12, medium: .18, high: .82 })[complexity];
 const tokenBase = (complexity: Complexity) => ({ low: 290, medium: 650, high: 1310 })[complexity];
 const monthlyRiskWeight = (risk: Risk) => ({ low: 1.1, medium: 1, high: .8 })[risk];
+const accountPattern = /\b(Northstar|Acme|Greenbyte|Atlas|Waypoint|Cobalt|Helio|Nimbus|Redwood|Summit|Kite|Harbor)\b/g;
+
+function personalizeText(value: string, account: string) {
+  return value.replace(accountPattern, account);
+}
 
 function personalize(prompt: string, index: number) {
   const account = accounts[index % accounts.length];
-  const normalized = prompt.replace(/\b(Northstar|Acme|Greenbyte|Atlas|Waypoint|Cobalt|Helio|Nimbus|Redwood|Summit|Kite|Harbor)\b/g, account);
+  const normalized = personalizeText(prompt, account);
   return `${normalized} Account: ${account}. Ticket opened by ${["admin", "billing owner", "support manager", "operations lead"][index % 4]}.`;
 }
 
@@ -313,9 +318,10 @@ export function createSeedTraces(): Trace[] {
   const representedWeight = groups.reduce((sum, group, index) => sum + SEED_GROUP_COUNTS[index] * monthlyRiskWeight(group.risk), 0);
   return groups.flatMap((group, groupIndex) => Array.from({ length: SEED_GROUP_COUNTS[groupIndex] }, (_, index) => {
     const example = group.examples[index % group.examples.length];
+    const account = accounts[index % accounts.length];
     const id = `trace_${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${String(index + 1).padStart(3, "0")}`;
     const prompt = personalize(example.prompt, index);
-    const reference = example.response;
+    const reference = personalizeText(example.response, account);
     const safetySignal = sampleSafetySignals[id];
     const modelId = group.currentModels[index % group.currentModels.length];
     const model = getModel(modelId)!;
@@ -334,7 +340,7 @@ export function createSeedTraces(): Trace[] {
     const nodeId = `${workflowId}_${String(groupIndex + 1).padStart(2, "0")}_${role}`;
     const baselinePass = unit(`${id}:baseline`) < baselineRate(group.risk, groupIndex);
     const cheapPass = unit(`${id}:cheap`) < candidateRate(group.risk, groupIndex);
-    const weakResponse = weakResponseFor(group, example);
+    const weakResponse = personalizeText(weakResponseFor(group, example), account);
     const failure = failureReason(group);
     const failed = index === groupCount - 1 && group.label === "Order status lookup";
     return {
@@ -357,7 +363,7 @@ export function createSeedTraces(): Trace[] {
       parent_node_id: groupIndex && parentRole ? `${workflowId}_${String(groupIndex).padStart(2, "0")}_${parentRole}` : undefined,
       workflow_role: role,
       span_name: `${group.label} ${role}`,
-      spans: example.spans,
+      spans: example.spans ? JSON.parse(personalizeText(JSON.stringify(example.spans), account)) as TraceSpan[] : undefined,
       error_type: failed ? "timeout" : undefined,
       metadata: {
         _internal_reference: reference,

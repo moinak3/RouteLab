@@ -123,7 +123,7 @@ export function recommendScriptAutomation(traces: Trace[], monthlyMultiplier = s
     const patternMatch = 100 - Math.max(branchVariation, outcomeVariation);
     if (items.length < 3 || patternMatch < SCRIPTABLE_PATTERN_THRESHOLD * 100) return [];
     const steps = stepSummaries(items);
-    const name = steps.map((step) => compactName(step.tool_name)).join(" -> ");
+    const name = steps.map((step) => compactName(step.tool_name).replace(/\bApi\b/g, "API").replace(/\bDirectory\b/g, "directory")).join(" → ");
     const scriptName = `run${steps.map((step) => compactName(step.tool_name).replace(/\s+/g, "")).join("") || `ToolSequence${index + 1}`}`;
     const explicitProjection = items.reduce((sum, item) => sum + item.projected_monthly_cost_usd, 0);
     const projectedMonthlySavings = (explicitProjection || items.reduce((sum, item) => sum + item.automation_cost_usd, 0) * monthlyMultiplier) * SCRIPT_REPLACEMENT_SAVINGS_RATE;

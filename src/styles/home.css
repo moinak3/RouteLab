@@ -11,6 +11,18 @@
     linear-gradient(180deg,#080d13 0%,#071014 46%,#05090d 100%);
   overflow:hidden;
 }
+
+/* Marketing type and color lock. */
+.home-page *{font-size:15px!important;font-weight:400!important;color:var(--text-2)!important}
+.home-page h1{font-size:64px!important;line-height:1!important;letter-spacing:-.025em!important;font-weight:600!important;color:var(--text-1)!important}
+.home-page h2{font-size:40px!important;line-height:1.1!important;letter-spacing:-.02em!important;font-weight:600!important;color:var(--text-1)!important}
+.home-page h3{font-size:22px!important;line-height:1.25!important;letter-spacing:0!important;font-weight:600!important;color:var(--text-1)!important}
+.home-page b,.home-page strong{font-weight:600!important;color:var(--text-1)!important}
+.home-page small,.home-page .eyebrow{font-size:12px!important;color:var(--text-2)!important}
+.home-page a,.home-page button{font-size:13px!important;font-weight:600!important}
+.home-page .home-primary{color:var(--on-accent)!important}
+.home-page .home-preview-link,.home-page footer a{color:var(--accent)!important}
+@media(max-width:640px){.home-page h1{font-size:40px!important;line-height:1.05!important}.home-page h2{font-size:30px!important;line-height:1.15!important}}
 .home-page:before{
   content:"";
   position:fixed;
