@@ -264,16 +264,6 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
                 liveAbortRef.current = null;
         }
     };
-    const runCascade = () => {
-        liveAbortRef.current?.abort();
-        liveAbortRef.current = null;
-        const nextSeed = Date.now() + Math.floor(Math.random() * 1000000);
-        setSampleSeed(nextSeed);
-        setLiveDirect(null);
-        setPendingLiveReplay(null);
-        setLiveStatus({ state: "idle", message: "" });
-        setStrategy("family_cascade");
-    };
     const scenarioTraces = strategy === "direct" && liveDirect ? liveDirect.traces : selectedTraces;
     const simulation = useMemo(() => hasActiveModels ? (strategy === "direct" ? (liveDirect?.result ?? direct!) : familyCascade(selectedTraces, candidate)) : undefined, [strategy, direct, liveDirect, selectedTraces, candidate, catalogVersion, hasActiveModels]);
     const distinctTaskImpact = useMemo(() => simulation ? distinctTaskImpactBreakdown(scenarioTraces, selectedDistinctTasks, simulation, traceJudgeResults) : [], [simulation, scenarioTraces, selectedDistinctTasks, traceJudgeResults]);
@@ -323,18 +313,14 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <input aria-label="Requests to simulate" inputMode="decimal" value={requestLimitValue} onChange={event => setRequestLimitValue(event.target.value)} placeholder={requestLimitMode === "percent" ? "100" : "500"}/>
 </div>{requestLimit.message && <small>{requestLimit.message}</small>}</div>
 <p className="scenario-note">{liveDirect && strategy === "direct" ? `Live replay via ${liveDirect.label}` : `Deterministic demo replay${providerName ? ` via ${providerName}` : ""}`} · random sample of {scenarioTraces.length.toLocaleString()} from {availableTraces.length.toLocaleString()} matching LLM calls · monthly projection = selected sample × {MONTHLY_MULTIPLIER}</p>
-<p className="scope-note">Simulations replay individual requests. Multi-step workflow (trajectory-level) simulation is on the roadmap.</p>{liveKeyStatus && <p className="live-key-note">{liveKeyStatus.message}</p>}{liveStatus.message && <p className={`live-status ${liveStatus.state}`}>{liveStatus.message}</p>}</div>
+</div>
 <div className={`projection ${monthlySavings < 0 ? "projection-cost" : ""}`}>
 <small>{strategy === "direct" ? "Raw direct scenario savings (before guardrails)" : "Raw cascade scenario savings (before guardrails)"}</small>
 <strong>{money(Math.abs(monthlySavings))}</strong>
 <span>{monthlySavings >= 0 ? "saved per month" : "additional monthly cost"} with {strategy === "direct" ? candidateRouteName : `the ${candidateFamily} family`}</span>
 </div>
 <div className="sim-actions">
-<button className={strategy === "direct" ? "primary" : ""} disabled={liveStatus.state === "running"} onClick={runDirect}>{liveStatus.state === "running" ? "Running live replay..." : "Simulate direct routing"}</button>{liveStatus.state === "running" && <button type="button" className="stop-simulation" onClick={stopLiveReplay}>Stop simulation</button>}<span className="cascade-action">
-<button className={strategy === "family_cascade" ? "primary" : ""} disabled={liveStatus.state === "running"} onClick={runCascade}>Simulate cascading</button>
-<span className="tooltip" tabIndex={0} aria-label="About cascading simulation" title="For each query, simulate the lowest-cost enabled model in the selected family first. If its result is insufficient, check the next enabled tier.">?<span role="tooltip">For each query, simulate the lowest-cost enabled model in the selected family first. If its result is insufficient, check the next enabled tier.</span>
-</span>
-</span>
+<button className={strategy === "direct" ? "primary" : ""} disabled={liveStatus.state === "running"} onClick={runDirect}>{liveStatus.state === "running" ? "Running live replay..." : "Simulate direct routing"}</button>{liveStatus.state === "running" && <button type="button" className="stop-simulation" onClick={stopLiveReplay}>Stop simulation</button>}
 </div>
 </section>
 <section className="scenario-results panel">
