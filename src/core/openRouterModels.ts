@@ -45,7 +45,8 @@ const isTextGenerationModel = (record: OpenRouterModelRecord) => {
 
 const displayName = (record: OpenRouterModelRecord, runtimeId: string) => {
   const named = String(record.name ?? "").replace(/^[^:]+:\s*/, "").trim();
-  return named || runtimeId.split("/").at(-1) || runtimeId;
+  const idParts = runtimeId.split("/");
+  return named || idParts[idParts.length - 1] || runtimeId;
 };
 
 export function latestOpenRouterModels(records: OpenRouterModelRecord[], perFamily = 4): Model[] {
