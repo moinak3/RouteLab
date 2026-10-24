@@ -1,4 +1,4 @@
-import type { GoldenDatasetCalibration, TraceJudgeResult } from "../types";
+import type { GoldenDatasetCalibration, TraceJudgeResult } from "../types.js";
 
 export type RateInterval = { rate: number; lower: number; upper: number; n: number };
 

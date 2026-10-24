@@ -1,4 +1,4 @@
-import { overrideEligibility } from "../lib/quality";
+import { overrideEligibility } from "../lib/quality.js";
 
 export type RouteCandidateGuardrails = {
   minimumPassRate: number;
