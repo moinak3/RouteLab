@@ -1,4 +1,4 @@
-import { calculateCost, getModel, isModelEnabled, modelCatalog } from "./catalog";
+import { calculateCost, getModel, isModelEnabled, modelCatalog, openRouterSimulationModels } from "./catalog";
 import { evaluateTrace } from "./evaluators";
 import { calculateProviderCost, cheapestProviderQuoteForModel } from "./providerPricing";
 import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket, InferenceProviderQuote, TraceJudgeResult } from "../types";
@@ -106,7 +106,8 @@ export function cascade(traces: Trace[], primaryId: string, fallbackId: string, 
 export function familyCascade(traces: Trace[], selectedModelId: string): ReplayResult {
   const selected = getModel(selectedModelId);
   const tierOrder = { cheapest: 0, mid: 1, top: 2 };
-  const familyModels = modelCatalog
+  const candidateCatalog = selectedModelId.startsWith("openrouter:") ? openRouterSimulationModels() : modelCatalog;
+  const familyModels = candidateCatalog
     .filter((model) => model.family === selected?.family && isModelEnabled(model))
     .sort((a, b) => tierOrder[a.family_tier] - tierOrder[b.family_tier]);
   const models = familyModels.length ? familyModels : [getModel(selectedModelId)!];

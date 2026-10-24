@@ -8,4 +8,6 @@ vite.config.js
 vite.config.d.ts
 .DS_Store
 artifacts/
+audit/screenshots/
+.playwright-cli/
 .vercel

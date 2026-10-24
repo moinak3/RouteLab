@@ -116,7 +116,7 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
     <div className="policy-lifecycle-state">
       <article><small>Latest published</small><b>{latest ? `Policy v${latest.version}` : "None yet"}</b><span>{latest ? `${latest.overrideCount} overrides · ${latest.signatureCount} signatures` : "Publish the saved draft to create v1."}</span></article>
       <article><small>Active for sidecars</small><b>{active ? `Policy v${active.version}` : "No active policy"}</b><span>{active ? `${modelName(active.fallbackModelId)} fallback` : "Activation is separate from publishing."}</span></article>
-      <article><small>Runtime ownership</small><b>Customer hosted</b><span>Customer OpenRouter key · local Jev classification</span></article>
+      <article><small>Runtime ownership</small><b>Customer hosted</b><span>Customer OpenRouter key · local task classification</span></article>
     </div>
     {publishedVersions.length > 0 && <div className="policy-version-list">
       <div className="policy-version-row policy-version-labels"><span>Version</span><span>Evidence snapshot</span><span>Status</span><span>Actions</span></div>
@@ -128,7 +128,7 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
       </div>)}
     </div>}
     <div className="sidecar-export">
-      <div><small>RouteLab Local</small><b>Docker-ready customer sidecar</b><span>Verifies the signature, calls Jev through the customer's OpenRouter account, applies the active policy locally, and returns the selected model.</span></div>
+      <div><small>RouteLab Local</small><b>Docker-ready customer sidecar</b><span>Verifies the policy, classifies through the customer's OpenRouter account, applies the active rules locally, and returns the selected model.</span></div>
       <button type="button" disabled={!active || state === "exporting"} onClick={exportSidecarEnvironment}>Export sidecar setup</button>
     </div>
   </section>;

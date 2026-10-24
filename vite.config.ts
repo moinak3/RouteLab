@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { getModel } from "./src/core/catalog";
+import { latestOpenRouterModels } from "./src/core/openRouterModels";
 import { runFrontierProvider } from "./api/frontier-lab/_runner";
 import { runJevSignatureGate } from "./api/jev/_runner";
 import { getRoutingPolicyDraft, PolicyStoreConflictError, PolicyStoreUnavailableError, saveRoutingPolicyDraft } from "./api/routing-policy/_store";
@@ -25,12 +26,18 @@ const sendJson = (res: any, status: number, payload: unknown) => {
 let loadedEnv: Record<string, string> = {};
 const serverOpenRouterKey = () => String(process.env.ROUTELAB_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? loadedEnv.ROUTELAB_OPENROUTER_API_KEY ?? loadedEnv.OPENROUTER_API_KEY ?? "").trim();
 
-const providerConfig = (source: string, modelId: string) => {
+const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek)\/[a-z0-9][a-z0-9._:-]*$/i;
+
+const providerConfig = (source: string, modelId: string, openRouterModelId?: string) => {
+  if (source === "openrouter") {
+    const runtimeModelId = String(openRouterModelId ?? "").trim();
+    if (runtimeModelId && !dynamicOpenRouterModel.test(runtimeModelId)) throw new Error("Unsupported OpenRouter candidate model.");
+    const model = getModel(modelId);
+    if (!runtimeModelId && !model) throw new Error("Unknown candidate model.");
+    return { url: "https://openrouter.ai/api/v1/chat/completions", modelName: runtimeModelId || model!.pricing_source_model_id || model!.id, label: "OpenRouter" };
+  }
   const model = getModel(modelId);
   if (!model) throw new Error("Unknown candidate model.");
-  if (source === "openrouter") {
-    return { url: "https://openrouter.ai/api/v1/chat/completions", modelName: model.pricing_source_model_id ?? model.id, label: "OpenRouter" };
-  }
   if (model.family === "OpenAI") return { url: "https://api.openai.com/v1/chat/completions", modelName: model.id, label: "OpenAI" };
   if (model.family === "Mistral") return { url: "https://api.mistral.ai/v1/chat/completions", modelName: model.pricing_source_model_id ?? model.id, label: "Mistral" };
   if (model.family === "DeepSeek") return { url: "https://api.deepseek.com/chat/completions", modelName: model.id, label: "DeepSeek" };
@@ -47,6 +54,23 @@ export default defineConfig(({ mode }) => {
   plugins: [react(), {
     name: "routelab-live-direct-routing",
     configureServer(server) {
+      server.middlewares.use("/api/openrouter/models", async (req, res) => {
+        if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
+        try {
+          const apiKey = serverOpenRouterKey();
+          const response = await fetch("https://openrouter.ai/api/v1/models?sort=newest&output_modalities=text", {
+            headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+          });
+          const payload = await response.json().catch(() => ({})) as { data?: unknown; error?: { message?: unknown } };
+          if (!response.ok) throw new Error(String(payload.error?.message ?? `OpenRouter HTTP ${response.status}`));
+          const models = latestOpenRouterModels(Array.isArray(payload.data) ? payload.data : [], 4);
+          if (!models.length) throw new Error("OpenRouter returned no compatible text-generation models.");
+          res.setHeader("Cache-Control", "public, max-age=900");
+          return sendJson(res, 200, { models, updatedAt: new Date().toISOString() });
+        } catch (error) {
+          return sendJson(res, 502, { error: error instanceof Error ? error.message : "OpenRouter model catalog failed." });
+        }
+      });
       server.middlewares.use("/api/live/key-status", async (req, res) => {
         if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
         return sendJson(res, 200, { gateways: { OpenRouter: Boolean(serverOpenRouterKey()) } });
@@ -60,7 +84,7 @@ export default defineConfig(({ mode }) => {
           const traces = Array.isArray(body.traces) ? body.traces : [];
           if (!apiKey) return sendJson(res, 400, { error: source === "openrouter" ? "Missing OpenRouter API key. Add one in Model Catalog or start the server with OPENROUTER_API_KEY." : "Missing API key." });
           if (!traces.length) return sendJson(res, 400, { error: "No traces selected for live direct routing." });
-          const config = providerConfig(source, String(body.modelId ?? ""));
+          const config = providerConfig(source, String(body.modelId ?? ""), String(body.openRouterModelId ?? ""));
           const controller = new AbortController();
           req.on("aborted", () => controller.abort());
           req.on("close", () => controller.abort());
