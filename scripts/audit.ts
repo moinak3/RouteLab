@@ -28,9 +28,10 @@ async function navigate(page: Page, route: readonly string[]) {
   const mobile = !(await desktopNav.isVisible());
   const nav = mobile ? page.locator(".mobile-nav") : desktopNav;
   if (route.length === 2) {
-    await nav.getByRole("button", { name: route[1], exact: true }).click();
+    if (await page.getByRole("heading", { name: route[0], exact: true }).count()) return;
+    await page.getByRole("button", { name: route[1], exact: true }).last().click();
   } else {
-    const parent = nav.getByRole("button", { name: new RegExp(`^${route[1]}`) }).first();
+    const parent = page.getByRole("button", { name: new RegExp(`^${route[1]}`) }).last();
     if (mobile) {
       await parent.click();
       await page.locator(".group-mobile-subnav").getByRole("button", { name: route[2], exact: true }).click();
