@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { buildFineTuningRecommendation, buildFineTuningRecommendationBundle } from "../src/core/fineTuningRecommendations";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
 import type { GoldenDataset, Trace, TraceJudgeResult } from "../src/types";
-import { formatSignedMonthlyEconomics } from "../src/lib/format";
 
 const now = "2026-06-25T00:00:00.000Z";
 const staticInstruction = "Follow the company response rubric. Return strict JSON. Use the approved tone. ".repeat(90);
@@ -308,9 +307,5 @@ describe("fine-tuning recommendations", () => {
     expect(bundle.global.scope).toBe("global");
     expect(bundle.by_signature.length).toBeGreaterThan(1);
     expect(bundle.by_signature.every((report) => report.scope === "trace_signature")).toBe(true);
-  });
-
-  it("renders negative savings as a cost increase", () => {
-    expect(formatSignedMonthlyEconomics(-640.86)).toEqual({ text: "+$640.86/mo", label: "vs routing", favorable: false });
   });
 });

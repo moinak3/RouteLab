@@ -1,13 +1,13 @@
 import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScript, recommendPolicy } from "../core/recommendations";
-import type { Model } from "../types";
-import { download, formatLatency, money, pct } from "../lib/format";
+import type { Model, ScriptAutomationRecommendation, ToolCallSignatureStep } from "../types";
+import { download, money, pct } from "../lib/format";
 
 type RecommendationPolicy = ReturnType<typeof recommendPolicy>;
 
 function Comparison({ comparison }: { comparison: NonNullable<RecommendationPolicy["rules"][number]["comparison"]> }) {
   const rows = [
     { label: "Cost", before: money(comparison.cost.before), after: money(comparison.cost.after), delta: comparison.cost.delta_pct },
-    { label: "Latency", before: formatLatency(comparison.latency_ms.before), after: formatLatency(comparison.latency_ms.after), delta: comparison.latency_ms.delta_pct },
+    { label: "Latency", before: `${comparison.latency_ms.before.toFixed(0)}ms`, after: `${comparison.latency_ms.after.toFixed(0)}ms`, delta: comparison.latency_ms.delta_pct },
     { label: "Quality", before: pct(comparison.quality.before * 100), after: pct(comparison.quality.after * 100), delta: comparison.quality.delta_pct },
   ];
   return <div className="comparison">
@@ -24,6 +24,44 @@ function routeLabel(modelId: string, provider?: string, models: Model[] = []) {
   return `${model?.display_name ?? modelId}${provider ? ` via ${provider}` : ""}`;
 }
 
+function sequenceLabel(step: ToolCallSignatureStep) {
+  const fixed = step.fixed_arguments.length ? `fixed: ${step.fixed_arguments.join(", ")}` : "no fixed args";
+  const variable = step.variable_arguments.length ? `variable: ${step.variable_arguments.join(", ")}` : "no variable args";
+  return `${fixed} · ${variable}`;
+}
+
+function AutomationCard({ recommendation }: { recommendation: ScriptAutomationRecommendation }) {
+  const variation = recommendation.variation;
+  return <article className="cluster-card automation-rule">
+    <div><span className="risk low">scriptable</span><span className="strategy">{pct(recommendation.pattern_match_pct)} identical</span></div>
+    <div className="rule-title">
+      <h2>{recommendation.cluster_name}</h2>
+      <div className="monthly-saving">
+        <small>Projected monthly savings</small>
+        <b>{money(recommendation.projected_monthly_savings_usd)}</b>
+      </div>
+    </div>
+    <p>{recommendation.rationale}</p>
+    <dl className="automation-metrics">
+      <div><dt>Instances</dt><dd>{recommendation.instance_count.toLocaleString()}</dd></div>
+      <div><dt>Argument variation</dt><dd>{pct(variation.argument_variation_pct)}</dd></div>
+      <div><dt>Branch variation</dt><dd>{pct(variation.branch_variation_pct)}</dd></div>
+      <div><dt>Outcome variation</dt><dd>{pct(variation.outcome_variation_pct)}</dd></div>
+    </dl>
+    <div className="tool-sequence">
+      {recommendation.example_sequence.map((step, index) => <div key={`${step.tool_name}-${index}`}>
+        <strong>{index + 1}. {step.tool_name}</strong>
+        <span>{sequenceLabel(step)}</span>
+      </div>)}
+    </div>
+    <div className="script-stub">
+      <span>Script replacement</span>
+      <b>{recommendation.script_name}</b>
+      <code>{recommendation.script_stub}</code>
+    </div>
+  </article>;
+}
+
 function copyAndDownload(name: string, content: string) {
   void navigator.clipboard?.writeText(content).catch(() => undefined);
   download(name, content);
@@ -31,8 +69,9 @@ function copyAndDownload(name: string, content: string) {
 
 export function Recommendations({ policy, activeModels, traceCount }: { policy: RecommendationPolicy; activeModels: Model[]; traceCount: number }) {
   if (!activeModels.length) {
-    return <section className="panel"><p className="eyebrow">Task routing</p><h2>No enabled models</h2><p>Enable at least one model in Model Catalog before generating recommendations.</p></section>;
+    return <section className="panel"><p className="eyebrow">Distinct Task routing</p><h2>No enabled models</h2><p>Enable at least one model in Model Catalog before generating recommendations.</p></section>;
   }
+  const automationRecommendations = policy.script_automation_recommendations;
   return <div className="recommendations-page">
     <section className="recommendation-controls panel">
       <div>
@@ -46,7 +85,7 @@ export function Recommendations({ policy, activeModels, traceCount }: { policy: 
       <div>
         <p className="eyebrow">Recommended guardrail-approved policy savings</p>
         <strong>{money(policy.estimated_monthly_savings_usd)}<small>/mo</small></strong>
-        <p>Projected from a {traceCount.toLocaleString()}-trace sample representing about 40 million monthly calls. {policy.risk_summary}</p>
+        <p>{money(policy.estimated_sample_savings_usd)} per uploaded sample x {policy.monthly_multiplier} monthly runs. {policy.risk_summary}</p>
       </div>
       <div className="export">
         <button onClick={() => copyAndDownload("routelab-policy.json", exportPolicyJson(policy))}>Export JSON</button>
@@ -55,8 +94,17 @@ export function Recommendations({ policy, activeModels, traceCount }: { policy: 
         <button onClick={() => copyAndDownload("router.ts", exportTypeScript(policy))}>TypeScript stub</button>
       </div>
     </section>
+    {automationRecommendations.length > 0 && <>
+      <div className="policy-note automation-note">
+        <b>Script automation recommendation</b>
+        <span>Clusters below have more than 90% identical tool-call signatures, with fixed versus variable arguments separated from observed traces.</span>
+      </div>
+      <div className="cards recommendations-grid automation-grid">
+        {automationRecommendations.map((recommendation) => <AutomationCard recommendation={recommendation} key={recommendation.id} />)}
+      </div>
+    </>}
     <div className="policy-note">
-      <b>Monthly savings by task</b>
+      <b>Monthly savings by Distinct Task</b>
       <span>{policy.candidate_model_ids.length} candidate model{policy.candidate_model_ids.length === 1 ? "" : "s"} evaluated across at least five inference providers each. Each card shows the winning model-provider pair, estimated cost, and latency.</span>
     </div>
     <div className="cards recommendations-grid">
@@ -70,7 +118,7 @@ export function Recommendations({ policy, activeModels, traceCount }: { policy: 
         {rule.provider_quote && <div className="provider-choice">
           <span>Recommended route</span>
           <b>{routeLabel(rule.provider_quote.model_id, rule.provider_quote.provider_name, activeModels)}</b>
-          <small>{money(rule.comparison?.cost.after ?? 0)} sample cost · {formatLatency(rule.comparison?.latency_ms.after ?? 0)} estimated latency · {rule.provider_quotes_evaluated?.length ?? 0} provider quotes checked</small>
+          <small>{money(rule.comparison?.cost.after ?? 0)} sample cost · {rule.comparison?.latency_ms.after.toFixed(0)}ms estimated latency · {rule.provider_quotes_evaluated?.length ?? 0} provider quotes checked</small>
         </div>}
         {rule.comparison && <Comparison comparison={rule.comparison} />}
         {rule.strategy.type === "keep_current" && <div className="provider-choice">

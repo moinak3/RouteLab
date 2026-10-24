@@ -142,11 +142,11 @@ export function ReviewQueue({
           </section>
           <section className={`review-user-feedback ${userFeedback}`}><small>User feedback</small><b>{traceUserFeedbackLabel(userFeedback)}</b><span>{current.trace.metadata?.user_id ? `From ${String(current.trace.metadata.user_id)}` : "No user ID captured"}</span></section>
           <section><small>Prompt</small><p>{preview(current.trace.prompt_text, 900)}</p></section>
-          <section className="review-code"><small>Answer provided by agent</small><p>{preview(current.trace.response_text ?? "No response captured", 900)}</p></section>
+          <section><small>Answer provided by agent</small><p>{preview(current.trace.response_text ?? "No response captured", 900)}</p></section>
           {workflowTraces.length > 1 && <details className="review-workflow"><summary>Workflow context · {workflowTraces.length} trace steps</summary>
             <div>{workflowTraces.map((trace) => <p key={trace.id}><b>{trace.id === current.trace.id ? "Current step" : trace.workflow_role ?? "Step"}</b> · {trace.id} · {preview(trace.prompt_text, 120)}</p>)}</div>
           </details>}
-          <section><small>Classification / Task</small><p>{current.bucket ? current.bucket.bucket_name : "No distinct task bucket assigned"}</p>
+          <section><small>Classification / Distinct Task</small><p>{current.bucket ? current.bucket.bucket_name : "No distinct task bucket assigned"}</p>
             {current.bucket && <div className="review-tags">{distinctTaskFieldColumns.map(({ field }) => <span key={field}>{distinctTaskValue(field, current.bucket!.task[field])}</span>)}</div>}
           </section>
           <section><small>LLM-as-judge result</small><p>{current.judge

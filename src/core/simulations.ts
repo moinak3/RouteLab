@@ -1,4 +1,4 @@
-import { calculateCost, getModel, isModelEnabled, modelCatalog, openRouterSimulationModels } from "./catalog";
+import { calculateCost, getModel, isModelEnabled, modelCatalog } from "./catalog";
 import { evaluateTrace } from "./evaluators";
 import { calculateProviderCost, cheapestProviderQuoteForModel } from "./providerPricing";
 import type { CandidateRun, EvalResult, Trace, DistinctTaskBucket, InferenceProviderQuote, TraceJudgeResult } from "../types";
@@ -106,8 +106,7 @@ export function cascade(traces: Trace[], primaryId: string, fallbackId: string, 
 export function familyCascade(traces: Trace[], selectedModelId: string): ReplayResult {
   const selected = getModel(selectedModelId);
   const tierOrder = { cheapest: 0, mid: 1, top: 2 };
-  const candidateCatalog = selectedModelId.startsWith("openrouter:") ? openRouterSimulationModels() : modelCatalog;
-  const familyModels = candidateCatalog
+  const familyModels = modelCatalog
     .filter((model) => model.family === selected?.family && isModelEnabled(model))
     .sort((a, b) => tierOrder[a.family_tier] - tierOrder[b.family_tier]);
   const models = familyModels.length ? familyModels : [getModel(selectedModelId)!];
@@ -135,9 +134,9 @@ export function monthlyDistinctTaskBreakdown(traces: Trace[], buckets: DistinctT
     return {
       distinct_task_bucket_id: bucket.bucket_id,
       name: bucket.bucket_name,
-      current_monthly_cost_usd: selected.reduce((sum, trace) => sum + (trace.cost_usd ?? 0) * (trace.represents_monthly_calls ?? 0), 0),
-      simulated_monthly_cost_usd: selected.reduce((sum, trace, index) => sum + (result.runs[index]?.cost_usd ?? 0) * (trace.represents_monthly_calls ?? 0), 0),
-      monthly_savings_usd: selected.reduce((sum, trace, index) => sum + ((trace.cost_usd ?? 0) - (result.runs[index]?.cost_usd ?? 0)) * (trace.represents_monthly_calls ?? 0), 0),
+      current_monthly_cost_usd: result.summary.baseline_cost_usd * MONTHLY_MULTIPLIER,
+      simulated_monthly_cost_usd: result.summary.simulated_cost_usd * MONTHLY_MULTIPLIER,
+      monthly_savings_usd: result.summary.estimated_savings_usd * MONTHLY_MULTIPLIER,
     };
   });
 }
@@ -147,15 +146,14 @@ export function monthlyDistinctTaskBreakdownFromRuns(traces: Trace[], runs: Cand
   return buckets.map((bucket) => {
     const selected = bucket.traces.map((id) => tracesById.get(id)).filter((trace): trace is Trace => Boolean(trace));
     const selectedRuns = selected.map((trace) => runsByTraceId.get(trace.id)).filter((run): run is CandidateRun => Boolean(run));
-    const selectedRunMap = new Map(selectedRuns.map((run) => [run.trace_id, run]));
-    const current = selected.reduce((sum, trace) => sum + (trace.cost_usd ?? 0) * (trace.represents_monthly_calls ?? 0), 0);
-    const simulated = selected.reduce((sum, trace) => sum + (selectedRunMap.get(trace.id)?.cost_usd ?? trace.cost_usd ?? 0) * (trace.represents_monthly_calls ?? 0), 0);
+    const current = selected.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
+    const simulated = selectedRuns.reduce((sum, run) => sum + run.cost_usd, 0);
     return {
       distinct_task_bucket_id: bucket.bucket_id,
       name: bucket.bucket_name,
-      current_monthly_cost_usd: current,
-      simulated_monthly_cost_usd: simulated,
-      monthly_savings_usd: current - simulated,
+      current_monthly_cost_usd: current * MONTHLY_MULTIPLIER,
+      simulated_monthly_cost_usd: simulated * MONTHLY_MULTIPLIER,
+      monthly_savings_usd: (current - simulated) * MONTHLY_MULTIPLIER,
     };
   });
 }
@@ -178,9 +176,8 @@ export function distinctTaskImpactBreakdown(
     const selectedRuns = selectedTraces.map((trace) => runsByTraceId.get(trace.id)).filter((run): run is CandidateRun => Boolean(run));
     const selectedEvals = selectedTraces.map((trace) => evalsByTraceId.get(trace.id)).filter((evaluation): evaluation is EvalResult => Boolean(evaluation));
     const selectedJudges = selectedTraces.map((trace) => judgesByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
-    const selectedRunMap = new Map(selectedRuns.map((run) => [run.trace_id, run]));
-    const beforeCost = selectedTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0) * (trace.represents_monthly_calls ?? 0), 0);
-    const afterCost = selectedTraces.reduce((sum, trace) => sum + (selectedRunMap.get(trace.id)?.cost_usd ?? trace.cost_usd ?? 0) * (trace.represents_monthly_calls ?? 0), 0);
+    const beforeCost = selectedTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0) * MONTHLY_MULTIPLIER;
+    const afterCost = selectedRuns.reduce((sum, run) => sum + run.cost_usd, 0) * MONTHLY_MULTIPLIER;
     const beforeLatency = avg(selectedTraces.map((trace) => trace.latency_ms ?? 0));
     const afterLatency = avg(selectedRuns.map((run) => run.latency_ms));
     const beforePassRate = selectedJudges.length ? selectedJudges.filter((judge) => judge.passed).length / selectedJudges.length : undefined;

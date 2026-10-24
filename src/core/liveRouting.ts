@@ -36,8 +36,7 @@ export function liveRoutingStatus(candidateId: string, keys: LiveKeyConfig): Liv
   const familyKey = keys.familyApiKeys[model.family]?.trim();
   const openRouterKey = keys.gatewayApiKeys.OpenRouter?.trim();
   const openRouterAvailable = Boolean(openRouterKey || keys.serverGatewayKeys?.OpenRouter);
-  const isOpenRouterCatalogModel = model.id.startsWith("openrouter:");
-  if (!isOpenRouterCatalogModel && familyKey && directFamilySupported(model.family)) {
+  if (familyKey && directFamilySupported(model.family)) {
     return { source: "direct_family", label: model.family, message: `Live direct routing will use the ${model.family} family key.` };
   }
   if (openRouterAvailable) {
@@ -49,7 +48,7 @@ export function liveRoutingStatus(candidateId: string, keys: LiveKeyConfig): Liv
         : `No ${model.family} key configured; live direct routing will use the OpenRouter gateway key.`,
     };
   }
-  if (!isOpenRouterCatalogModel && familyKey) {
+  if (familyKey) {
     return { source: "direct_family", label: model.family, message: `Live direct routing will use the ${model.family} family key.` };
   }
   return undefined;
@@ -68,7 +67,6 @@ export async function runLiveDirectRouting(traces: Trace[], candidateId: string,
       source: live.source,
       apiKey,
       modelId: model.id,
-      openRouterModelId: model.pricing_source_model_id,
       traces: traces.map(trace=>({ id: trace.id, messages: trace.messages, prompt_text: trace.prompt_text, input_tokens: trace.input_tokens, output_tokens: trace.output_tokens })),
     }),
   });

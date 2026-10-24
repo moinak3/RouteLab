@@ -23,9 +23,9 @@ import {
 } from "../core/frontierLab";
 
 const MODEL_CONFIG_KEY = "routelab.frontier-model-lab.model-config.v2";
-const percent = (value: number) => `${(value * 100).toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`;
-const money = (value?: number) => Number.isFinite(value) ? `$${value!.toLocaleString("en-US", { maximumSignificantDigits: 4 })}` : "Unknown";
-const latency = (value: number) => value >= 1000 ? `${(value / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })} s` : `${Math.round(value)} ms`;
+const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
+const money = (value?: number) => Number.isFinite(value) ? `$${value!.toFixed(value! < 0.01 ? 4 : 3)}` : "Unknown";
+const latency = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(1)}s` : `${Math.round(value)}ms`;
 const mean = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
 function initialModelConfigs(): FrontierModelConfig[] {
@@ -102,8 +102,8 @@ function ResultCell({ results, onOpen }: { results: FrontierScoredRun[]; onOpen:
       <span><small>Tokens</small><b>{Math.round(mean(results.map((result) => result.inputTokens + result.outputTokens))).toLocaleString()}</b></span>
       <span><small>Cost</small><b>{costs.length === results.length ? money(mean(costs)) : "Unknown"}</b></span>
       <span><small>Cost/success</small><b>{money(costPerSuccess)}</b></span>
-      <span><small>Tool calls</small><b>{mean(results.map((result) => result.toolCalls.length)).toLocaleString("en-US", { maximumFractionDigits: 1 })}</b></span>
-      <span><small>Retries</small><b>{mean(results.map((result) => result.retries)).toLocaleString("en-US", { maximumFractionDigits: 1 })}</b></span>
+      <span><small>Tool calls</small><b>{mean(results.map((result) => result.toolCalls.length)).toFixed(1)}</b></span>
+      <span><small>Retries</small><b>{mean(results.map((result) => result.retries)).toFixed(1)}</b></span>
     </div>
   </button>;
 }

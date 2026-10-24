@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { calibrateGoldenDataset, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../core/goldenDatasets";
-import { formatDate, formatInteger, preview } from "../lib/format";
-import { labelFor } from "../lib/labels";
-import { calibrationSummary } from "../lib/quality";
+import { preview } from "../lib/format";
 import type { GoldenDataset as GoldenDatasetType, Trace, TraceJudgeResult } from "../types";
 
 type Props = {
@@ -15,8 +13,8 @@ type Props = {
 };
 
 const cellValue = (value: unknown) => value === null || value === undefined ? "" : String(value);
-const pct = (value: number) => `${value.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`;
-const formatDelta = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+const pct = (value: number) => `${value.toFixed(1)}%`;
+const formatDelta = (value: number) => value ? value.toFixed(2) : "0.00";
 
 export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, onUpdate, onDelete }: Props) {
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
@@ -24,7 +22,6 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
   const [uploadError, setUploadError] = useState<string | null>(null);
   const selectedDataset = datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0];
   const calibration = useMemo(() => calibrateGoldenDataset(selectedDataset, traces, traceJudgeResults), [selectedDataset, traces, traceJudgeResults]);
-  const calibrationStats = useMemo(() => calibrationSummary(calibration), [calibration]);
 
   async function uploadDataset(file?: File) {
     if (!file) return;
@@ -77,11 +74,11 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
         {selectedDataset && <div className="dataset-preview">
           <div className="dataset-summary">
             <b>{selectedDataset.name}</b>
-            <span>Created {formatDate(selectedDataset.created_at)} · previewing {Math.min(selectedDataset.rows.length, 8)} rows</span>
+            <span>Created {new Date(selectedDataset.created_at).toLocaleDateString()} · previewing {Math.min(selectedDataset.rows.length, 8)} rows</span>
           </div>
           <div className="tablewrap">
             <table className="golden-table">
-              <thead><tr>{selectedDataset.columns.map((column) => <th key={column}>{labelFor(column)}</th>)}</tr></thead>
+              <thead><tr>{selectedDataset.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
               <tbody>{selectedDataset.rows.slice(0, 8).map((row, rowIndex) => <tr key={rowIndex}>{selectedDataset.columns.map((column) => <td key={column}>{mode === "edit"
                 ? <input aria-label={`${column} row ${rowIndex + 1}`} value={cellValue(row[column])} onChange={(event) => onUpdate(updateGoldenDatasetCell(selectedDataset, rowIndex, column, event.target.value))} />
                 : preview(cellValue(row[column]), 140)}</td>)}</tr>)}</tbody>
@@ -102,14 +99,13 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
       </div>
       {selectedDataset ? <>
         <div className="calibration-metrics">
-          <article><span>Judge coverage</span><b>{pct(calibration.coverage_pct)}</b><small>Golden rows with a judge result</small></article>
-          <article><span>Agreement</span><b>{pct(calibrationStats.agreement.rate * 100)}</b><small>{pct(calibrationStats.agreement.lower * 100)} to {pct(calibrationStats.agreement.upper * 100)}, n={formatInteger(calibrationStats.agreement.n)}</small></article>
-          <article><span>False pass</span><b>{pct(calibrationStats.falsePasses.rate * 100)}</b><small>{formatInteger(calibrationStats.falsePasses.count)} of {formatInteger(calibrationStats.falsePasses.denominator)} human failures</small></article>
-          <article><span>False fail</span><b>{pct(calibrationStats.falseFails.rate * 100)}</b><small>{formatInteger(calibrationStats.falseFails.count)} of {formatInteger(calibrationStats.falseFails.denominator)} human passes</small></article>
+          <article><span>Coverage</span><b>{pct(calibration.coverage_pct)}</b><small>Golden rows with judge result</small></article>
+          <article><span>Agreement</span><b>{pct(calibration.agreement_rate)}</b><small>Human pass/fail matches judge</small></article>
+          <article><span>False pass</span><b>{pct(calibration.false_pass_rate)}</b><small>Judge passed human failures</small></article>
+          <article><span>False fail</span><b>{pct(calibration.false_fail_rate)}</b><small>Judge failed human passes</small></article>
           <article><span>Avg score delta</span><b>{formatDelta(calibration.avg_score_delta)}</b><small>Absolute score distance</small></article>
           <article><span>Severity agreement</span><b>{pct(calibration.severity_agreement_rate)}</b><small>When both severities exist</small></article>
         </div>
-        <div className="calibration-confusion" aria-label="Calibration confusion matrix"><h3>Confusion matrix</h3><div><span>Human pass · Judge pass <b>{formatInteger(calibrationStats.confusion.truePass)}</b></span><span>Human fail · Judge pass <b>{formatInteger(calibrationStats.confusion.falsePass)}</b></span><span>Human pass · Judge fail <b>{formatInteger(calibrationStats.confusion.falseFail)}</b></span><span>Human fail · Judge fail <b>{formatInteger(calibrationStats.confusion.trueFail)}</b></span></div></div>
         <div className="calibration-disagreements">
           <div className="panelhead compact">
             <div>

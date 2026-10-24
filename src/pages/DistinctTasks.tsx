@@ -1,63 +1,37 @@
 import { useMemo, useState } from "react";
+import { benchmarkFamilies, buildBenchmarkPriorRecommendation } from "../core/benchmarkPriors";
 import { createDistinctTaskBuckets } from "../core/distinctTasks";
 import { generateEvalPlans } from "../core/evalPlans";
 import type { DistinctTaskBucket, EvalPlan, Trace } from "../types";
-import { compareText, formatInteger, formatLatency, money, pct } from "../lib/format";
+import type { DistinctTaskSortKey, SortDirection } from "../types/ui";
+import { compareText, money, pct } from "../lib/format";
 import { DistinctTaskHelp, distinctTaskFieldColumns, distinctTaskValue } from "../components/DistinctTaskDisplay";
-import { labelFor } from "../lib/labels";
+import { SortHeader } from "../components/SortHeader";
 
-export function DistinctTasks({ traces }: { traces: Trace[] }) {
-  const buckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
-  const plans = useMemo(() => generateEvalPlans(buckets), [buckets]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const sortedBuckets = useMemo(() => [...buckets].sort((left, right) => right.trace_count - left.trace_count || compareText(left.bucket_name, right.bucket_name)), [buckets]);
-  const selected = buckets.find((bucket) => bucket.bucket_id === selectedId) ?? null;
-  const plan = selected ? plans.get(selected.bucket_id) : undefined;
-  const classified = traces.filter((trace) => trace.signature_decision);
-  const matched = classified.filter((trace) => trace.signature_decision?.routing_action === "signature_route").length;
-  const unknown = classified.filter((trace) => trace.signature_decision?.status === "unknown").length;
-
-  return <>
-    <section className="task-intro panel distinct-task-explainer">
-      <div><p className="eyebrow">Task classification</p><h2>Traces become tasks</h2><p>RouteLab classifies every new trace against your known tasks, plus an explicit Unknown. Confident matches can use a task override. Anything uncertain, slow or failed uses the fallback model.</p><p>The confidence threshold is stricter for higher-risk work and should be calibrated against your golden dataset before production routing.</p></div>
-      <div><strong>{formatInteger(buckets.length)}</strong><span>tasks</span></div>
-    </section>
-    {classified.length > 0 && <section className="panel jev-gate-summary" aria-label="Classification summary">
-      <div><small>Classified</small><b>{formatInteger(classified.length)}</b></div>
-      <div><small>Task overrides</small><b>{formatInteger(matched)}</b></div>
-      <div><small>Fallback</small><b>{formatInteger(classified.length - matched)}</b></div>
-      <div><small>Unknown</small><b>{formatInteger(unknown)}</b></div>
-    </section>}
-    <section className="panel task-table-panel">
-      <div className="panelhead"><div><p className="eyebrow">Task inventory</p><h2>Known tasks</h2></div><span>{formatInteger(traces.length)} traces classified</span></div>
-      <div className="tablewrap"><table className="task-table compact-task-table">
-        <thead><tr><th>Task</th><th>Risk</th><th>Traces</th><th>Sample cost</th><th>Confidence</th><th>Eval readiness</th></tr></thead>
-        <tbody>{sortedBuckets.map((bucket) => <tr className="task-row" key={bucket.bucket_id} tabIndex={0} onClick={() => setSelectedId(bucket.bucket_id)} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(bucket.bucket_id); }}>
-          <td><b>{bucket.bucket_name}</b><small className="mono-id">{bucket.bucket_id}</small></td>
-          <td><span className={`risk ${bucket.risk_level}`}>{labelFor(bucket.risk_level)}</span></td>
-          <td>{formatInteger(bucket.trace_count)}</td>
-          <td>{money(bucket.total_cost_usd)}</td>
-          <td>{pct(bucket.avg_confidence * 100, bucket.trace_count)}</td>
-          <td><span className="eval-ready">Ready</span></td>
-        </tr>)}</tbody>
-      </table></div>
-    </section>
-    {selected && plan && <TaskDetail bucket={selected} plan={plan} onClose={() => setSelectedId(null)} />}
-  </>;
+export function DistinctTasks({traces}:{traces:Trace[]}){
+  const buckets=useMemo(()=>createDistinctTaskBuckets(traces),[traces]); const plans=useMemo(()=>generateEvalPlans(buckets),[buckets]);
+  const [selectedId,setSelectedId]=useState<string|null>(null);
+  const [sort,setSort]=useState<{key:DistinctTaskSortKey;direction:SortDirection}>({key:"trace_count",direction:"desc"});
+  const sortedBuckets=useMemo(()=>[...buckets].sort((left,right)=>{
+    const multiplier=sort.direction==="asc"?1:-1;
+    let result=0;
+    if(sort.key==="bucket_name") result=compareText(left.bucket_name,right.bucket_name);
+    else if(sort.key==="trace_count") result=left.trace_count-right.trace_count;
+    else if(sort.key==="total_cost_usd") result=left.total_cost_usd-right.total_cost_usd;
+    else if(sort.key==="avg_confidence") result=left.avg_confidence-right.avg_confidence;
+    else if(sort.key==="eval_plan") result=compareText(plans.get(left.bucket_id)?.human_review_required?"human review required":"ready",plans.get(right.bucket_id)?.human_review_required?"human review required":"ready");
+    else result=compareText(distinctTaskValue(sort.key,left.task[sort.key]),distinctTaskValue(sort.key,right.task[sort.key]));
+    return result===0?compareText(left.bucket_id,right.bucket_id):result*multiplier;
+  }),[buckets,plans,sort]);
+  const updateSort=(key:DistinctTaskSortKey)=>setSort(current=>current.key===key?{key,direction:current.direction==="asc"?"desc":"asc"}:{key,direction:key==="bucket_name"||distinctTaskFieldColumns.some(column=>column.field===key)?"asc":"desc"});
+  const selected=buckets.find(bucket=>bucket.bucket_id===selectedId)??null; const plan=selected?plans.get(selected.bucket_id):undefined;
+  const gated=traces.filter(trace=>trace.signature_decision); const matched=gated.filter(trace=>trace.signature_decision?.routing_action==="signature_route").length; const unknown=gated.filter(trace=>trace.signature_decision?.status==="unknown").length;
+  return <><section className="task-intro panel distinct-task-explainer"><div><p className="eyebrow">Core intelligence layer</p><h2>Traces → Distinct Tasks</h2><p>Every newly ingested trace is synchronously classified by Jev through OpenRouter against the known signature catalog plus an explicit unknown option. A high-confidence match can use a signature-specific route; uncertainty, timeout, or provider failure uses the broadly capable fallback model.</p><p>Thresholds are risk-adjusted: 80% for low-risk work, 86% for medium risk, and 92% for high-risk work. These thresholds should be calibrated against your Golden Dataset before production routing.</p></div><div><strong>{buckets.length}</strong><span>exact task buckets</span></div></section>{gated.length>0&&<section className="panel jev-gate-summary"><div><small>Jev classified</small><b>{gated.length}</b></div><div><small>Signature routes</small><b>{matched}</b></div><div><small>Fallback routes</small><b>{gated.length-matched}</b></div><div><small>Unknown signatures</small><b>{unknown}</b></div></section>}<section className="panel task-table-panel"><div className="panelhead"><div><p className="eyebrow">Exact workload tasks</p><h2>Distinct Task buckets</h2></div><span>{traces.length.toLocaleString()} traces classified</span></div><div className="tablewrap"><table className="task-table"><thead><tr><SortHeader label="Bucket name" sortKey="bucket_name" activeKey={sort.key} direction={sort.direction} onSort={updateSort} />{distinctTaskFieldColumns.map(({field,label})=><SortHeader key={field} label={label} sortKey={field} activeKey={sort.key} direction={sort.direction} onSort={updateSort}><DistinctTaskHelp field={field} label={label} /></SortHeader>)}<SortHeader label="Traces" sortKey="trace_count" activeKey={sort.key} direction={sort.direction} onSort={updateSort} /><SortHeader label="Total cost" sortKey="total_cost_usd" activeKey={sort.key} direction={sort.direction} onSort={updateSort} /><SortHeader label="Confidence" sortKey="avg_confidence" activeKey={sort.key} direction={sort.direction} onSort={updateSort} /><SortHeader label="Eval plan" sortKey="eval_plan" activeKey={sort.key} direction={sort.direction} onSort={updateSort} /></tr></thead><tbody>{sortedBuckets.map(bucket=><tr className="task-row" key={bucket.bucket_id} tabIndex={0} onClick={()=>setSelectedId(bucket.bucket_id)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();setSelectedId(bucket.bucket_id)}}}><td><b>{bucket.bucket_name}</b><small>{bucket.bucket_id}</small></td>{distinctTaskFieldColumns.map(({field})=><td key={field}>{distinctTaskValue(field,bucket.task[field])}</td>)}<td>{bucket.trace_count.toLocaleString()}</td><td>{money(bucket.total_cost_usd)}</td><td>{pct(bucket.avg_confidence*100)}</td><td><span className="eval-ready">Ready</span></td></tr>)}</tbody></table></div></section>{selected&&plan&&<DistinctTaskDetail bucket={selected} plan={plan} onClose={()=>setSelectedId(null)} />}</>;
 }
 
-function TaskDetail({ bucket, plan, onClose }: { bucket: DistinctTaskBucket; plan: EvalPlan; onClose: () => void }) {
-  const groups = [["Required", plan.required_evals], ["Recommended", plan.recommended_evals], ["Optional", plan.optional_evals]] as const;
-  return <div className="task-detail-layer" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside className="task-detail" role="dialog" aria-modal="true" aria-label="Task detail">
-      <div className="task-detail-head"><div><p className="eyebrow">Task</p><h2>{bucket.bucket_name}</h2><span className="mono-id">{bucket.bucket_id} · {formatInteger(bucket.trace_count)} traces</span></div><button aria-label="Close task detail" onClick={onClose}>×</button></div>
-      <div className="task-detail-body">
-        <section><div className="task-actions"><button>Confirm task</button><button>Edit task</button><button>Split task</button><button>Create eval set</button><button className="primary">Run simulation</button></div><h3>Classifier attributes</h3><div className="task-summary">{distinctTaskFieldColumns.map(({ field, label }) => <div key={field}><small><DistinctTaskHelp field={field} label={label} /></small><b>{distinctTaskValue(field, bucket.task[field])}</b></div>)}</div></section>
-        <section><h3>Evidence</h3><div className="evidence-list">{Object.entries(bucket.evidence).map(([field, evidence]) => <div key={field}><b>{labelFor(field)}</b><span>{evidence.join(" · ")}</span></div>)}</div></section>
-        <section><h3>Examples</h3>{bucket.examples.map((example) => <article className="task-example" key={example.trace_id}><b className="mono-id">{example.trace_id}</b><p>{example.prompt_preview}</p><small>{example.response_preview}</small></article>)}</section>
-        <section><h3>Sample metrics</h3><div className="task-metrics"><div><small>Total cost</small><b>{money(bucket.total_cost_usd)}</b></div><div><small>Total tokens</small><b>{formatInteger(bucket.total_tokens)}</b></div><div><small>Average input</small><b>{formatInteger(bucket.avg_input_tokens)}</b></div><div><small>Average output</small><b>{formatInteger(bucket.avg_output_tokens)}</b></div><div><small>Average latency</small><b>{formatLatency(bucket.avg_latency_ms ?? 0)}</b></div><div><small>Low confidence</small><b>{formatInteger(bucket.low_confidence_count)}</b></div></div></section>
-        <section className="eval-plan"><h3>{plan.plan_name}</h3><div className="eval-plan-meta"><span>Human review: <b>{plan.human_review_required ? "Required" : "Not required"}</b></span><span>Minimum sample: <b>{formatInteger(plan.minimum_sample_size)}</b></span><span>Plan confidence: <b>{pct(plan.confidence * 100)}</b></span></div>{groups.map(([label, evals]) => <div className="eval-group" key={label}><h4>{label} evals</h4>{evals.map((item) => <div key={item.eval_type}><b>{labelFor(item.eval_type)}</b><span>{item.reason}</span></div>)}</div>)}</section>
-      </div>
-    </aside>
-  </div>;
+function DistinctTaskDetail({bucket,plan,onClose}:{bucket:DistinctTaskBucket;plan:EvalPlan;onClose:()=>void}){
+  const groups=[["Required",plan.required_evals],["Recommended",plan.recommended_evals],["Optional",plan.optional_evals]] as const;
+  const benchmarkOutput=useMemo(()=>buildBenchmarkPriorRecommendation(bucket.task),[bucket.task]);
+  const familyName=(id:string)=>benchmarkFamilies.find(family=>family.id===id)?.name??id.replaceAll("_"," ");
+  return <div className="task-detail-layer" onClick={event=>{if(event.target===event.currentTarget)onClose()}}><aside className="task-detail" role="dialog" aria-modal="true" aria-label="Distinct Task bucket detail"><div className="task-detail-head"><div><p className="eyebrow">Distinct Task bucket</p><h2>{bucket.bucket_name}</h2><span>{bucket.bucket_id} · {bucket.trace_count.toLocaleString()} traces</span></div><button aria-label="Close task detail" onClick={onClose}>×</button></div><div className="task-detail-body"><section><div className="task-actions"><button>Confirm task</button><button>Edit task</button><button>Split bucket</button><button>Create eval set</button><button className="primary">Run simulation</button></div><h3>Distinct Task summary</h3><div className="task-summary">{distinctTaskFieldColumns.map(({field,label})=><div key={field}><small><DistinctTaskHelp field={field} label={label} /></small><b>{distinctTaskValue(field,bucket.task[field])}</b></div>)}</div></section><section><h3>Top evidence</h3><div className="evidence-list">{Object.entries(bucket.evidence).map(([field,evidence])=><div key={field}><b>{field.replaceAll("_"," ")}</b><span>{evidence.join(" · ")}</span></div>)}</div></section><section className="benchmark-priors"><div className="benchmark-head"><div><p className="eyebrow">Benchmark priors</p><h3>Suggested candidate models to simulate</h3></div><div className="eval-plan-meta"><span>Benchmark confidence: <b>{benchmarkOutput.recommendation.benchmark_confidence}</b></span><span>Model confidence: <b>{benchmarkOutput.recommendation.model_selection_confidence}</b></span></div></div><p>RouteLab maps this Distinct Task to public benchmark families, then uses those priors only to shortlist candidates for SignalEval simulation.</p><div className="benchmark-prior-list">{benchmarkOutput.benchmark_priors.slice(0,4).map(prior=><article className="benchmark-prior" key={prior.benchmark_id}><div><b>{familyName(prior.benchmark_id)}</b><span>{prior.rationale}</span></div><strong>{pct(prior.alignment_score*100)} aligned</strong><small>confidence {prior.confidence}/5</small></article>)}</div><div className="candidate-list">{benchmarkOutput.candidate_models.map(candidate=><article className="candidate-card" key={candidate.model_id}><div><b>{candidate.model_name}</b><strong>{pct(candidate.candidate_score*100)}</strong></div><p>{candidate.rationale}</p><div className="candidate-evidence">{candidate.benchmark_evidence.slice(0,3).map(evidence=><span key={`${candidate.model_id}-${evidence.benchmark_id}`}>{familyName(evidence.benchmark_id)}{evidence.rank?` rank ${evidence.rank}`:evidence.score?` score ${evidence.score}`:""}</span>)}</div><small>{candidate.caveats[0]}</small></article>)}</div></section><section><h3>Examples</h3>{bucket.examples.map(example=><article className="task-example" key={example.trace_id}><b>{example.trace_id}</b><p>{example.prompt_preview}</p><small>{example.response_preview}</small></article>)}</section><section><h3>Cost, token, and latency summary</h3><div className="task-metrics"><div><small>Total cost</small><b>{money(bucket.total_cost_usd)}</b></div><div><small>Total tokens</small><b>{bucket.total_tokens.toLocaleString()}</b></div><div><small>Avg input</small><b>{bucket.avg_input_tokens.toFixed(0)}</b></div><div><small>Avg output</small><b>{bucket.avg_output_tokens.toFixed(0)}</b></div><div><small>Avg latency</small><b>{bucket.avg_latency_ms?.toFixed(0)}ms</b></div><div><small>Low confidence</small><b>{bucket.low_confidence_count}</b></div></div></section><section className="eval-plan"><h3>{plan.plan_name}</h3><div className="eval-plan-meta"><span>Human review: <b>{plan.human_review_required?"Required":"Not required"}</b></span><span>Minimum sample: <b>{plan.minimum_sample_size}</b></span><span>Plan confidence: <b>{pct(plan.confidence*100)}</b></span></div>{groups.map(([label,evals])=><div className="eval-group" key={label}><h4>{label} evals</h4>{evals.map(item=><div key={item.eval_type}><b>{item.eval_type.replaceAll("_"," ")}</b><span>{item.reason}</span></div>)}</div>)}<div className="readiness-rule"><small>Route readiness rule</small><code>{plan.route_readiness_rule}</code></div>{plan.notes.map(note=><p key={note}>{note}</p>)}</section></div></aside></div>;
 }

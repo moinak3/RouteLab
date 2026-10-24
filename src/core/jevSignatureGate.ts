@@ -1,4 +1,4 @@
-import type { KnownTaskSignature, Trace, TraceSignatureDecision } from "../types.js";
+import type { KnownTaskSignature, Trace, TraceSignatureDecision } from "../types";
 
 export const JEV_UNKNOWN_SIGNATURE_ID = "unknown";
 export const JEV_BASE_CONFIDENCE_THRESHOLD = .8;

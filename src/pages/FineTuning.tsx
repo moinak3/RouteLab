@@ -4,8 +4,6 @@ import { buildFineTuningRecommendationBundle, type FineTuningRecommendationRepor
 import { analyzeFineTuneOpportunity } from "../core/goldenDatasets";
 import { buildPromptCachingOpportunityBundle, type PromptCachingOpportunity } from "../core/promptCaching";
 import type { DistinctTaskBucket, FineTuneJob, GoldenDataset as GoldenDatasetType, Trace, TraceJudgeResult } from "../types";
-import { formatCurrency, formatPercent, formatSignedMonthlyEconomics } from "../lib/format";
-import { labelFor } from "../lib/labels";
 
 const openWeightModels = basetenOpenWeightModels;
 const inferenceProviders = ["BaseTen", "AWS SageMaker", "AWS Bedrock", "Modal", "Together Dedicated"];
@@ -29,13 +27,11 @@ const recommendationLabel: Record<FineTuningRecommendationReport["recommendation
   strongly_recommend_fine_tuning: "Strongly pursue fine-tuning",
 };
 
-const money = (value: number) => formatCurrency(Math.abs(value));
-const preciseMoney = money;
-const pct = (value: number) => formatPercent(value);
+const money = (value: number) => `$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const preciseMoney = (value: number) => `$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const pct = (value: number) => `${value.toFixed(1)}%`;
 
 function RecommendationCard({ report, compact = false }: { report: FineTuningRecommendationReport; compact?: boolean }) {
-  const monthlyEconomics = formatSignedMonthlyEconomics(report.economic_summary.monthly_savings);
-  const annualCostIncrease = report.economic_summary.annual_savings < 0;
   return <article className={`fine-tune-rec-card ${compact ? "compact" : ""}`}>
     <div className="rec-card-head">
       <div>
@@ -47,8 +43,8 @@ function RecommendationCard({ report, compact = false }: { report: FineTuningRec
     </div>
     <p>{report.primary_reason}</p>
     {!compact && <div className="rec-metrics">
-      <span className={monthlyEconomics.favorable ? "favorable" : "unfavorable"}><b>{monthlyEconomics.text}</b>{monthlyEconomics.label}</span>
-      <span className={annualCostIncrease ? "unfavorable" : "favorable"}><b>{annualCostIncrease ? `+${money(report.economic_summary.annual_savings)}` : money(report.economic_summary.annual_savings)}</b>{annualCostIncrease ? "annual cost increase" : "annual savings"}</span>
+      <span><b>{money(report.economic_summary.monthly_savings)}</b>monthly savings</span>
+      <span><b>{money(report.economic_summary.annual_savings)}</b>annual savings</span>
       <span><b>{report.economic_summary.break_even_months || "n/a"}</b>break-even months</span>
       <span><b>{pct(report.prompt_analysis.compressible_token_pct)}</b>compressible input</span>
     </div>}
@@ -60,8 +56,8 @@ function RecommendationCard({ report, compact = false }: { report: FineTuningRec
       </div>)}
     </div>}
     {!compact && <div className="rec-evidence-grid">
-      <div><b>Quality rationale</b><span>Eval score {pct(report.quality_summary.current_eval_score)} · systematic failures {pct(report.quality_summary.systematic_failure_rate)}</span><small>{report.quality_summary.main_failure_modes.map(labelFor).join(", ") || "No dominant failure mode"}</small></div>
-      <div><b>Data readiness</b><span>{labelFor(report.data_readiness.readiness_level)} · {report.data_readiness.training_examples_available.toLocaleString()} examples</span><small>{report.data_readiness.corrected_examples_available.toLocaleString()} corrected examples · label quality {labelFor(report.data_readiness.label_quality)}</small></div>
+      <div><b>Quality rationale</b><span>Eval score {pct(report.quality_summary.current_eval_score)} · systematic failures {pct(report.quality_summary.systematic_failure_rate)}</span><small>{report.quality_summary.main_failure_modes.join(", ") || "No dominant failure mode"}</small></div>
+      <div><b>Data readiness</b><span>{report.data_readiness.readiness_level} · {report.data_readiness.training_examples_available.toLocaleString()} examples</span><small>{report.data_readiness.corrected_examples_available.toLocaleString()} corrected examples · label quality {report.data_readiness.label_quality}</small></div>
       <div><b>Routing comparison</b><span>{report.routing_comparison.best_alternative_model || "No alternative"}</span><small>{report.routing_comparison.routing_recommendation}</small></div>
     </div>}
   </article>;
@@ -69,17 +65,16 @@ function RecommendationCard({ report, compact = false }: { report: FineTuningRec
 
 function PromptCachingCard({ opportunity }: { opportunity: PromptCachingOpportunity }) {
   const topProvider = opportunity.per_provider[0];
-  const readableCacheCopy = (value: string) => value.replaceAll("cache_control", "cache control");
   return <article className={`prompt-cache-card ${opportunity.recommendation}`}>
     <div className="prompt-cache-head">
       <div>
         <p className="eyebrow">Prompt caching opportunity</p>
-        <h3>{opportunity.recommendation === "add_cache_control" ? "Add cache control markers" : labelFor(opportunity.recommendation)}</h3>
+        <h3>{opportunity.recommendation === "add_cache_control" ? "Add cache_control markers" : opportunity.recommendation.replaceAll("_", " ")}</h3>
         <span>{opportunity.scope_name} · {opportunity.trace_count.toLocaleString()} traces · {opportunity.model_display_name}</span>
       </div>
       <strong>{topProvider ? preciseMoney(topProvider.monthly_savings) : "$0"}<small>/mo</small></strong>
     </div>
-    <p>{readableCacheCopy(opportunity.primary_reason)}</p>
+    <p>{opportunity.primary_reason}</p>
     <div className="prompt-cache-grid">
       <span><b>{opportunity.stable_prefix_tokens.toLocaleString()}</b>stable prefix tokens</span>
       <span><b>{pct(opportunity.prefix_similarity_pct)}</b>prompt similarity</span>
@@ -88,7 +83,7 @@ function PromptCachingCard({ opportunity }: { opportunity: PromptCachingOpportun
     <div className="prompt-cache-marker">
       <b>Where to place it</b>
       <code>{opportunity.suggested_cache_control_path}</code>
-      <p>{readableCacheCopy(opportunity.marker_instruction)}</p>
+      <p>{opportunity.marker_instruction}</p>
       <small>{opportunity.sample_prefix_preview}</small>
     </div>
     <div className="prompt-cache-providers">
@@ -154,7 +149,7 @@ export function FineTuning({ traces, distinctTaskBuckets, traceJudgeResults, dat
         <div>
           <p className="eyebrow">Cache repeated prompt prefixes</p>
           <h2>Find where prompt caching pays back.</h2>
-          <p className="calibration-copy">Without explicit cache control markers, stable instructions and examples are billed as fresh input on every call. RouteLab finds repeated prefixes and calculates savings across provider quotes.</p>
+          <p className="calibration-copy">Without explicit cache_control markers, stable instructions and examples are billed as fresh input on every call. RouteLab finds repeated prefixes and calculates savings across provider quotes.</p>
         </div>
         <span>{promptCachingBundle.global.per_provider.length.toLocaleString()} providers priced</span>
       </div>
@@ -170,11 +165,11 @@ export function FineTuning({ traces, distinctTaskBuckets, traceJudgeResults, dat
     <section className="panel">
       <div className="panelhead">
         <div>
-          <p className="eyebrow">Task recommendations</p>
-          <h2>Fine-tuning decisions by stable task.</h2>
+          <p className="eyebrow">Per-trace-signature recommendations</p>
+          <h2>Fine-tuning decisions by stable workload.</h2>
           <p className="calibration-copy">Fine-tuning is only recommended when evidence beats prompting, RAG, and routing alternatives.</p>
         </div>
-        <span>{recommendationBundle.by_signature.length.toLocaleString()} tasks</span>
+        <span>{recommendationBundle.by_signature.length.toLocaleString()} signatures</span>
       </div>
       <div className="fine-tune-signature-grid">
         {recommendationBundle.by_signature.slice(0, 6).map((report) => <button type="button" key={report.scope_id} onClick={() => setSelectedReportId(report.scope_id)}>

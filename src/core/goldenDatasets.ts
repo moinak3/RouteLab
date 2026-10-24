@@ -42,27 +42,22 @@ export function updateGoldenDatasetCell(dataset: GoldenDataset, rowIndex: number
 }
 
 const simulatedGoldenColumns = ["trace_id", "task_type", "model", "prompt", "agent_answer", "human_answer", "human_passed", "human_score", "human_severity", "human_rationale"];
-const simulatedGoldenTasks = [
-  "Intent classification and tagging",
-  "Refund and billing dispute resolution",
-  "RAG-grounded policy answers",
-  "Subscription and plan change handling",
-  "Escalation triage and routing",
-  "Ticket summarization for handoff",
-  "Order status lookup",
-  "Account security verification",
-  "Policy compliance review",
-  "Legal and DPA document review",
-];
+const simulatedGoldenTaskTypes = ["customer_support_responses", "rag_grounded_answers", "policy_compliance_reasoning", "document_review_legal_analysis"];
+
+const humanOverride = (judge: TraceJudgeResult, index: number) => {
+  if (index % 13 === 0) return { passed: !judge.passed, score: judge.passed ? .5 : 1, severity: judge.passed ? "major" : "" };
+  if (index % 17 === 0) return { passed: false, score: .5, severity: "major" };
+  return { passed: judge.passed, score: judge.score, severity: judge.severity ?? "" };
+};
 
 export function createSimulatedGoldenDataset(traces: Trace[], judgeResults: TraceJudgeResult[], now = new Date("2026-06-24T00:00:00.000Z")): GoldenDataset {
-  void judgeResults;
-  const selected = simulatedGoldenTasks.flatMap((task) =>
-    traces.filter((trace) => trace.metadata?.distinct_task_label === task).slice(0, 20),
+  const judgeByTraceId = new Map(judgeResults.map((result) => [result.trace_id, result]));
+  const selected = simulatedGoldenTaskTypes.flatMap((taskType) =>
+    traces.filter((trace) => trace.metadata?.task_type === taskType).slice(0, 8),
   );
-  const rows = selected.map((trace): GoldenDatasetRow => {
-    const humanPassed = trace.metadata?._internal_baseline_pass !== false;
-    const risk = String(trace.metadata?.risk_level ?? "medium");
+  const rows = selected.map((trace, index): GoldenDatasetRow => {
+    const judge = judgeByTraceId.get(trace.id);
+    const human = judge ? humanOverride(judge, index) : { passed: true, score: 1, severity: "" };
     return {
       trace_id: trace.id,
       task_type: String(trace.metadata?.task_type ?? ""),
@@ -70,12 +65,12 @@ export function createSimulatedGoldenDataset(traces: Trace[], judgeResults: Trac
       prompt: trace.prompt_text,
       agent_answer: trace.response_text ?? "",
       human_answer: String(trace.metadata?._internal_reference ?? trace.response_text ?? ""),
-      human_passed: humanPassed,
-      human_score: humanPassed ? 1 : risk === "high" ? 0 : .5,
-      human_severity: humanPassed ? "" : risk === "high" ? "critical" : "major",
-      human_rationale: String(trace.metadata?._internal_human_rationale ?? (humanPassed
-        ? "The response contains the required facts and controls."
-        : "The response misses a required fact or policy control.")),
+      human_passed: human.passed,
+      human_score: human.score,
+      human_severity: human.severity,
+      human_rationale: human.passed
+        ? "Human reviewer marked this answer acceptable against the expected support outcome."
+        : "Human reviewer marked this answer insufficient because it misses a required fact, policy constraint, or safe escalation.",
     };
   });
   return {
@@ -161,14 +156,12 @@ export function calibrateGoldenDataset(dataset: GoldenDataset | undefined, trace
   const scoreComparable = rows.filter((row) => row.score_delta !== undefined);
   const severityComparable = rows.filter((row) => row.human_severity && row.judge_severity);
   const disagreements = comparable.filter((row) => row.agreement === false);
-  const humanFails = comparable.filter((row) => row.human_passed === false);
-  const humanPasses = comparable.filter((row) => row.human_passed === true);
   return {
     matched_rows: rows.length,
     coverage_pct: pct(rows.filter((row) => row.judge_passed !== undefined).length, dataset?.row_count ?? 0),
     agreement_rate: pct(comparable.filter((row) => row.agreement).length, comparable.length),
-    false_pass_rate: pct(humanFails.filter((row) => row.judge_passed === true).length, humanFails.length),
-    false_fail_rate: pct(humanPasses.filter((row) => row.judge_passed === false).length, humanPasses.length),
+    false_pass_rate: pct(comparable.filter((row) => row.human_passed === false && row.judge_passed === true).length, comparable.length),
+    false_fail_rate: pct(comparable.filter((row) => row.human_passed === true && row.judge_passed === false).length, comparable.length),
     avg_score_delta: scoreComparable.length ? scoreComparable.reduce((sum, row) => sum + Math.abs(row.score_delta ?? 0), 0) / scoreComparable.length : 0,
     severity_agreement_rate: pct(severityComparable.filter((row) => row.human_severity === row.judge_severity).length, severityComparable.length),
     disagreements,

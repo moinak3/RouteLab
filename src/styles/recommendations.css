@@ -18,7 +18,7 @@
   min-width:0;
 }
 .automation-metrics dd{
-  font-size:12px;
+  font-size:10px;
 }
 .tool-sequence{
   display:grid;
@@ -34,11 +34,11 @@
   gap:4px;
 }
 .tool-sequence strong{
-  font-size:12px;
+  font-size:9px;
   color:#24372e;
 }
 .tool-sequence span{
-  font-size:12px;
+  font-size:8px;
   color:#718177;
 }
 .script-stub{
@@ -50,14 +50,14 @@
   gap:6px;
 }
 .script-stub span{
-  font-size:12px;
+  font-size:7px;
   text-transform:uppercase;
   letter-spacing:.08em;
   color:#788980;
-  font-weight:600;
+  font-weight:800;
 }
 .script-stub b{
-  font-size:12px;
+  font-size:10px;
   color:#22382e;
 }
 .script-stub code{

@@ -15,22 +15,16 @@ export const sendJson = (res: any, status: number, payload: unknown) => {
 export const serverOpenRouterKey = () =>
   String(process.env.ROUTELAB_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "").trim();
 
-const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek)\/[a-z0-9][a-z0-9._:-]*$/i;
-
-export const providerConfig = (source: string, modelId: string, openRouterModelId?: string) => {
+export const providerConfig = (source: string, modelId: string) => {
+  const model = getModel(modelId);
+  if (!model) throw new Error("Unknown candidate model.");
   if (source === "openrouter") {
-    const runtimeModelId = String(openRouterModelId ?? "").trim();
-    if (runtimeModelId && !dynamicOpenRouterModel.test(runtimeModelId)) throw new Error("Unsupported OpenRouter candidate model.");
-    const model = getModel(modelId);
-    if (!runtimeModelId && !model) throw new Error("Unknown candidate model.");
     return {
       url: "https://openrouter.ai/api/v1/chat/completions",
-      modelName: runtimeModelId || model!.pricing_source_model_id || model!.id,
+      modelName: model.pricing_source_model_id ?? model.id,
       label: "OpenRouter",
     };
   }
-  const model = getModel(modelId);
-  if (!model) throw new Error("Unknown candidate model.");
   if (model.family === "OpenAI") {
     return { url: "https://api.openai.com/v1/chat/completions", modelName: model.id, label: "OpenAI" };
   }
