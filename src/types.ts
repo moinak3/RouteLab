@@ -94,6 +94,7 @@ export type Model = {
   id: string; provider: string; display_name: string; input_cost_per_1m: number;
   output_cost_per_1m: number; default_latency_ms: number; deployment_type: string;
   pricing_source?: "OpenRouter" | "User configured"; pricing_source_model_id?: string; pricing_updated_at?: string;
+  openrouter_created_at?: string;
   enabled?: boolean;
   quality_tier: "cheap" | "balanced" | "strong" | "specialist";
   family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local";

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { dashboardMetrics } from "./core/analysis";
-import { enabledModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
+import { enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
@@ -58,6 +58,7 @@ export default function App() {
   const [candidate, setCandidate] = useState("deepseek-r1");
   const [recommendationCandidate, setRecommendationCandidate] = useState(DEEPSEEK_RECOMMENDATION_SCOPE);
   const [catalogVersion, setCatalogVersion] = useState(0);
+  const [openRouterModels, setOpenRouterModels] = useState<Model[] | null>(null);
   const [familyApiKeys, setFamilyApiKeys] = useState<Partial<Record<Model["family"], string>>>({});
   const [gatewayApiKeys, setGatewayApiKeys] = useState<Partial<Record<GatewayProvider, string>>>({});
   const [serverGatewayKeys, setServerGatewayKeys] = useState<Partial<Record<GatewayProvider, boolean>>>({});
@@ -69,6 +70,8 @@ export default function App() {
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
+  const simulationModels = openRouterModels ?? activeModels;
+  const simulationModelIds = useMemo(() => simulationModels.map((model) => model.id), [simulationModels]);
   const distinctTaskBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
   const metrics = useMemo(() => dashboardMetrics(traces), [traces]);
   const workflows = useMemo(() => buildWorkflowTrees(traces), [traces]);
@@ -104,10 +107,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!activeModels.length) return;
-    if (!activeModelIds.includes(candidate)) setCandidate(activeModels[0].id);
+    let cancelled = false;
+    fetch("/api/openrouter/models")
+      .then(async response => {
+        const payload = await response.json().catch(() => ({})) as { models?: Model[]; error?: unknown };
+        if (!response.ok || !Array.isArray(payload.models) || !payload.models.length) throw new Error(String(payload.error ?? "OpenRouter catalog unavailable."));
+        return payload.models;
+      })
+      .then(models => {
+        if (cancelled) return;
+        registerOpenRouterModels(models);
+        setOpenRouterModels(models);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!simulationModels.length) return;
+    if (!simulationModelIds.includes(candidate)) setCandidate(simulationModels[0].id);
     if (recommendationCandidate !== DEEPSEEK_RECOMMENDATION_SCOPE && !activeModelIds.includes(recommendationCandidate)) setRecommendationCandidate(DEEPSEEK_RECOMMENDATION_SCOPE);
-  }, [activeModels, activeModelIds, candidate, recommendationCandidate]);
+  }, [simulationModels, simulationModelIds, activeModelIds, candidate, recommendationCandidate]);
 
   async function applyUploadedText(text: string, fileName: string) {
     const result = ingestText(text, fileName);
@@ -290,7 +310,7 @@ export default function App() {
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
-      {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
+      {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}

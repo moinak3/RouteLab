@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { modelCatalog } from "../core/catalog";
+import { getModel } from "../core/catalog";
 import { distinctTaskImpactBreakdown, familyCascade, MONTHLY_MULTIPLIER, replay, replayFromRuns, type ReplayResult } from "../core/simulations";
 import { liveRoutingStatus, runLiveDirectRouting, type LiveRunSource } from "../core/liveRouting";
 import { filterTracesByRange, type DateRange } from "../core/time";
@@ -7,7 +7,7 @@ import { traceJudgeResultsByTraceId } from "../core/traceJudge";
 import type { CandidateRun, DistinctTaskBucket, EvalResult, GatewayProvider, Trace, Model, TraceJudgeResult } from "../types";
 import { money, pct, preview, stripJudgeMarker } from "../lib/format";
 import { distinctTaskValue } from "../components/DistinctTaskDisplay";
-import { ModelOptions } from "../components/ModelOptions";
+import { ModelOptions, ModelPicker } from "../components/ModelOptions";
 import { RoutingPolicyPublisher } from "../components/RoutingPolicyPublisher";
 import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, reviseDraftRoutingPolicy } from "../core/routingDraft";
 import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useRoutingPolicyDraft";
@@ -138,7 +138,7 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     </div>
   </div>;
 }
-export function Simulations({ traces, traceJudgeResults = [], distinctTaskBuckets, candidate, setCandidate, catalogVersion, activeModels, familyApiKeys, gatewayApiKeys, serverGatewayKeys }: {
+export function Simulations({ traces, traceJudgeResults = [], distinctTaskBuckets, candidate, setCandidate, catalogVersion, activeModels, candidateModels, familyApiKeys, gatewayApiKeys, serverGatewayKeys }: {
     traces: Trace[];
     traceJudgeResults?: TraceJudgeResult[];
     distinctTaskBuckets: DistinctTaskBucket[];
@@ -146,6 +146,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     setCandidate: (v: string) => void;
     catalogVersion: number;
     activeModels: Model[];
+    candidateModels: Model[];
     familyApiKeys: Partial<Record<Model["family"], string>>;
     gatewayApiKeys: Partial<Record<GatewayProvider, string>>;
     serverGatewayKeys?: Partial<Record<GatewayProvider, boolean>>;
@@ -163,7 +164,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         message: string;
     }>({ state: "idle", message: "" });
     const liveAbortRef = useRef<AbortController | null>(null);
-    const hasActiveModels = activeModels.length > 0;
+    const hasActiveModels = candidateModels.length > 0;
     const defaultFallbackModelId = useMemo(() => {
         const counts = new Map<string, number>();
         traces.forEach(trace => counts.set(trace.model, (counts.get(trace.model) ?? 0) + 1));
@@ -220,7 +221,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         setSampleSeed(nextSeed);
         setStrategy("direct");
         if (!liveKeyStatus) {
-            const model = modelCatalog.find(item => item.id === candidate);
+            const model = getModel(candidate);
             const message = model?.pricing_source === "OpenRouter"
                 ? `No OpenRouter API key found for ${model.display_name}. Add one in Model Catalog or restart the dev server with OPENROUTER_API_KEY. Using deterministic demo replay.`
                 : "No API key configured for this candidate; using deterministic demo replay.";
@@ -281,8 +282,8 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     if (!simulation)
         return null;
     const monthlySavings = simulation.summary.estimated_savings_usd * MONTHLY_MULTIPLIER;
-    const candidateName = modelCatalog.find(model => model.id === candidate)?.display_name ?? candidate;
-    const candidateFamily = modelCatalog.find(model => model.id === candidate)?.family ?? candidateName;
+    const candidateName = getModel(candidate)?.display_name ?? candidate;
+    const candidateFamily = getModel(candidate)?.family ?? candidateName;
     const providerName = strategy === "direct" ? liveDirect?.label ?? simulation.runs[0]?.provider : undefined;
     const candidateRouteName = providerName ? `${candidateName} via ${providerName}` : candidateName;
     const fallbackModel = activeModels.find(model => model.id === draftPolicy.fallbackModelId);
@@ -302,9 +303,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div className="scenario-controls">
 <div className="compact-select">
 <label>Candidate model</label>
-<select value={candidate} onChange={e => setCandidate(e.target.value)}>
-<ModelOptions models={activeModels}/>
-</select>
+<ModelPicker models={candidateModels} value={candidate} onChange={setCandidate}/>
 </div>
 <DistinctTaskScopePicker buckets={distinctTaskBuckets} selectedIds={distinctTaskBucketIds} onChange={setDistinctTaskBucketIds} callCounts={callCounts} totalCalls={dateTraces.length}/>
 <div className="range-control">

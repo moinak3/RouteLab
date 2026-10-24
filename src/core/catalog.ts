@@ -18,7 +18,13 @@ export const modelCatalog: Model[] = [
   { id: "local-qwen-14b", provider: "local", family: "Local", family_tier: "cheapest", display_name: "Local Qwen 14B", input_cost_per_1m: 0, output_cost_per_1m: 0, default_latency_ms: 420, deployment_type: "local", quality_tier: "cheap", pricing_source: "User configured" },
 ];
 
-export const getModel = (id: string, catalog = modelCatalog) => catalog.find((model) => model.id === id);
+let registeredOpenRouterModels: Model[] = [];
+
+export const getModel = (id: string, catalog?: Model[]) => (catalog ?? modelCatalog).find((model) => model.id === id)
+  ?? (catalog ? undefined : registeredOpenRouterModels.find((model) => model.id === id));
+export function registerOpenRouterModels(models: Model[]) {
+  registeredOpenRouterModels = [...models];
+}
 export const isModelEnabled = (model: Model) => model.enabled !== false;
 export const enabledModels = (catalog = modelCatalog) => catalog.filter(isModelEnabled);
 export function updateModelPricing(id: string, inputCost: number, outputCost: number) {
