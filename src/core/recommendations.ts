@@ -3,6 +3,8 @@ import { getModel, recommendationCandidates } from "./catalog";
 import { evaluateTrace } from "./evaluators";
 import { cheapestProviderQuoteForModel, providerQuotesForModel, quoteLabel } from "./providerPricing";
 import { cascade, MONTHLY_MULTIPLIER, replay } from "./simulations";
+import { projectedMonthlySavings, sampleExpansionFactor } from "../lib/economics";
+import { wilsonInterval } from "../lib/quality";
 
 const percentDelta = (before: number, after: number) => before ? (after - before) / before * 100 : 0;
 const MAX_LATENCY_REGRESSION_PCT = 50;
@@ -19,6 +21,7 @@ type ToolCallSession = {
   calls: ToolCallInstance[];
   accepted: boolean;
   automation_cost_usd: number;
+  projected_monthly_cost_usd: number;
 };
 
 const compactName = (value: string) => value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -72,6 +75,7 @@ const toolCallSessions = (traces: Trace[]): ToolCallSession[] => {
       calls: toolBearing.flatMap((item) => item.calls),
       accepted: sorted.every(traceAccepted),
       automation_cost_usd: toolBearing.reduce((sum, item) => sum + (item.trace.cost_usd ?? 0), 0),
+      projected_monthly_cost_usd: toolBearing.reduce((sum, item) => sum + (item.trace.cost_usd ?? 0) * (item.trace.represents_monthly_calls ?? 0), 0),
     };
   }).filter((session) => session.calls.length);
 };
@@ -108,7 +112,7 @@ const scriptStub = (steps: ToolCallSignatureStep[], scriptName: string) => {
   return `export async function ${scriptName}(input) {\n${calls || "  const step1 = await tools.run(input);"}\n  return step${Math.max(steps.length, 1)};\n}`;
 };
 
-export function recommendScriptAutomation(traces: Trace[], monthlyMultiplier = MONTHLY_MULTIPLIER): ScriptAutomationRecommendation[] {
+export function recommendScriptAutomation(traces: Trace[], monthlyMultiplier = sampleExpansionFactor(traces) || MONTHLY_MULTIPLIER): ScriptAutomationRecommendation[] {
   const sessions = toolCallSessions(traces);
   const clusters = new Map<string, ToolCallSession[]>();
   sessions.forEach((session) => clusters.set(signatureKey(session.calls), [...(clusters.get(signatureKey(session.calls)) ?? []), session]));
@@ -121,7 +125,8 @@ export function recommendScriptAutomation(traces: Trace[], monthlyMultiplier = M
     const steps = stepSummaries(items);
     const name = steps.map((step) => compactName(step.tool_name)).join(" -> ");
     const scriptName = `run${steps.map((step) => compactName(step.tool_name).replace(/\s+/g, "")).join("") || `ToolSequence${index + 1}`}`;
-    const projectedMonthlySavings = items.reduce((sum, item) => sum + item.automation_cost_usd, 0) * monthlyMultiplier * SCRIPT_REPLACEMENT_SAVINGS_RATE;
+    const explicitProjection = items.reduce((sum, item) => sum + item.projected_monthly_cost_usd, 0);
+    const projectedMonthlySavings = (explicitProjection || items.reduce((sum, item) => sum + item.automation_cost_usd, 0) * monthlyMultiplier) * SCRIPT_REPLACEMENT_SAVINGS_RATE;
     return [{
       id: `script_${scriptSlug(key)}_${index + 1}`,
       cluster_name: name,
@@ -144,7 +149,7 @@ export function recommendScriptAutomation(traces: Trace[], monthlyMultiplier = M
 export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], candidateIds = recommendationCandidates.map((model) => model.id), strong = "claude-opus-4.8"): RoutingPolicy {
   const rules: RoutingRule[] = [];
   let sampleSavings = 0;
-  const monthlyMultiplier = MONTHLY_MULTIPLIER;
+  const monthlyMultiplier = sampleExpansionFactor(traces) || MONTHLY_MULTIPLIER;
   const tracesById = new Map(traces.map((trace) => [trace.id, trace]));
   const cascadeFallbackEnabled = candidateIds.includes(strong);
   buckets.forEach((bucket) => {
@@ -160,7 +165,8 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
       const cascaded = cascade(selected, modelId, strong, quote, fallbackQuote);
       const needsStrictEvidence = bucket.task.complexity === "high" || bucket.task.temporal_context === "late_multi_turn" || ["recovered_failure","failed"].includes(bucket.task.tool_use) || bucket.task.output_uncertainty === "low" && bucket.risk_level !== "low";
       const qualityThreshold = needsStrictEvidence ? .98 : bucket.risk_level === "low" && bucket.task.complexity === "low" ? .9 : .95;
-      const directQuality = direct.summary.pass_rate >= qualityThreshold;
+      const directPasses = direct.evals.filter((evaluation) => evaluation.passed).length;
+      const directQuality = wilsonInterval(directPasses, direct.evals.length).lower >= qualityThreshold;
       const directValid = direct.summary.estimated_savings_usd > 0 && direct.summary.latency_delta_pct <= MAX_LATENCY_REGRESSION_PCT && directQuality;
       const cascadeValid = cascadeFallbackEnabled && modelId !== strong && cascaded.summary.estimated_savings_usd > 0 && cascaded.summary.latency_delta_pct <= MAX_LATENCY_REGRESSION_PCT && cascaded.summary.pass_rate >= .95;
       return { modelId, quote, direct, cascaded, directValid, cascadeValid };
@@ -207,14 +213,14 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
         delta_pct: percentDelta(baselineQuality, recommended.summary.pass_rate),
       },
     };
-    const estimatedMonthlySavings = comparison ? (comparison.cost.before - comparison.cost.after) * monthlyMultiplier : 0;
+    const estimatedMonthlySavings = recommended ? projectedMonthlySavings(selected, recommended.runs) : 0;
     const rejected = candidates.filter((candidate) => candidate.direct.summary.estimated_savings_usd > 0 && candidate.direct.summary.latency_delta_pct > MAX_LATENCY_REGRESSION_PCT)
       .sort((a, b) => b.direct.summary.estimated_savings_usd - a.direct.summary.estimated_savings_usd)[0];
     const rejectedAlternative = rejected ? {
       model: rejected.modelId,
       provider: rejected.quote.provider_name,
       reason: `Rejected because latency increases ${rejected.direct.summary.latency_delta_pct.toFixed(0)}%, above the ${MAX_LATENCY_REGRESSION_PCT}% guardrail.`,
-      potential_monthly_savings_usd: rejected.direct.summary.estimated_savings_usd * monthlyMultiplier,
+      potential_monthly_savings_usd: projectedMonthlySavings(selected, rejected.direct.runs),
       comparison: {
         cost: { before: rejected.direct.summary.baseline_cost_usd, after: rejected.direct.summary.simulated_cost_usd, delta_pct: percentDelta(rejected.direct.summary.baseline_cost_usd, rejected.direct.summary.simulated_cost_usd) },
         latency_ms: { before: rejected.direct.summary.baseline_avg_latency_ms, after: rejected.direct.summary.simulated_avg_latency_ms, delta_pct: rejected.direct.summary.latency_delta_pct },
@@ -223,7 +229,7 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
     } : undefined;
     rules.push({ id: `rule_${bucket.bucket_id}`, name: bucket.bucket_name, match: { distinct_task_bucket_id: bucket.bucket_id, risk_level: bucket.risk_level }, strategy, rationale, estimated_monthly_savings_usd: estimatedMonthlySavings, comparison, provider_quote: winner?.providerQuote, provider_quotes_evaluated: providerQuotes, rejected_alternative: rejectedAlternative });
   });
-  return { id: "policy_recommended", name: "RouteLab recommended policy", created_at: "2026-06-07T00:00:00.000Z", rules, estimated_sample_savings_usd: sampleSavings, monthly_multiplier: monthlyMultiplier, estimated_monthly_savings_usd: sampleSavings * monthlyMultiplier, estimated_quality_delta: 0, estimated_latency_delta_pct: -24, risk_summary: "High-risk workloads remain protected; lower-risk workloads use the best guardrail-approved candidate.", candidate_model_ids: candidateIds, script_automation_recommendations: recommendScriptAutomation(traces, monthlyMultiplier) };
+  return { id: "policy_recommended", name: "RouteLab recommended policy", created_at: "2026-06-07T00:00:00.000Z", rules, estimated_sample_savings_usd: sampleSavings, monthly_multiplier: monthlyMultiplier, estimated_monthly_savings_usd: rules.reduce((sum, rule) => sum + rule.estimated_monthly_savings_usd, 0), estimated_quality_delta: 0, estimated_latency_delta_pct: -24, risk_summary: "High-risk workloads remain protected; lower-risk workloads use the best guardrail-approved candidate.", candidate_model_ids: candidateIds, script_automation_recommendations: recommendScriptAutomation(traces, monthlyMultiplier) };
 }
 
 export const exportPolicyJson = (policy: RoutingPolicy) => JSON.stringify(policy, null, 2);

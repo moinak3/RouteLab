@@ -1,6 +1,7 @@
 import { calculateCost, getModel, modelCatalog } from "./catalog";
 import { replay } from "./simulations";
 import type { DistinctTaskBucket, GoldenDataset, GoldenDatasetRow, Trace, TraceJudgeResult } from "../types";
+import { currentMonthlySpend, representedMonthlyCalls } from "../lib/economics";
 
 export type FineTuningRecommendationAction =
   | "do_not_fine_tune"
@@ -251,11 +252,13 @@ export function analyzeTaskStability(traces: Trace[], buckets: DistinctTaskBucke
 }
 
 export function analyzeEconomics(traces: Trace[], promptAnalysis: FineTuningPromptAnalysis, options: BuildOptions = {}): FineTuningEconomicSummary & { pricingKnown: boolean; volumeKnown: boolean; currentMonthlyVolume: number } {
-  const monthlyVolume = options.monthlyRequestVolume ?? (Number.isFinite(options.monthlyMultiplier) ? traces.length * (options.monthlyMultiplier ?? 30) : traces.length * 30);
+  const explicitVolume = representedMonthlyCalls(traces);
+  const monthlyVolume = options.monthlyRequestVolume ?? (explicitVolume || (Number.isFinite(options.monthlyMultiplier) ? traces.length * (options.monthlyMultiplier ?? 30) : 0));
   const volumeKnown = monthlyVolume > 0 && traces.length > 0;
   const currentSampleCost = traces.reduce((sum, trace) => sum + currentTraceCost(trace), 0);
   const pricingKnown = traces.some((trace) => (trace.cost_usd ?? 0) > 0 || Boolean(getModel(trace.model)));
-  const currentMonthlyCost = traces.length && volumeKnown ? currentSampleCost / traces.length * monthlyVolume : 0;
+  const explicitMonthlySpend = currentMonthlySpend(traces);
+  const currentMonthlyCost = traces.length && volumeKnown ? explicitMonthlySpend || currentSampleCost / traces.length * monthlyVolume : 0;
   const ftModel = getModel(options.fineTunedModelId ?? "mistral-small-3.2") ?? getModel("deepseek-v4-pro");
   const tokenReductionPct = clamp(promptAnalysis.compressible_token_pct / 100 * .78, 0, .78);
   const reducedInputTokens = Math.max(40, promptAnalysis.avg_input_tokens * (1 - tokenReductionPct));

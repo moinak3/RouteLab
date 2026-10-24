@@ -20,6 +20,7 @@ export type Trace = {
   id: string; timestamp: string; provider?: string; model: string; messages: Message[];
   prompt_text: string; response_text?: string; input_tokens: number; output_tokens: number;
   total_tokens: number; latency_ms?: number; cost_usd?: number; status: "success" | "error";
+  represents_monthly_calls?: number;
   workflow_id?: string; node_id?: string; parent_node_id?: string; workflow_role?: WorkflowRole; span_name?: string;
   source?: "langsmith" | "braintrust" | "helicone" | "litellm" | "csv" | "json" | "unknown";
   spans?: TraceSpan[]; error_type?: string; metadata?: Record<string, unknown>;

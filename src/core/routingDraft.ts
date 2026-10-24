@@ -1,3 +1,5 @@
+import { overrideEligibility } from "../lib/quality";
+
 export type RouteCandidateGuardrails = {
   minimumPassRate: number;
   maximumLatencyIncreasePct: number;
@@ -119,27 +121,19 @@ export function assessRouteCandidate(
   evidence: { passRate: number; costDeltaPct: number; latencyDeltaPct: number; replayCount: number },
   guardrails: RouteCandidateGuardrails = DEFAULT_ROUTE_GUARDRAILS,
 ): RouteCandidateAssessment {
-  const checks = [
-    {
-      label: "Quality",
-      passed: evidence.passRate >= guardrails.minimumPassRate,
-      detail: `${(evidence.passRate * 100).toFixed(1)}% pass rate vs ${(guardrails.minimumPassRate * 100).toFixed(0)}% minimum`,
-    },
-    {
-      label: "Cost",
-      passed: evidence.costDeltaPct < 0,
-      detail: `${Math.abs(evidence.costDeltaPct).toFixed(1)}% ${evidence.costDeltaPct < 0 ? "lower" : "higher or unchanged"} cost`,
-    },
-    {
-      label: "Latency",
-      passed: evidence.latencyDeltaPct <= guardrails.maximumLatencyIncreasePct,
-      detail: `${evidence.latencyDeltaPct > 0 ? "+" : ""}${evidence.latencyDeltaPct.toFixed(1)}% vs +${guardrails.maximumLatencyIncreasePct}% maximum`,
-    },
-    {
-      label: "Evidence",
-      passed: evidence.replayCount >= guardrails.minimumReplayCount,
-      detail: `${evidence.replayCount} replayed trace${evidence.replayCount === 1 ? "" : "s"} vs ${guardrails.minimumReplayCount} minimum`,
-    },
-  ];
+  const base = overrideEligibility({
+    successes: Math.round(evidence.passRate * evidence.replayCount),
+    total: evidence.replayCount,
+    qualityBar: guardrails.minimumPassRate,
+    costDeltaPct: evidence.costDeltaPct,
+    latencyDeltaPct: evidence.latencyDeltaPct,
+    maximumLatencyIncreasePct: guardrails.maximumLatencyIncreasePct,
+  });
+  const checks = [...base.checks, {
+    label: "Evidence",
+    passed: evidence.replayCount >= guardrails.minimumReplayCount,
+    detail: `${evidence.replayCount} replayed trace${evidence.replayCount === 1 ? "" : "s"} vs ${guardrails.minimumReplayCount} minimum`,
+  }];
   return { eligible: checks.every((check) => check.passed), checks };
 }
+
