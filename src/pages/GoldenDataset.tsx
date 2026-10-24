@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { calibrateGoldenDataset, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../core/goldenDatasets";
-import { formatInteger, preview } from "../lib/format";
+import { formatDate, formatInteger, preview } from "../lib/format";
+import { labelFor } from "../lib/labels";
 import { calibrationSummary } from "../lib/quality";
 import type { GoldenDataset as GoldenDatasetType, Trace, TraceJudgeResult } from "../types";
 
@@ -76,11 +77,11 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
         {selectedDataset && <div className="dataset-preview">
           <div className="dataset-summary">
             <b>{selectedDataset.name}</b>
-            <span>Created {new Date(selectedDataset.created_at).toLocaleDateString()} · previewing {Math.min(selectedDataset.rows.length, 8)} rows</span>
+            <span>Created {formatDate(selectedDataset.created_at)} · previewing {Math.min(selectedDataset.rows.length, 8)} rows</span>
           </div>
           <div className="tablewrap">
             <table className="golden-table">
-              <thead><tr>{selectedDataset.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+              <thead><tr>{selectedDataset.columns.map((column) => <th key={column}>{labelFor(column)}</th>)}</tr></thead>
               <tbody>{selectedDataset.rows.slice(0, 8).map((row, rowIndex) => <tr key={rowIndex}>{selectedDataset.columns.map((column) => <td key={column}>{mode === "edit"
                 ? <input aria-label={`${column} row ${rowIndex + 1}`} value={cellValue(row[column])} onChange={(event) => onUpdate(updateGoldenDatasetCell(selectedDataset, rowIndex, column, event.target.value))} />
                 : preview(cellValue(row[column]), 140)}</td>)}</tr>)}</tbody>

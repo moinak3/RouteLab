@@ -83,6 +83,7 @@ export default function App() {
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
+  const canonicalPolicy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, activeModelIds), [traces, distinctTaskBuckets, activeModelIds, catalogVersion]);
   const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
 
   useEffect(() => {
@@ -310,7 +311,7 @@ export default function App() {
       <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><button type="button" className={item.pages.includes(page)?"active":""} onClick={()=>setPage(item.page)} key={item.label}>{item.label}</button>)}</div>
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
-      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} recommendationPolicy={policy} onOpenPolicy={() => setPage("Policy Draft")} />}
+      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} recommendationPolicy={canonicalPolicy} onOpenPolicy={() => setPage("Policy Draft")} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
       {page === "Distinct Tasks" && <DistinctTasks traces={traces} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}

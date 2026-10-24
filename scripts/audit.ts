@@ -58,7 +58,14 @@ async function inspect(page: Page, label: string) {
     const forbidden = ["—", "Jev", "Distinct Task", "Task Signature", "SIGNALS", "Api ->", "$0.000"];
     const badText = leafText.filter((element) => forbidden.some((term) => element.textContent?.includes(term))).slice(0, 8).map((element) => element.textContent?.trim());
     const snake = leafText.filter((element) => /\b[a-z]+_[a-z0-9_]+\b/.test(element.textContent ?? "") && !getComputedStyle(element).fontFamily.toLowerCase().includes("dm mono") && !element.closest("pre, code, .mono-id")).slice(0, 8).map((element) => element.textContent?.trim());
-    return { overflow: document.documentElement.scrollWidth - innerWidth, sizes, colors, tiny, heavy, badText, snake };
+    const loadedFonts: string[] = [];
+    document.fonts.forEach((font) => {
+      if (font.status === "loaded") loadedFonts.push(font.family.replaceAll('"', "").toLowerCase());
+    });
+    const unexpectedFonts = loadedFonts.filter((font) => !font.includes("inter") && !font.includes("dm mono"));
+    const stepImages = Array.from(document.querySelectorAll<HTMLImageElement>(".home-step-card img")).map((image) => image.currentSrc || image.src);
+    const repeatedStepImages = stepImages.filter((source, index) => stepImages.indexOf(source) !== index);
+    return { overflow: document.documentElement.scrollWidth - innerWidth, sizes, colors, tiny, heavy, badText, snake, unexpectedFonts, repeatedStepImages };
   });
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   const failures: string[] = [];
@@ -69,6 +76,8 @@ async function inspect(page: Page, label: string) {
   if (result.heavy.length) failures.push(`font weight above 700: ${result.heavy.join(" | ")}`);
   if (result.badText.length) failures.push(`forbidden copy: ${result.badText.join(" | ")}`);
   if (result.snake.length) failures.push(`raw enum text: ${result.snake.join(" | ")}`);
+  if (result.unexpectedFonts.length) failures.push(`unexpected fonts: ${[...new Set(result.unexpectedFonts)].join(" | ")}`);
+  if (result.repeatedStepImages.length) failures.push(`repeated How it works images: ${[...new Set(result.repeatedStepImages)].join(" | ")}`);
   const contrast = axe.violations.filter((violation) => violation.id === "color-contrast");
   if (contrast.length) failures.push(`${contrast.reduce((sum, violation) => sum + violation.nodes.length, 0)} contrast failures`);
   if (failures.length) throw new Error(`${label}: ${failures.join("; ")}`);

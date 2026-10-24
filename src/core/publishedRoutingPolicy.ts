@@ -1,5 +1,5 @@
-import type { DraftRoutingPolicy, DraftTaskOverride } from "./routingDraft";
-import type { Risk } from "../types";
+import type { DraftRoutingPolicy, DraftTaskOverride } from "./routingDraft.js";
+import type { Risk } from "../types.js";
 
 export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v1" as const;
 

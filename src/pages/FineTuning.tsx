@@ -5,6 +5,7 @@ import { analyzeFineTuneOpportunity } from "../core/goldenDatasets";
 import { buildPromptCachingOpportunityBundle, type PromptCachingOpportunity } from "../core/promptCaching";
 import type { DistinctTaskBucket, FineTuneJob, GoldenDataset as GoldenDatasetType, Trace, TraceJudgeResult } from "../types";
 import { formatCurrency, formatPercent, formatSignedMonthlyEconomics } from "../lib/format";
+import { labelFor } from "../lib/labels";
 
 const openWeightModels = basetenOpenWeightModels;
 const inferenceProviders = ["BaseTen", "AWS SageMaker", "AWS Bedrock", "Modal", "Together Dedicated"];
@@ -59,8 +60,8 @@ function RecommendationCard({ report, compact = false }: { report: FineTuningRec
       </div>)}
     </div>}
     {!compact && <div className="rec-evidence-grid">
-      <div><b>Quality rationale</b><span>Eval score {pct(report.quality_summary.current_eval_score)} · systematic failures {pct(report.quality_summary.systematic_failure_rate)}</span><small>{report.quality_summary.main_failure_modes.join(", ") || "No dominant failure mode"}</small></div>
-      <div><b>Data readiness</b><span>{report.data_readiness.readiness_level} · {report.data_readiness.training_examples_available.toLocaleString()} examples</span><small>{report.data_readiness.corrected_examples_available.toLocaleString()} corrected examples · label quality {report.data_readiness.label_quality}</small></div>
+      <div><b>Quality rationale</b><span>Eval score {pct(report.quality_summary.current_eval_score)} · systematic failures {pct(report.quality_summary.systematic_failure_rate)}</span><small>{report.quality_summary.main_failure_modes.map(labelFor).join(", ") || "No dominant failure mode"}</small></div>
+      <div><b>Data readiness</b><span>{labelFor(report.data_readiness.readiness_level)} · {report.data_readiness.training_examples_available.toLocaleString()} examples</span><small>{report.data_readiness.corrected_examples_available.toLocaleString()} corrected examples · label quality {labelFor(report.data_readiness.label_quality)}</small></div>
       <div><b>Routing comparison</b><span>{report.routing_comparison.best_alternative_model || "No alternative"}</span><small>{report.routing_comparison.routing_recommendation}</small></div>
     </div>}
   </article>;
@@ -72,7 +73,7 @@ function PromptCachingCard({ opportunity }: { opportunity: PromptCachingOpportun
     <div className="prompt-cache-head">
       <div>
         <p className="eyebrow">Prompt caching opportunity</p>
-        <h3>{opportunity.recommendation === "add_cache_control" ? "Add cache_control markers" : opportunity.recommendation.replaceAll("_", " ")}</h3>
+        <h3>{opportunity.recommendation === "add_cache_control" ? "Add cache control markers" : labelFor(opportunity.recommendation)}</h3>
         <span>{opportunity.scope_name} · {opportunity.trace_count.toLocaleString()} traces · {opportunity.model_display_name}</span>
       </div>
       <strong>{topProvider ? preciseMoney(topProvider.monthly_savings) : "$0"}<small>/mo</small></strong>
@@ -152,7 +153,7 @@ export function FineTuning({ traces, distinctTaskBuckets, traceJudgeResults, dat
         <div>
           <p className="eyebrow">Cache repeated prompt prefixes</p>
           <h2>Find where prompt caching pays back.</h2>
-          <p className="calibration-copy">Without explicit cache_control markers, stable instructions and examples are billed as fresh input on every call. RouteLab finds repeated prefixes and calculates savings across provider quotes.</p>
+          <p className="calibration-copy">Without explicit cache control markers, stable instructions and examples are billed as fresh input on every call. RouteLab finds repeated prefixes and calculates savings across provider quotes.</p>
         </div>
         <span>{promptCachingBundle.global.per_provider.length.toLocaleString()} providers priced</span>
       </div>
@@ -168,11 +169,11 @@ export function FineTuning({ traces, distinctTaskBuckets, traceJudgeResults, dat
     <section className="panel">
       <div className="panelhead">
         <div>
-          <p className="eyebrow">Per-trace-signature recommendations</p>
-          <h2>Fine-tuning decisions by stable workload.</h2>
+          <p className="eyebrow">Task recommendations</p>
+          <h2>Fine-tuning decisions by stable task.</h2>
           <p className="calibration-copy">Fine-tuning is only recommended when evidence beats prompting, RAG, and routing alternatives.</p>
         </div>
-        <span>{recommendationBundle.by_signature.length.toLocaleString()} signatures</span>
+        <span>{recommendationBundle.by_signature.length.toLocaleString()} tasks</span>
       </div>
       <div className="fine-tune-signature-grid">
         {recommendationBundle.by_signature.slice(0, 6).map((report) => <button type="button" key={report.scope_id} onClick={() => setSelectedReportId(report.scope_id)}>

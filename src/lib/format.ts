@@ -1,9 +1,15 @@
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const integer = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export const formatCurrency = (value: number) => Math.abs(value) >= 1
-  ? currency.format(value)
-  : `$${Number(value).toPrecision(4).replace(/0+$/, "").replace(/\.$/, "")}`;
+export const formatCurrency = (value: number) => {
+  if (Math.abs(value) >= 1) return currency.format(value);
+  if (value === 0) return "$0";
+  if (Math.abs(value) < .001) {
+    const cents = Number(value * 100).toPrecision(4).replace(/0+$/, "").replace(/\.$/, "");
+    return `${cents}¢`;
+  }
+  return `$${Number(value).toPrecision(4).replace(/0+$/, "").replace(/\.$/, "")}`;
+};
 export const money = formatCurrency;
 export const formatInteger = (value: number) => integer.format(value);
 export const formatDecimal = (value: number, maximumFractionDigits = 1) => value.toLocaleString("en-US", { maximumFractionDigits, minimumFractionDigits: maximumFractionDigits });

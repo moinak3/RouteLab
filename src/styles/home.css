@@ -381,7 +381,7 @@
 }
 .home-step-card small{
   color:#58f084;
-  font:800 11px "DM Mono";
+  font:600 12px var(--font-mono);
 }
 .home-step-card p{
   margin:8px 0 0;
