@@ -22,7 +22,7 @@ export default async function handler(req: any, res: any) {
       return sendJson(res, 400, { error: "No traces selected for live direct routing." });
     }
 
-    const config = providerConfig(source, String(body.modelId ?? ""));
+    const config = providerConfig(source, String(body.modelId ?? ""), String(body.openRouterModelId ?? ""));
     const runs = [];
 
     for (const trace of traces) {

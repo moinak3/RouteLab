@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import type { Trace, TraceJudgeResult } from "../types";
 import { pct } from "../lib/format";
 import type { ReviewQueueFilter } from "../types/ui";
+import { labelFor } from "../lib/labels";
+import { qualitySummary } from "../lib/quality";
 
 const activeEvalDefinition = {
   id: "trace_quality_llm_judge",
@@ -42,7 +44,7 @@ Output JSON:
 
 type EvalDefinition = typeof activeEvalDefinition & { scope: string };
 const seededEvalDefinitions: EvalDefinition[] = [
-  { ...activeEvalDefinition, scope: "All distinct tasks" },
+  { ...activeEvalDefinition, scope: "All tasks" },
   {
     id: "policy_compliance_check",
     name: "Policy compliance check",
@@ -135,7 +137,8 @@ export function Evals({
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(seededEvalDefinitions);
   const [modal,setModal]=useState<"import"|"create"|null>(null);
-  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All distinct tasks",prompt:""});
+  const summary = qualitySummary(traceJudgeResults);
+  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All tasks",prompt:""});
   const [importText,setImportText]=useState(JSON.stringify(seededEvalDefinitions[0],null,2));
   const [formError,setFormError]=useState<string|null>(null);
   function importEval(event: FormEvent) {
@@ -158,8 +161,8 @@ export function Evals({
       model:draft.model,
       threshold:Number(draft.threshold)||.85,
       prompt:draft.prompt||"Evaluate candidate response against the selected task rubric.",
-      dimensions:["Task scope", "Pass threshold", "Evaluator prompt"],
-      scope:draft.scope||"All distinct tasks",
+      dimensions:["Task scope", "Judge pass threshold", "Evaluator prompt"],
+      scope:draft.scope||"All tasks",
     },...items]);
     setModal(null); setFormError(null);
   }
@@ -171,9 +174,7 @@ export function Evals({
           <p className="eyebrow">Evaluation workspace</p>
           <h2>Import, define, and manage evals</h2>
           <p>
-            Evals are reusable checks that score traces, simulations, or candidate model responses before RouteLab
-            recommends routing changes. This page is the control plane for importing eval definitions, reviewing active
-            evals, and eventually creating, editing, versioning, and deleting evals.
+            Evals are reusable checks that score traces and candidate responses before RouteLab recommends a policy change.
           </p>
         </div>
         <div className="eval-actions">
@@ -192,7 +193,7 @@ export function Evals({
         <article className="panel eval-summary-card">
           <small>Average score</small>
           <b>{pct(averageScore * 100)}</b>
-          <span>across scored traces</span>
+          <span>{pct(summary.passRate.lower * 100)} to {pct(summary.passRate.upper * 100)} · n={traceJudgeResults.length.toLocaleString()}</span>
         </article>
         <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("passing")}>
           <small>Passing</small>
@@ -206,7 +207,7 @@ export function Evals({
         </button>
         <article className="panel eval-summary-card">
           <small>Trace coverage</small>
-          <b>{traces.length ? pct(traceJudgeResults.length / traces.length * 100) : "0.0%"}</b>
+          <b>{traces.length ? pct(traceJudgeResults.length / traces.length * 100, traces.length) : "0%"}</b>
           <span>of ingested traces</span>
         </article>
       </section>
@@ -214,21 +215,17 @@ export function Evals({
       <article className="panel eval-card">
         <div className="eval-card-head">
           <div>
-            <p className="eyebrow">Currently running</p>
+            <p className="eyebrow">Primary evaluator</p>
             <h2>{activeEvalDefinition.name}</h2>
           </div>
-          <span className="eval-status">{activeEvalDefinition.status}</span>
         </div>
-        <section className="eval-prompt">
-          <h3>Judge prompt</h3>
-          <pre>{activeEvalDefinition.prompt}</pre>
-        </section>
+        <details className="eval-prompt"><summary>View prompt</summary><pre>{activeEvalDefinition.prompt}</pre></details>
 
         <div className="eval-meta-grid">
           <div><small>Eval ID</small><b>{activeEvalDefinition.id}</b></div>
-          <div><small>Evaluator</small><b>{activeEvalDefinition.evaluator_type}</b></div>
+          <div><small>Evaluator</small><b>{labelFor(activeEvalDefinition.evaluator_type)}</b></div>
           <div><small>Judge model</small><b>{activeEvalDefinition.model}</b></div>
-          <div><small>Pass threshold</small><b>{pct(activeEvalDefinition.threshold * 100)}</b></div>
+          <div><small>Judge pass threshold</small><b>{pct(activeEvalDefinition.threshold * 100)}</b></div>
         </div>
 
         <section className="eval-dimensions">
@@ -251,7 +248,7 @@ export function Evals({
 
       <section className="panel eval-library">
         <div className="panelhead"><div><p className="eyebrow">Eval library</p><h2>{evalDefinitions.length} active evals</h2></div></div>
-        <div className="eval-library-grid">{evalDefinitions.map((definition)=><article key={definition.id}><span className="eval-status">{definition.status}</span><h3>{definition.name}</h3><p>{definition.scope}</p><small>{definition.evaluator_type} · {definition.model} · threshold {pct(definition.threshold*100)}</small></article>)}</div>
+        <div className="eval-library-grid">{evalDefinitions.map((definition)=><article key={definition.id}>{definition.status !== "Running" && <span className="eval-status">{definition.status}</span>}<h3>{definition.name}</h3><p>{definition.scope}</p><small>{labelFor(definition.evaluator_type)} · {definition.model === "none" ? "No model" : definition.model} · judge pass threshold {pct(definition.threshold*100)}</small></article>)}</div>
       </section>
 
       <section className="panel eval-history">

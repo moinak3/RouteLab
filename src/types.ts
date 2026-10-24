@@ -20,6 +20,7 @@ export type Trace = {
   id: string; timestamp: string; provider?: string; model: string; messages: Message[];
   prompt_text: string; response_text?: string; input_tokens: number; output_tokens: number;
   total_tokens: number; latency_ms?: number; cost_usd?: number; status: "success" | "error";
+  represents_monthly_calls?: number;
   workflow_id?: string; node_id?: string; parent_node_id?: string; workflow_role?: WorkflowRole; span_name?: string;
   source?: "langsmith" | "braintrust" | "helicone" | "litellm" | "csv" | "json" | "unknown";
   spans?: TraceSpan[]; error_type?: string; metadata?: Record<string, unknown>;
@@ -94,6 +95,7 @@ export type Model = {
   id: string; provider: string; display_name: string; input_cost_per_1m: number;
   output_cost_per_1m: number; default_latency_ms: number; deployment_type: string;
   pricing_source?: "OpenRouter" | "User configured"; pricing_source_model_id?: string; pricing_updated_at?: string;
+  openrouter_created_at?: string;
   enabled?: boolean;
   quality_tier: "cheap" | "balanced" | "strong" | "specialist";
   family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local";

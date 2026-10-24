@@ -1,9 +1,10 @@
 import { calculateCost, getModel } from "./catalog";
 import type { Complexity, KnownTaskSignature, Risk, TaskType, Trace, TraceSpan, WorkflowRole } from "../types";
 
-export const SEED_TRACES_PER_GROUP = 12;
 export const SEED_TASK_GROUP_COUNT = 16;
-export const SEED_TRACE_COUNT = SEED_TRACES_PER_GROUP * SEED_TASK_GROUP_COUNT;
+export const SEED_GROUP_COUNTS = [360, 280, 90, 220, 180, 180, 240, 100, 70, 170, 55, 35, 160, 180, 130, 150] as const;
+export const SEED_TRACE_COUNT = SEED_GROUP_COUNTS.reduce((sum, count) => sum + count, 0);
+export const REPRESENTED_MONTHLY_CALLS = 40_000_000;
 
 const workflowRoles: WorkflowRole[] = ["planner", "retriever_summarizer", "judge", "final_answer"];
 const json = (value: unknown) => JSON.stringify(value);
@@ -270,14 +271,47 @@ const sampleSafetySignals: Record<string, { signal: string; reason: string }> = 
   },
 };
 const complexityScore = (complexity: Complexity) => ({ low: .12, medium: .18, high: .82 })[complexity];
-const tokenBase = (complexity: Complexity) => ({ low: 360, medium: 820, high: 1600 })[complexity];
+const tokenBase = (complexity: Complexity) => ({ low: 290, medium: 650, high: 1310 })[complexity];
+const monthlyRiskWeight = (risk: Risk) => ({ low: 1.1, medium: 1, high: .8 })[risk];
 
 function personalize(prompt: string, index: number) {
-  return `${prompt} Account: ${accounts[index % accounts.length]}. Ticket opened by ${["admin", "billing owner", "support manager", "operations lead"][index % 4]}.`;
+  const account = accounts[index % accounts.length];
+  const normalized = prompt.replace(/\b(Northstar|Acme|Greenbyte|Atlas|Waypoint|Cobalt|Helio|Nimbus|Redwood|Summit|Kite|Harbor)\b/g, account);
+  return `${normalized} Account: ${account}. Ticket opened by ${["admin", "billing owner", "support manager", "operations lead"][index % 4]}.`;
 }
 
+const hash = (value: string) => [...value].reduce((state, character) => (state * 31 + character.charCodeAt(0)) >>> 0, 2166136261);
+const unit = (value: string) => hash(value) / 0xffffffff;
+const baselineRate = (risk: Risk, groupIndex: number) => ({
+  low: [.97, .98, .96][groupIndex % 3],
+  medium: [.92, .94, .95][groupIndex % 3],
+  high: [.89, .91, .93][groupIndex % 3],
+})[risk];
+const nearBaselineLowRisk = new Set([0, 5, 6, 12, 13, 15]);
+const candidateRate = (risk: Risk, groupIndex: number) => {
+  const baseline = baselineRate(risk, groupIndex);
+  if (risk === "low" && nearBaselineLowRisk.has(groupIndex)) return baseline - .02;
+  if (risk === "high") return baseline - .14;
+  return baseline - .07;
+};
+const failureReason = (group: SeedGroup) => {
+  if (group.label.includes("classification") || group.label.includes("triage") || group.label.includes("Sentiment")) return "The answer omits a required routing or priority label.";
+  if (group.label.includes("RAG")) return "The answer drops the source-backed policy condition and overstates eligibility.";
+  if (group.label.includes("billing") || group.label.includes("Subscription")) return "The answer promises an action before the required billing verification.";
+  if (group.label.includes("security")) return "The answer proceeds without confirming the required account authorization.";
+  if (group.label.includes("Policy compliance")) return "The answer approves behavior that violates the stated support policy.";
+  if (group.label.includes("Legal")) return "The answer misses the material contract obligation that requires legal review.";
+  if (group.label.includes("Order status")) return "The answer reports an order state without the required tool evidence.";
+  if (group.label.includes("summarization")) return "The summary omits the operational blocker needed for handoff.";
+  if (group.label.includes("translation")) return "The translation changes a required support-policy condition.";
+  return `The answer misses a required fact for ${group.label.toLowerCase()}.`;
+};
+const weakResponseFor = (group: SeedGroup, example: SeedExample) => example.weak_response
+  ?? (group.key === "classification_tagging" ? "intent=general_support; priority=low" : `I can help with this request, and the requested action appears ready to proceed.`);
+
 export function createSeedTraces(): Trace[] {
-  return groups.flatMap((group, groupIndex) => Array.from({ length: SEED_TRACES_PER_GROUP }, (_, index) => {
+  const representedWeight = groups.reduce((sum, group, index) => sum + SEED_GROUP_COUNTS[index] * monthlyRiskWeight(group.risk), 0);
+  return groups.flatMap((group, groupIndex) => Array.from({ length: SEED_GROUP_COUNTS[groupIndex] }, (_, index) => {
     const example = group.examples[index % group.examples.length];
     const id = `trace_${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${String(index + 1).padStart(3, "0")}`;
     const prompt = personalize(example.prompt, index);
@@ -286,11 +320,10 @@ export function createSeedTraces(): Trace[] {
     const modelId = group.currentModels[index % group.currentModels.length];
     const model = getModel(modelId)!;
     const base = tokenBase(group.complexity);
-    const input = base + sharedSupportSystemTokens + groupIndex * 17 + index * 19;
-    const output = Math.round(base * .22) + groupIndex * 5 + index * 7;
-    const monthIndex = index < SEED_TRACES_PER_GROUP / 2
-      ? Math.floor(index / (SEED_TRACES_PER_GROUP / 2) * 4)
-      : 4 + Math.floor((index - SEED_TRACES_PER_GROUP / 2) / (SEED_TRACES_PER_GROUP / 2) * 2);
+    const input = base + sharedSupportSystemTokens + groupIndex * 12 + (index % 20) * 15;
+    const output = Math.round(base * .18) + groupIndex * 4 + (index % 10) * 5;
+    const groupCount = SEED_GROUP_COUNTS[groupIndex];
+    const monthIndex = Math.min(5, Math.floor(index / Math.max(1, groupCount) * 6));
     const monthStart = Date.UTC(2026, monthIndex, 1);
     const daysInMonth = new Date(Date.UTC(2026, monthIndex + 1, 0)).getUTCDate();
     const day = (index * 3 + groupIndex) % daysInMonth;
@@ -299,7 +332,11 @@ export function createSeedTraces(): Trace[] {
     const role = workflowRoles[groupIndex % workflowRoles.length];
     const parentRole = groupIndex ? workflowRoles[(groupIndex - 1) % workflowRoles.length] : undefined;
     const nodeId = `${workflowId}_${String(groupIndex + 1).padStart(2, "0")}_${role}`;
-    const failed = index === SEED_TRACES_PER_GROUP - 1 && group.label === "Order status lookup";
+    const baselinePass = unit(`${id}:baseline`) < baselineRate(group.risk, groupIndex);
+    const cheapPass = unit(`${id}:cheap`) < candidateRate(group.risk, groupIndex);
+    const weakResponse = weakResponseFor(group, example);
+    const failure = failureReason(group);
+    const failed = index === groupCount - 1 && group.label === "Order status lookup";
     return {
       id,
       timestamp,
@@ -307,12 +344,13 @@ export function createSeedTraces(): Trace[] {
       model: modelId,
       messages: [{ role: "user", content: prompt }],
       prompt_text: prompt,
-      response_text: safetySignal && example.weak_response ? example.weak_response : reference,
+      response_text: baselinePass && !safetySignal ? reference : weakResponse,
       input_tokens: input,
       output_tokens: output,
       total_tokens: input + output,
       latency_ms: model.default_latency_ms + groupIndex * 25 + index * 18,
       cost_usd: calculateCost(input, output, model),
+      represents_monthly_calls: REPRESENTED_MONTHLY_CALLS * monthlyRiskWeight(group.risk) / representedWeight,
       status: failed ? "error" : "success",
       workflow_id: workflowId,
       node_id: nodeId,
@@ -323,8 +361,14 @@ export function createSeedTraces(): Trace[] {
       error_type: failed ? "timeout" : undefined,
       metadata: {
         _internal_reference: reference,
-        _internal_candidate_quality: index / SEED_TRACES_PER_GROUP < group.easyRate ? "passes" : "fails",
-        _internal_weak_response: example.weak_response,
+        _internal_baseline_pass: baselinePass,
+        _internal_candidate_quality: cheapPass ? "passes" : "fails",
+        _internal_candidate_pass_rate: candidateRate(group.risk, groupIndex),
+        _internal_weak_response: weakResponse,
+        _internal_failure_reason: failure,
+        _internal_human_rationale: baselinePass
+          ? `The response correctly completes ${group.label.toLowerCase()} and preserves the required facts and controls.`
+          : failure,
         user_id: `user_${accounts[index % accounts.length].toLowerCase()}_${String(index + 1).padStart(3, "0")}`,
         ...(sampleUserFeedback[id] ? { user_feedback: sampleUserFeedback[id] } : {}),
         ...(safetySignal ? { safety_signal: safetySignal.signal, safety_reason: safetySignal.reason } : {}),

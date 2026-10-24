@@ -4,6 +4,7 @@ import { buildFineTuningRecommendationBundle, type FineTuningRecommendationRepor
 import { analyzeFineTuneOpportunity } from "../core/goldenDatasets";
 import { buildPromptCachingOpportunityBundle, type PromptCachingOpportunity } from "../core/promptCaching";
 import type { DistinctTaskBucket, FineTuneJob, GoldenDataset as GoldenDatasetType, Trace, TraceJudgeResult } from "../types";
+import { formatCurrency, formatPercent, formatSignedMonthlyEconomics } from "../lib/format";
 
 const openWeightModels = basetenOpenWeightModels;
 const inferenceProviders = ["BaseTen", "AWS SageMaker", "AWS Bedrock", "Modal", "Together Dedicated"];
@@ -27,11 +28,13 @@ const recommendationLabel: Record<FineTuningRecommendationReport["recommendation
   strongly_recommend_fine_tuning: "Strongly pursue fine-tuning",
 };
 
-const money = (value: number) => `$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-const preciseMoney = (value: number) => `$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-const pct = (value: number) => `${value.toFixed(1)}%`;
+const money = (value: number) => formatCurrency(Math.abs(value));
+const preciseMoney = money;
+const pct = (value: number) => formatPercent(value);
 
 function RecommendationCard({ report, compact = false }: { report: FineTuningRecommendationReport; compact?: boolean }) {
+  const monthlyEconomics = formatSignedMonthlyEconomics(report.economic_summary.monthly_savings);
+  const annualCostIncrease = report.economic_summary.annual_savings < 0;
   return <article className={`fine-tune-rec-card ${compact ? "compact" : ""}`}>
     <div className="rec-card-head">
       <div>
@@ -43,8 +46,8 @@ function RecommendationCard({ report, compact = false }: { report: FineTuningRec
     </div>
     <p>{report.primary_reason}</p>
     {!compact && <div className="rec-metrics">
-      <span><b>{money(report.economic_summary.monthly_savings)}</b>monthly savings</span>
-      <span><b>{money(report.economic_summary.annual_savings)}</b>annual savings</span>
+      <span className={monthlyEconomics.favorable ? "favorable" : "unfavorable"}><b>{monthlyEconomics.text}</b>{monthlyEconomics.label}</span>
+      <span className={annualCostIncrease ? "unfavorable" : "favorable"}><b>{annualCostIncrease ? `+${money(report.economic_summary.annual_savings)}` : money(report.economic_summary.annual_savings)}</b>{annualCostIncrease ? "annual cost increase" : "annual savings"}</span>
       <span><b>{report.economic_summary.break_even_months || "n/a"}</b>break-even months</span>
       <span><b>{pct(report.prompt_analysis.compressible_token_pct)}</b>compressible input</span>
     </div>}
