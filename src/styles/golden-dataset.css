@@ -12,8 +12,8 @@
 .fine-tune-signal h2{
   margin:5px 0;
   color:#fff;
-  font-size:26px;
-  letter-spacing:-.04em;
+  font-size:28px;
+  letter-spacing:-.02em;
 }
 .golden-hero p,
 .fine-tune-signal p{
@@ -42,7 +42,7 @@
   border-radius:10px;
   color:#eff8f2;
   font-size:13px;
-  font-weight:900;
+  font-weight:600;
   text-decoration:none;
   background:rgba(255,255,255,.04);
 }
@@ -80,15 +80,15 @@
   border-radius:11px;
   background:rgba(255,255,255,.04);
   color:#aebfb7;
-  font-size:10px;
-  font-weight:800;
+  font-size:12px;
+  font-weight:600;
   text-transform:uppercase;
-  letter-spacing:.07em;
+  letter-spacing:.06em;
 }
 .signal-stats b{
   color:var(--green);
-  font-size:23px;
-  letter-spacing:-.05em;
+  font-size:28px;
+  letter-spacing:-.02em;
 }
 .golden-panelhead{
   align-items:flex-start;
@@ -134,7 +134,7 @@
 .dataset-list span,
 .dataset-summary span{
   color:#9fb0a8;
-  font-size:11px;
+  font-size:12px;
 }
 .dataset-preview{
   min-width:0;
@@ -162,7 +162,7 @@
   background:rgba(255,255,255,.06);
   color:#eef7f1;
   padding:8px;
-  font:12px Manrope,sans-serif;
+  font:12px var(--font-sans);
 }
 .empty-state{
   padding:20px;
@@ -222,7 +222,7 @@
   font-size:28px;
 }
 .fine-tune-rec-card.compact h3{
-  font-size:17px;
+  font-size:14px;
 }
 .rec-card-head span,
 .fine-tune-rec-card p,
@@ -233,7 +233,7 @@
 }
 .rec-card-head strong{
   color:#58f084;
-  font-size:42px;
+  font-size:32px;
   line-height:1;
 }
 .rec-card-head strong small{
@@ -270,7 +270,7 @@
 }
 .rec-factor-list span{
   color:#fff;
-  font-weight:900;
+  font-weight:600;
 }
 .rec-factor-list b{
   color:#b7ff6d;
@@ -312,7 +312,7 @@
   border-radius:12px;
   background:#050b0d;
   color:#dceee6;
-  font-size:11px;
+  font-size:12px;
   line-height:1.55;
   white-space:pre;
 }
@@ -351,8 +351,8 @@
 .prompt-cache-head h3{
   margin:4px 0 6px;
   color:#fff;
-  font-size:24px;
-  letter-spacing:-.04em;
+  font-size:28px;
+  letter-spacing:-.02em;
   text-transform:capitalize;
 }
 .prompt-cache-head span,
@@ -419,12 +419,12 @@
 .prompt-cache-providers span{
   color:#dceee6;
   font-size:12px;
-  font-weight:900;
+  font-weight:600;
   line-height:1.35;
 }
 .prompt-cache-providers b{
   color:#58f084;
-  font-size:17px;
+  font-size:14px;
 }
 .prompt-cache-signatures{
   display:grid;
@@ -436,10 +436,10 @@
   display:grid;
   gap:7px;
   color:#91a39b;
-  font-size:10px;
-  font-weight:900;
+  font-size:12px;
+  font-weight:600;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .fine-tune-controls select{
   width:100%;
@@ -474,7 +474,7 @@
   margin-top:6px;
   color:#b7ff6d;
   font-size:12px;
-  font-weight:800;
+  font-weight:600;
   text-decoration:none;
 }
 .fine-tune-jobs .job-error{
@@ -485,9 +485,9 @@
 .fine-tune-jobs strong{
   padding:6px 9px;
   border-radius:999px;
-  font-size:10px;
+  font-size:12px;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .fine-tune-jobs strong.running{
   background:rgba(247,198,77,.13);
@@ -536,15 +536,15 @@
 }
 .calibration-metrics span{
   color:#91a39b;
-  font-size:10px;
-  font-weight:900;
-  letter-spacing:.08em;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.06em;
   text-transform:uppercase;
 }
 .calibration-metrics b{
   color:#fff;
-  font-size:24px;
-  letter-spacing:-.05em;
+  font-size:28px;
+  letter-spacing:-.02em;
 }
 .calibration-metrics small,
 .calibration-disagreements small,
@@ -564,7 +564,7 @@
 .calibration-disagreements h3{
   margin:4px 0 0;
   color:#fff;
-  font-size:20px;
+  font-size:18px;
 }
 .calibration-disagreements article{
   display:grid;

@@ -9,8 +9,8 @@
   margin-top:14px;
 }
 .jev-gate-summary>div{display:grid;gap:5px;padding:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.035)}
-.jev-gate-summary small{color:#92a59c;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
-.jev-gate-summary b{color:#b7ff6d;font-size:24px}
+.jev-gate-summary small{color:#92a59c;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.jev-gate-summary b{color:#b7ff6d;font-size:28px}
 @media(max-width:700px){.jev-gate-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .distinct-task-explainer>div:first-child{
   max-width:900px;

@@ -1,14 +1,14 @@
 .review-page{display:grid;gap:22px}
 .review-method{padding:18px;display:grid;gap:10px}
 .review-method-head{display:flex;align-items:end;justify-content:space-between;gap:16px}
-.review-method-head h2{margin:4px 0 0;font-size:25px;letter-spacing:-.04em;color:#fff}
-.review-method-head>span{white-space:nowrap;color:#b9ffd0;font-weight:800}
+.review-method-head h2{margin:4px 0 0;font-size:28px;letter-spacing:-.02em;color:#fff}
+.review-method-head>span{white-space:nowrap;color:#b9ffd0;font-weight:600}
 .review-method>p{margin:0;color:#d3e1d9;line-height:1.5}
 .review-lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .review-lane{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.035);display:grid;gap:5px}
-.review-lane>span{color:#9fb0a8;text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:800}
-.review-lane>b{color:#b7ff6d;font-size:27px;line-height:1.1}
-.review-lane>b small{font-size:12px;font-weight:700;color:#a9bab2}
+.review-lane>span{color:#9fb0a8;text-transform:uppercase;letter-spacing:.06em;font-size:12px;font-weight:600}
+.review-lane>b{color:#b7ff6d;font-size:28px;line-height:1.1}
+.review-lane>b small{font-size:12px;font-weight:600;color:#a9bab2}
 .review-lane p{margin:0;color:#c7d8d0;font-size:13px;line-height:1.45}
 .review-shortfall,.review-method-note{color:#afc0b8;line-height:1.45}
 .review-shortfall{color:#f4d9aa}
@@ -27,7 +27,7 @@
 @media(max-width:700px){
   .review-method{padding:16px}
   .review-method-head{align-items:start}
-  .review-method-head h2{font-size:21px}
+  .review-method-head h2{font-size:18px}
   .review-lanes{grid-template-columns:1fr}
   .review-lane{padding:12px}
 }

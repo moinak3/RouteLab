@@ -41,15 +41,15 @@
 }
 .eval-summary-card small{
   color:#91a39b;
-  font-size:10px;
-  font-weight:900;
+  font-size:12px;
+  font-weight:600;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .eval-summary-card b{
   color:#fff;
   font-size:28px;
-  letter-spacing:-.04em;
+  letter-spacing:-.02em;
 }
 .eval-summary-card span{
   color:#aebfb7;
@@ -81,10 +81,10 @@
   border-radius:999px;
   background:rgba(88,240,132,.1);
   color:#b7ff6d;
-  font-size:10px;
-  font-weight:900;
+  font-size:12px;
+  font-weight:600;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .eval-card>p{
   color:#c5d5cd;
@@ -107,10 +107,10 @@
 }
 .eval-meta-grid small,.eval-stats small{
   color:#91a39b;
-  font-size:9px;
-  font-weight:800;
+  font-size:12px;
+  font-weight:600;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .eval-meta-grid b,.eval-stats b{
   color:#f0f7f3;
@@ -123,7 +123,7 @@
 .eval-prompt h3,.eval-dimensions h3{
   margin:0 0 10px;
   color:#fff;
-  font-size:15px;
+  font-size:14px;
 }
 .eval-dimensions{
   display:flex;
@@ -139,8 +139,8 @@
   border-radius:999px;
   background:rgba(154,108,255,.12);
   color:#dcd3ff;
-  font-size:11px;
-  font-weight:800;
+  font-size:12px;
+  font-weight:600;
 }
 .eval-prompt pre,.eval-definition pre{
   margin:0;
@@ -149,7 +149,7 @@
   border-radius:10px;
   background:#050b10;
   color:#c8d9d1;
-  font:11px/1.55 "DM Mono";
+  font:12px/1.55 var(--font-mono);
   white-space:pre-wrap;
   max-height:360px;
   overflow:auto;
@@ -161,8 +161,8 @@
 .eval-definition summary{
   cursor:pointer;
   color:#fff;
-  font-size:15px;
-  font-weight:900;
+  font-size:14px;
+  font-weight:600;
   list-style:none;
 }
 .eval-definition summary::-webkit-details-marker{
@@ -175,9 +175,9 @@
   border:1px solid var(--line);
   border-radius:999px;
   color:#91a39b;
-  font-size:9px;
+  font-size:12px;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .eval-definition[open] summary{
   margin-bottom:10px;
@@ -208,18 +208,18 @@
 .eval-history-head h3{
   margin:5px 0 0;
   color:#fff;
-  font-size:22px;
-  letter-spacing:-.03em;
+  font-size:18px;
+  letter-spacing:-.02em;
 }
 .eval-history-head span{
   padding:5px 8px;
   border:1px solid var(--line);
   border-radius:999px;
   color:#91a39b;
-  font-size:10px;
-  font-weight:800;
+  font-size:12px;
+  font-weight:600;
   text-transform:uppercase;
-  letter-spacing:.08em;
+  letter-spacing:.06em;
 }
 .eval-history-chart{
   padding:18px 18px 18px;
@@ -277,11 +277,11 @@
   background:#07110d;
   box-shadow:0 10px 26px rgba(0,0,0,.34);
   color:#dce8e2;
-  font:11px/1.25 "Inter",sans-serif;
+  font:12px/1.25 var(--font-sans);
 }
 .eval-history-tooltip b{
   color:#fff;
-  font-size:11px;
+  font-size:12px;
 }
 .eval-history-tooltip span{
   color:#aebfb7;
@@ -290,7 +290,7 @@
   color:#91a39b;
   fill:#91a39b;
   font-size:12px;
-  font-weight:800;
+  font-weight:600;
   text-anchor:middle;
 }
 @media(max-width:1200px){
