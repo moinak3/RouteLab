@@ -1,4 +1,4 @@
-import type { DraftRoutingPolicy } from "./routingDraft";
+import type { DraftRoutingPolicy, DraftTaskOverride } from "./routingDraft";
 import type { Risk } from "../types";
 
 export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v1" as const;
@@ -88,7 +88,7 @@ export function validatePublishableDraft(draft: DraftRoutingPolicy, signatures: 
   if (!signatures.length) errors.push("At least one known task signature is required.");
   const signatureIds = new Set(signatures.map((signature) => signature.id));
   if (signatureIds.size !== signatures.length) errors.push("Task signature IDs must be unique.");
-  for (const override of Object.values(draft.overrides)) {
+  for (const override of Object.values(draft.overrides) as DraftTaskOverride[]) {
     if (!signatureIds.has(override.taskId)) errors.push(`${override.taskName} is not in the published signature catalog.`);
     if (override.passRate < draft.minimumPassRate) errors.push(`${override.taskName} no longer clears the quality bar.`);
     if (override.costDeltaPct >= 0) errors.push(`${override.taskName} does not reduce measured cost.`);

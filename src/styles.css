@@ -1659,6 +1659,7 @@ nav .nav-submenu button.active:before{background:var(--green);box-shadow:0 0 10p
   font-family:var(--font-sans);
 }
 body{background:radial-gradient(circle at 82% 8%,rgba(88,240,132,.1),transparent 30%),linear-gradient(180deg,var(--bg-2),var(--bg));font:var(--type-body);overflow-x:hidden}
+.shell>aside{overflow-y:auto;overscroll-behavior:contain}
 h1,h2,h3,h4{color:var(--text-1);font-weight:600;letter-spacing:-.02em;text-wrap:balance}
 p{color:var(--text-2);text-wrap:pretty}
 .eyebrow{font:var(--type-label);letter-spacing:.06em;color:var(--text-3)}
