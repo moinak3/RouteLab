@@ -1,11 +1,12 @@
 import { chromium, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mkdir } from "node:fs/promises";
+import { cp, mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const baseUrl = process.env.ROUTELAB_URL ?? "http://127.0.0.1:5175";
 const chrome = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const outputDir = path.resolve("audit/screenshots");
+const temporaryDir = path.resolve("/tmp/routelab-audit-screenshots");
 const viewports = [[375, 812], [768, 1024], [1280, 800], [1440, 900]] as const;
 const pages = [
   ["Overview", "Overview"], ["Traces", "Traces"], ["Tasks", "Tasks"],
@@ -23,13 +24,20 @@ async function unlock(page: Page) {
 }
 
 async function navigate(page: Page, route: readonly string[]) {
-  const nav = page.locator("aside nav");
+  const desktopNav = page.locator("aside nav");
+  const mobile = !(await desktopNav.isVisible());
+  const nav = mobile ? page.locator(".mobile-nav") : desktopNav;
   if (route.length === 2) {
     await nav.getByRole("button", { name: route[1], exact: true }).click();
   } else {
     const parent = nav.getByRole("button", { name: new RegExp(`^${route[1]}`) }).first();
-    if (await parent.getAttribute("aria-expanded") !== "true") await parent.click();
-    await nav.getByRole("button", { name: route[2], exact: true }).click();
+    if (mobile) {
+      await parent.click();
+      await page.locator(".group-mobile-subnav").getByRole("button", { name: route[2], exact: true }).click();
+    } else {
+      if (await parent.getAttribute("aria-expanded") !== "true") await parent.click();
+      await nav.getByRole("button", { name: route[2], exact: true }).click();
+    }
   }
   await page.waitForTimeout(150);
 }
@@ -66,6 +74,7 @@ async function inspect(page: Page, label: string) {
 }
 
 await mkdir(outputDir, { recursive: true });
+await mkdir(temporaryDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: chrome });
 const failures: string[] = [];
 for (const [width, height] of viewports) {
@@ -73,17 +82,18 @@ for (const [width, height] of viewports) {
   const page = await context.newPage();
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await inspect(page, `Landing ${width}x${height}`).catch((error) => failures.push(String(error)));
-  await page.screenshot({ path: path.join(outputDir, `after-landing-${width}.png`), fullPage: true });
+  await page.screenshot({ path: path.join(temporaryDir, `after-landing-${width}.png`), fullPage: true });
   await unlock(page);
   for (const route of pages) {
     await navigate(page, route);
     const slug = route[0].toLowerCase().replace(/[^a-z0-9]+/g, "-");
     await inspect(page, `${route[0]} ${width}x${height}`).catch((error) => failures.push(String(error)));
-    if (width === 375 || width === 1440) await page.screenshot({ path: path.join(outputDir, `after-${slug}-${width}.png`), fullPage: true });
+    if (width === 375 || width === 1440) await page.screenshot({ path: path.join(temporaryDir, `after-${slug}-${width}.png`), fullPage: true });
   }
   await context.close();
 }
 await browser.close();
+await cp(temporaryDir, outputDir, { recursive: true });
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
