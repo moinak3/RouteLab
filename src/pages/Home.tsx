@@ -1,133 +1,57 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-const heroStats = [
-  { value: "Per task", label: "model decisions backed by calibrated evals" },
-  { value: "Fallback first", label: "unknown and low-confidence requests stay protected" },
-  { value: "Gateway-ready", label: "versioned policy for local enforcement" },
+const supportDecisions = [
+  { step: "01", title: "Interpret the request", detail: "Identify the customer intent, entities, and constraints.", need: "Fast language understanding and structured extraction" },
+  { step: "02", title: "Assess policy eligibility", detail: "Apply retrieved policy evidence to the specific account context.", need: "Grounded reasoning with consistent policy adherence" },
+  { step: "03", title: "Draft the response", detail: "Explain the decision clearly in the right customer-facing tone.", need: "Reliable generation with style and latency constraints" },
 ];
 
-const previewItems = [
-  { title: "Trace ingestion", action: "observe" },
-  { title: "Task signatures", action: "classify" },
-  { title: "Calibrated quality gates", action: "prove" },
-  { title: "Routing simulations", action: "compare" },
-  { title: "Routing policy", action: "approve" },
-  { title: "Local decision layer", action: "enforce" },
+const developerProblems = [
+  { number: "01", title: "Know what work appears", text: "Production traces contain recurring tasks, edge cases, and unfamiliar requests. Teams need a reviewable view of that work before they can route it responsibly." },
+  { number: "02", title: "Choose against your requirements", text: "A public benchmark can suggest what to test. Application-specific examples and quality requirements are what establish whether a model is suitable for a task." },
+  { number: "03", title: "Keep decisions current", text: "Traffic, prompts, models, and prices change. Without policy history and focused review, justified choices turn into another routing table engineers must maintain by hand." },
 ];
 
-const pains = [
-  {
-    title: "Overpay",
-    text: "Teams use frontier models everywhere because switching feels risky, so software-like margins leak into inference spend.",
-  },
-  {
-    title: "Guess",
-    text: "Cheaper models get tested without proof of where quality, latency, or risk will break for a real workflow.",
-  },
-  {
-    title: "Fragment",
-    text: "Gateways execute calls and observability tools explain history, but no system owns the evidence-backed policy that decides which model should serve each task.",
-  },
+const workflowSteps = [
+  { step: "01", title: "Discover task groups", text: "Use deterministic RouteLab rules or run an independent LLM grouping experiment against pre-inference request context." },
+  { step: "02", title: "Compare candidate models", text: "Test representative examples against quality, latency, and cost requirements. Shortlists recommend candidates to evaluate, not models to deploy." },
+  { step: "03", title: "Approve task-specific choices", text: "Keep successful and unsuccessful attempts comparable within the same task, then approve explicit overrides only when the evidence clears your requirements." },
+  { step: "04", title: "Publish an inspected policy", text: "Sign and version the default strategy, task overrides, and the separate emergency model. Earlier versions remain available for reactivation and export." },
+  { step: "05", title: "Deploy and review gaps", text: "The customer-hosted OpenRouter runtime classifies requests against the approved catalog, applies the policy, and exposes unknowns for investigation." },
 ];
 
-const allocationLayers = [
-  {
-    title: "Gateways",
-    items: ["Call many models", "Fallbacks and budgets", "Do not prove which route is guardrail-approved for you"],
-  },
-  {
-    title: "Eval stacks",
-    items: ["Trace and score", "Regression testing", "Need calibration to trust automated judges"],
-  },
-  {
-    title: "RouteLab",
-    items: ["Classify task signatures", "Calibrate task-level quality gates", "Publish versioned model-allocation policies"],
-  },
+const workflowBoundaries = [
+  "Task discovery is an offline analysis step. LLM-discovered groups do not automatically become deployed routes.",
+  "Runtime classification assigns requests to the approved catalog. Classifier confidence is not measured classification accuracy.",
+  "Intent and outcome stay separate, so good and bad attempts at the same task remain comparable.",
+  "Unknown requests are review candidates, not automatically accepted as new task groups.",
 ];
 
-const steps = [
-  {
-    title: "Work With Production Traces",
-    text: "Start from the traces you already have: prompts, responses, model names, latency, tokens, cost, and workflow context.",
-    image: "/marketing/traces.jpg",
-    alt: "RouteLab Traces tab showing normalized LLM calls",
-  },
-  {
-    title: "Classify Traces into Task Groups",
-    text: "Group traces into repeatable task-level workloads so routing and evaluation decisions are made against stable patterns, not one-off prompts.",
-    image: "/marketing/traces.jpg",
-    alt: "RouteLab Traces tab showing normalized LLM calls",
-  },
-  {
-    title: "Import or Create Evals",
-    text: "Bring existing evals into RouteLab or generate task-specific evaluators for quality, policy, factuality, tool behavior, and failure-mode checks.",
-    image: "/marketing/evals.jpg",
-    alt: "RouteLab Evals tab showing trace quality judge scores",
-  },
-  {
-    title: "Calibrate Evals With Golden Datasets",
-    text: "Know exactly how often your automated judge disagrees with humans — false passes and false fails, quantified — before you let it approve a routing change.",
-    image: "/marketing/evals.jpg",
-    alt: "RouteLab Golden Dataset calibration view showing human and judge agreement",
-  },
-  {
-    title: "Run Simulations Across Candidate Models",
-    text: "Replay prompts against candidate models and compare direct routing, cascades, thresholds, provider choices, latency, quality, and cost.",
-    image: "/marketing/simulations.jpg",
-    alt: "RouteLab Simulations tab showing model replay results",
-  },
-  {
-    title: "Build the Routing Policy",
-    text: "Start with one general fallback, then promote measured task-model pairs into explicit overrides only after they clear quality, latency, and cost guardrails.",
-    image: "/marketing/policy-builder.jpg",
-    alt: "RouteLab routing policy builder showing the general fallback and task-specific overrides",
-  },
-  {
-    title: "Publish a Versioned Policy",
-    text: "Turn approved overrides into an auditable, signed policy bundle with confidence thresholds, fallback behavior, and rollback history.",
-    image: "/marketing/simulations.jpg",
-    alt: "RouteLab simulations view showing model comparison results",
-  },
-  {
-    title: "Enforce Locally, Upstream of the Gateway",
-    text: "A thin customer-hosted decision layer classifies each request, applies the approved policy, and gives OpenRouter, Vercel AI Gateway, or another gateway the model decision to execute.",
-    image: "/marketing/policy-enforcement.jpg",
-    alt: "RouteLab latest effective policy showing the fallback and per-task routing state",
-  },
+const stackRows = [
+  { name: "Braintrust and Arize", role: "Investigation and evaluation", text: "Existing observability and evaluation work can inform RouteLab's decision workflow. RouteLab does not replace those systems or claim native integrations that are not implemented." },
+  { name: "RouteLab", role: "Task-to-policy workflow", text: "Connects task groups, representative examples, evaluation evidence, explicit approvals, policy history, and focused review into a maintained routing policy." },
+  { name: "OpenRouter", role: "Implemented runtime target", text: "Provides model access and routing. OpenRouter Auto can remain the ordinary default when no approved task override applies. The customer-hosted RouteLab runtime currently proxies to OpenRouter." },
+  { name: "Vercel AI Gateway", role: "Model access and fallbacks", text: "Can continue to serve gateway responsibilities in an agent stack. A RouteLab customer-runtime adapter beyond OpenRouter is future work." },
+  { name: "DIY", role: "A credible alternative", text: "Build middleware with a classifier, evaluation scripts, and a routing table. RouteLab's proposition is reducing the work to establish, review, deploy, and maintain justified choices." },
 ];
 
-const assessmentRoutes = [
-  { value: "Default", label: "general fallback" },
-  { value: "Per task", label: "approved overrides" },
-  { value: "Unknown", label: "use fallback" },
-  { value: "Versioned", label: "auditable policy" },
+const fitSignals = [
+  "Recurring tasks with meaningfully different capability needs",
+  "Usable production traces and representative examples",
+  "Measurable quality, latency, or policy requirements",
+  "Enough traffic and model variation for routing decisions to matter",
 ];
 
-const supportReasons = [
-  "High token volume",
-  "Customer-facing risk",
-  "Clear policies",
-  "CSAT and escalation outcomes",
-  "Many prompts are over-modeled",
-];
-
-const proof = [
-  "Trace-native workflow intelligence",
-  "Known task signatures plus unknown",
-  "Calibrated task-level quality gates",
-  "Cost, latency, and quality simulations",
-  "General fallback plus approved overrides",
-  "Versioned and auditable policies",
-  "Customer-hosted decision layer",
-  "Gateway and model agnostic",
+const comingNext = [
+  "Review-driven proposals for group names, splits, and merges with an approval path into the deployed catalog",
+  "Runtime adapters beyond the current OpenRouter target",
+  "A more complete Cloud telemetry loop and versioned catalog lifecycle for customer-hosted runtimes",
 ];
 
 export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted: (password: string) => boolean; promptForPassword?: boolean }) {
   const [isPasswordOpen, setIsPasswordOpen] = useState(promptForPassword);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
-  const [waitlistMessage, setWaitlistMessage] = useState("");
 
   useEffect(() => {
     if (promptForPassword) setIsPasswordOpen(true);
@@ -145,286 +69,93 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
     setPasswordError("Incorrect password.");
   }
 
-  async function submitWaitlist(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    setWaitlistStatus("submitting");
-    setWaitlistMessage("");
-    try {
-      const response = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.get("name"),
-          email: formData.get("email"),
-          company: formData.get("company"),
-          useCase: formData.get("useCase"),
-          website: formData.get("website"),
-        }),
-      });
-      const result = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(result.error || "We could not add you to the waitlist.");
-      form.reset();
-      setWaitlistStatus("success");
-      setWaitlistMessage("You're on the RouteLab waitlist. We'll be in touch when access opens.");
-    } catch (error) {
-      setWaitlistStatus("error");
-      setWaitlistMessage(error instanceof Error ? error.message : "We could not add you to the waitlist.");
-    }
-  }
-
   return (
     <main className="home-page">
       <nav className="home-nav" aria-label="Marketing navigation">
         <a className="home-brand" href="/" aria-label="RouteLab home"><img src="/routelab-icon.svg" alt="" /><b>RouteLab</b></a>
-        <div>
-          <a href="#problem">Problem</a>
-          <a href="#why-now">Why now</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#waitlist">Waitlist</a>
-          <button type="button" onClick={openPasswordPrompt}>Get started</button>
+        <div className="home-nav-links">
+          <a href="#why-now">Why now</a><a href="#how-it-works">How it works</a><a href="#product">Product</a><a href="#stack">Stack</a><a href="#for-teams">Who it is for</a>
+          <button type="button" onClick={openPasswordPrompt}>Get Started</button>
         </div>
       </nav>
 
       <section className="home-hero">
         <div className="home-hero-copy">
-          <p className="eyebrow">The policy engine for AI inference</p>
-          <h1>Decide which model should serve every AI task.</h1>
-          <p>
-            RouteLab turns production traces and calibrated evals into an auditable model-allocation policy: one conservative fallback,
-            measured task-specific overrides, and a local decision layer upstream of your gateway.
-          </p>
-          <div className="home-cta-row">
-            <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
-            <span>A time-boxed savings assessment on your own traces. No production traffic, no live router, no risk.</span>
-          </div>
-          <div className="home-hero-stats" aria-label="RouteLab proof points">
-            {heroStats.map((stat) => (
-              <div key={stat.label}>
-                <b>{stat.value}</b>
-                <span>{stat.label}</span>
-              </div>
-            ))}
-          </div>
-          <a className="home-method-link" href="#how-it-works">See how traces become a versioned routing policy →</a>
+          <p className="eyebrow">Model routing for AI agents</p>
+          <h1>Choose the right model for each task your agent takes on.</h1>
+          <p>Understand the work in your production traffic, compare models against your quality requirements, and deploy routing policies your team can inspect and improve.</p>
+          <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a></div>
+          <p className="home-hero-boundary">Built today for task grouping, model evaluation, and model-routing policies. The broader vision spans more intelligence primitives over time.</p>
         </div>
-        <div className="home-product-preview" aria-label="RouteLab workflow preview">
-          {previewItems.map((item, index) => (
-            <div key={item.title}>
-              <small>0{index + 1}</small>
-              <b>{item.title}</b>
-              <span>{item.action}</span>
-            </div>
-          ))}
+        <div className="home-hero-system" aria-label="RouteLab model routing workflow">
+          <div className="home-system-head"><span>Production traffic</span><small>Evidence loop</small></div>
+          <div className="home-system-input"><b>Agent request</b><span>Prompt, conversation, tools, constraints</span></div>
+          <div className="home-system-path" aria-hidden="true"><i /><i /><i /></div>
+          <ol>
+            <li><span>01</span><div><b>Task group</b><small>Understand the recurring work</small></div></li>
+            <li><span>02</span><div><b>Evaluation evidence</b><small>Compare candidates on your requirements</small></div></li>
+            <li><span>03</span><div><b>Approved policy</b><small>Choose an override or the configured default</small></div></li>
+          </ol>
+          <div className="home-system-output"><span>Customer runtime</span><b>OpenRouter route</b></div>
         </div>
       </section>
 
-      <section className="home-assessment home-assessment-condensed">
-        <div>
-          <p className="eyebrow">48-hour model spend assessment</p>
-          <h2>Build the policy before changing production.</h2>
-          <p>Import traces, establish task signatures, calibrate quality gates, replay candidate models, and leave with an allocation policy your team can audit.</p>
+      <section className="home-section home-why" id="why-now">
+        <div className="home-section-head"><div><p className="eyebrow">Why now</p><h2>One agent interface now contains many kinds of work.</h2></div><p>At the same time, developers can choose among frontier models, open-weight models, specialized multimodal models, and fast system-one decision models. The suitable capability depends on the task, not only the product surface.</p></div>
+        <div className="home-driver-row">
+          <article><span>Driver 01</span><h3>More varied work per agent</h3><p>Classification, document interpretation, policy assessment, and difficult analysis can sit behind one conversation.</p></article>
+          <article><span>Driver 02</span><h3>More capability choices</h3><p>Success, consistency, latency, retries, and cost all change with the model and the job it is asked to perform.</p></article>
+        </div>
+        <div className="home-conversation-example">
+          <div className="home-example-intro"><small>Illustrative support experience</small><h3>One customer conversation. Several routing decisions.</h3><p>No model winner is assumed. Each call has a different capability profile to validate.</p></div>
+          <div className="home-example-calls">{supportDecisions.map((decision) => <article key={decision.step}><span>{decision.step}</span><div><h4>{decision.title}</h4><p>{decision.detail}</p><small>{decision.need}</small></div></article>)}</div>
         </div>
       </section>
 
-      <section className="home-problem" id="problem">
-        <div>
-          <h2>AI inference is becoming cloud spend 2.0.</h2>
-          <p>
-            Teams are scaling AI features faster than they can govern model spend, quality, risk, and evaluation trust.
-            The result is avoidable spend with no auditable answer for why a model served a workflow or whether the eval is good enough to approve it.
-          </p>
-        </div>
-        <div className="home-pain-grid" aria-label="AI inference spend problems">
-          {pains.map((pain) => (
-            <article key={pain.title}>
-              <span>{pain.title}</span>
-              <p>{pain.text}</p>
-            </article>
-          ))}
-        </div>
+      <section className="home-section home-problem" id="problem">
+        <div className="home-section-head"><div><p className="eyebrow">The developer problem</p><h2>Model choice becomes an operating discipline.</h2></div><p>The hard part is not writing a conditional. It is knowing what to route, establishing why a choice is acceptable, and keeping that decision current without creating an open-ended review burden.</p></div>
+        <div className="home-problem-list">{developerProblems.map((problem) => <article key={problem.number}><span>{problem.number}</span><h3>{problem.title}</h3><p>{problem.text}</p></article>)}</div>
+        <p className="home-problem-note">Unfamiliar requests deserve explicit uncertainty and review. RouteLab does not assume every application starts with one expensive model or that every small chatbot benefits from task-specific routing.</p>
       </section>
 
-      <section className="home-why" id="why-now">
-        <div>
-          <p className="eyebrow">Why now</p>
-          <h2>Capability is compressing faster than price.</h2>
-          <p>
-            Open and managed-open models are good enough for many workflows, while premium frontier models still cost
-            dramatically more. The decision is no longer which model is best. It is which model is good enough for this
-            task group, under this eval, with this golden dataset evidence.
-          </p>
-        </div>
-        <div className="home-why-panel">
-          <span>The old default breaks</span>
-          <b>One frontier model for every request</b>
-          <small>margin leak</small>
-          <i />
-          <span>The new control plane</span>
-          <b>One fallback plus eval-approved model overrides per task</b>
-          <small>inference policy</small>
-        </div>
+      <section className="home-section home-workflow" id="how-it-works">
+        <div className="home-section-head"><div><p className="eyebrow">How RouteLab works</p><h2>From production evidence to a maintained routing policy.</h2></div><p>A compact workflow for discovering work, evaluating candidates, approving choices, and reviewing what the current policy does not cover.</p></div>
+        <ol className="home-workflow-steps">{workflowSteps.map((step) => <li key={step.step}><span>{step.step}</span><div><h3>{step.title}</h3><p>{step.text}</p></div></li>)}</ol>
+        <aside className="home-boundaries" aria-label="Workflow boundaries"><h3>Important boundaries</h3><ul>{workflowBoundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}</ul></aside>
       </section>
 
-      <section className="home-allocation">
-        <div className="home-section-head">
-          <h2>The policy engine above your gateway.</h2>
-          <p>RouteLab decides which model is eligible for each recurring task. OpenRouter, Vercel AI Gateway, or your existing gateway executes the resulting call.</p>
-          <p>RouteLab Cloud builds and validates the policy. A thin customer-hosted decision layer applies the latest approved version locally, with conservative fallback for uncertainty or failure.</p>
-        </div>
-        <div className="home-allocation-grid">
-          {allocationLayers.map((layer) => (
-            <article className={layer.title === "RouteLab" ? "featured" : ""} key={layer.title}>
-              <h3>{layer.title}</h3>
-              {layer.items.map((item) => <p key={item}>{item}</p>)}
-            </article>
-          ))}
-        </div>
+      <section className="home-section home-product" id="product">
+        <div className="home-section-head"><div><p className="eyebrow">Product evidence</p><h2>Inspect the work, the evidence, and the resulting policy.</h2></div><p>These previews use current RouteLab demo surfaces. Counts, replay results, and classifier values shown in the images are workflow examples, not customer outcome claims.</p></div>
+        <article className="home-product-feature">
+          <div className="home-feature-copy"><span>01 · Discover</span><h3>Define task groups and compare methods.</h3><p>RouteLab rules produce deterministic groups. The independent LLM experiment adds inclusion and exclusion criteria, representative traces, confusing counterexamples, neighboring groups, and a method comparison.</p><p>LLM grouping remains analysis-only. It does not replace the approved catalog or publish routes.</p></div>
+          <div className="home-preview-pair"><figure><img src="/marketing/task-groups.jpg" alt="RouteLab Task Groups showing deterministic rules and grouped production traces" loading="lazy" /><figcaption>Deterministic demo data · RouteLab rules</figcaption></figure><figure><img src="/marketing/compare-methods.jpg" alt="RouteLab Compare Methods showing deterministic and independent LLM group distributions" loading="lazy" /><figcaption>Saved analysis experiment · Compare Methods</figcaption></figure></div>
+        </article>
+        <article className="home-product-feature reverse">
+          <div className="home-feature-copy"><span>02 · Evaluate</span><h3>Measure candidates against application requirements.</h3><p>Routing Simulations compares observed traffic with candidate replay across quality, latency, and cost. Real live replays and deterministic demo estimates are presented as different evidence types.</p><p>Each task group can show three models to evaluate. Public benchmark priors are estimated, available customer evaluations carry more weight, and the adoption interface is not proof of quality or an established customer network.</p></div>
+          <figure className="home-preview-wide"><img src="/marketing/routing-simulations-current.jpg" alt="RouteLab Routing Simulations comparing current traffic and candidate replay" loading="lazy" /><figcaption>Deterministic demo replay · illustrative results</figcaption></figure>
+        </article>
+        <article className="home-product-feature">
+          <div className="home-feature-copy"><span>03 · Deploy and review</span><h3>Version the policy, then inspect its gaps.</h3><p>Policies support explicit task overrides, a fixed model or OpenRouter Auto as the ordinary default, and a separate emergency model for applicable runtime failures. Signed versions can be deployed, reactivated, and exported.</p><p>The review queue surfaces unknowns and evidence gaps. Policy verification failures can make the runtime unavailable, so RouteLab does not promise that every failure returns a fallback completion.</p></div>
+          <div className="home-preview-pair"><figure><img src="/marketing/policy-history.jpg" alt="RouteLab policy version history with deployed and published versions" loading="lazy" /><figcaption>Current policy lifecycle · signed versions</figcaption></figure><figure><img src="/marketing/review-queue.jpg" alt="RouteLab Review Queue showing stratified review lanes and a trace selected for review" loading="lazy" /><figcaption>Bundled demo data · focused human review</figcaption></figure></div>
+        </article>
       </section>
 
-      <section className="home-steps" id="how-it-works">
-        <div className="home-section-head">
-          <h2>Traces become an enforceable inference policy.</h2>
-          <p>The loop starts with historical evidence, produces a task-level policy, and keeps that policy current as workloads, models, prices, and prompts change.</p>
-          <p>Today RouteLab optimizes per-request workloads — classification, RAG answers, drafting, tool calls. Trajectory-level simulation for multi-step agents is on the roadmap.</p>
-        </div>
-        <div className="home-step-grid">
-          {steps.map((step, index) => (
-            <article className="home-step-card" key={step.title}>
-              <div>
-                <small>0{index + 1}</small>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
-              </div>
-              <img src={step.image} alt={step.alt} loading="lazy" />
-            </article>
-          ))}
-        </div>
+      <section className="home-section home-stack" id="stack">
+        <div className="home-section-head"><div><p className="eyebrow">How it fits</p><h2>Build on your eval and gateway stack.</h2></div><p>RouteLab focuses on the operational workflow between understanding application tasks and maintaining approved model-routing choices.</p></div>
+        <div className="home-stack-table" role="list">{stackRows.map((row) => <article role="listitem" key={row.name}><div><b>{row.name}</b><span>{row.role}</span></div><p>{row.text}</p></article>)}</div>
+        <p className="home-stack-note">Dynamic routers such as OpenRouter Auto Router and JevRouter already select models. RouteLab adds application-specific evaluation evidence, explicit overrides, policy history, and the maintenance workflow around those choices.</p>
       </section>
 
-      <section className="home-assessment">
-        <div>
-          <p className="eyebrow">48-hour model spend assessment</p>
-          <h2>Build an inference policy your team can trust.</h2>
-          <p>
-            Do not trust a live router on day one. Import traces, define evals, calibrate those evals with golden data,
-            replay candidate models, and approve only the task-specific routes that clear your quality, latency, and cost requirements.
-            Allocation is not a one-time decision. Every new model release, price drop, and prompt change re-opens the question — RouteLab re-runs the evidence automatically.
-          </p>
-        </div>
-        <div className="home-assessment-card">
-          <span>After RouteLab assessment</span>
-          <b>Every request gets the general fallback unless a measured task-specific override has earned approval.</b>
-          <div>
-            {assessmentRoutes.map((route) => (
-              <p key={route.label}><strong>{route.value}</strong>{route.label}</p>
-            ))}
-          </div>
-        </div>
+      <section className="home-section home-for-teams" id="for-teams">
+        <div className="home-section-head"><div><p className="eyebrow">Who it is for</p><h2>Agent engineers accountable for experience and economics.</h2></div><p>RouteLab starts with production support and knowledge-work agents where recurring tasks, evidence, and meaningful model differences already exist.</p></div>
+        <div className="home-fit-layout"><div><h3>A strong starting point has</h3><ul>{fitSignals.map((signal) => <li key={signal}>{signal}</li>)}</ul></div><aside><small>Not a universal default</small><p>A small chatbot with one narrow task, little traffic, or no measurable quality requirement may be better served by a fixed model and simple gateway configuration.</p></aside></div>
       </section>
 
-      <section className="home-icp">
-        <div>
-          <p className="eyebrow">Initial focus</p>
-          <h2>Built first for high-volume AI support teams.</h2>
-          <p>
-            Support has high token volume, measurable outcomes, customer-facing risk, and many prompts that are
-            over-modeled.
-          </p>
-        </div>
-        <div className="home-icp-list">
-          {supportReasons.map((reason) => <span key={reason}>{reason}</span>)}
-        </div>
-        <strong>Cut AI support inference cost by 50%+ while preserving CSAT, resolution, and escalation guardrails.</strong>
-      </section>
+      <section className="home-coming-next" aria-labelledby="coming-next-title"><div><p className="eyebrow">Coming next</p><h2 id="coming-next-title">Close more of the maintenance loop.</h2></div><ul>{comingNext.map((item) => <li key={item}>{item}</li>)}</ul></section>
+      <section className="home-final"><div><p className="eyebrow">Private preview</p><h2>Evaluate RouteLab on your own traffic.</h2><p>Start with a scoped pilot using representative traces and your quality requirements. Inspect the task groups, candidate evidence, and proposed policy before changing production routing.</p></div><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button></section>
+      <footer className="home-footer"><a className="home-brand" href="/" aria-label="RouteLab home"><img src="/routelab-icon.svg" alt="" /><b>RouteLab</b></a><span>Task-specific model choices, backed by application evidence.</span></footer>
 
-      <section className="home-allocation">
-        <div className="home-section-head">
-          <h2>Gateways execute. Observability explains. RouteLab decides.</h2>
-          <p>RouteLab connects task classification, calibrated quality evidence, and model simulations into the policy layer that those systems do not own.</p>
-        </div>
-      </section>
-
-      <section className="home-proof" aria-label="RouteLab trust principles">
-        {proof.map((item) => <span key={item}>{item}</span>)}
-      </section>
-
-      <section className="home-waitlist" id="waitlist">
-        <div className="home-waitlist-copy">
-          <p className="eyebrow">Early access</p>
-          <h2>Join the RouteLab waitlist.</h2>
-          <p>Interested in evaluating model allocation on your own workloads? Share your details and we’ll contact you when RouteLab opens additional pilot access.</p>
-          <div className="home-waitlist-notes" aria-label="Waitlist details">
-            <span>Bring your own traces</span>
-            <span>Evaluate before routing</span>
-            <span>No production integration required</span>
-          </div>
-        </div>
-        <form className="home-waitlist-form" onSubmit={submitWaitlist}>
-          <label className="home-waitlist-field-name">
-            Name
-            <input name="name" type="text" autoComplete="name" maxLength={120} placeholder="Your name" />
-          </label>
-          <label className="home-waitlist-field-email">
-            Work email
-            <input name="email" type="email" autoComplete="email" maxLength={254} placeholder="you@company.com" required />
-          </label>
-          <label className="home-waitlist-field-company">
-            Company
-            <input name="company" type="text" autoComplete="organization" maxLength={160} placeholder="Company name" />
-          </label>
-          <label className="home-waitlist-field-use-case">
-            How would you use RouteLab?
-            <textarea
-              name="useCase"
-              maxLength={1200}
-              placeholder="Tell us what you want to evaluate or route, and what outcome you hope to improve."
-              rows={4}
-              required
-            />
-          </label>
-          <label className="home-waitlist-honeypot" aria-hidden="true">
-            Website
-            <input name="website" type="text" tabIndex={-1} autoComplete="off" />
-          </label>
-          <button type="submit" className="primary" disabled={waitlistStatus === "submitting"}>
-            {waitlistStatus === "submitting" ? "Joining…" : "Join the waitlist"}
-          </button>
-          <small>By joining, you agree that RouteLab may email you about product access. You can unsubscribe at any time.</small>
-          {waitlistMessage && <p className={`home-waitlist-status ${waitlistStatus}`} role="status" aria-live="polite">{waitlistMessage}</p>}
-        </form>
-      </section>
-
-      <section className="home-final">
-        <h2>Start with traces. Leave with an inference policy.</h2>
-        <p>Classify recurring tasks, calibrate the quality bar, simulate candidate models, approve task-level overrides, and publish the policy to a local decision layer.</p>
-        <button type="button" className="primary" onClick={openPasswordPrompt}>Get started</button>
-      </section>
-
-      {isPasswordOpen && (
-        <div className="home-password-layer" role="presentation">
-          <form className="home-password-dialog" onSubmit={submitPassword} role="dialog" aria-modal="true" aria-labelledby="home-password-title">
-            <button className="home-password-close" type="button" onClick={() => setIsPasswordOpen(false)} aria-label="Close password prompt">×</button>
-            <p className="eyebrow">Private preview</p>
-            <h2 id="home-password-title">Enter the RouteLab password</h2>
-            <label>
-              Password
-              <input
-                autoFocus
-                type="password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setPasswordError(null);
-                }}
-              />
-            </label>
-            {passwordError && <p className="home-password-error">{passwordError}</p>}
-            <button type="submit" className="primary">Unlock RouteLab</button>
-          </form>
-        </div>
-      )}
+      {isPasswordOpen && <div className="home-password-layer" role="presentation"><form className="home-password-dialog" onSubmit={submitPassword} role="dialog" aria-modal="true" aria-labelledby="home-password-title"><button className="home-password-close" type="button" onClick={() => setIsPasswordOpen(false)} aria-label="Close password prompt">×</button><p className="eyebrow">Private preview</p><h2 id="home-password-title">Enter the RouteLab password</h2><label>Password<input autoFocus type="password" value={password} onChange={(event) => { setPassword(event.target.value); setPasswordError(null); }} /></label>{passwordError && <p className="home-password-error">{passwordError}</p>}<button type="submit" className="primary">Unlock RouteLab</button></form></div>}
     </main>
   );
 }
