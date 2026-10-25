@@ -9,12 +9,11 @@ const allowedFontFamilies = new Set(["Inter Variable", "DM Mono"]);
 const destinations = [
   { name: "Overview", top: "Overview" },
   { name: "Traces", top: "Workloads", child: "Traces" },
-  { name: "Task Signatures", top: "Workloads", child: "Task Signatures" },
+  { name: "Task Groups", top: "Workloads", child: "Task Groups" },
   { name: "Eval Library", top: "Quality", child: "Eval Library" },
   { name: "Human Calibration", top: "Quality", child: "Human Calibration" },
   { name: "Review Queue", top: "Quality", child: "Review Queue" },
   { name: "Routing Simulations", top: "Routing Simulations" },
-  { name: "Routing Decisions", top: "Routes", child: "Routing Decisions" },
   { name: "Fine-Tuning Opportunities", top: "Routes", child: "Fine-Tuning Opportunities" },
   { name: "Benchmarking", top: "Benchmarking" },
   { name: "Settings", top: "Settings" },

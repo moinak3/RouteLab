@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dashboardMetrics } from "./core/analysis";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
@@ -45,7 +45,7 @@ const workflowNav: NavDestination[] = [
   { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
 ];
 const advancedNav: NavDestination[] = [
-  { label: "Routes", page: "Recommendations", pages: ["Recommendations", "Fine-Tuning"], icon: "R", children: [{ label: "Routing Decisions", page: "Recommendations" }, { label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }] },
+  { label: "Routes", page: "Fine-Tuning", pages: ["Fine-Tuning"], icon: "R", children: [{ label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }] },
   { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
   { label: "Settings", page: "Model Catalog", pages: ["Model Catalog"], icon: "S" },
 ];
@@ -68,8 +68,6 @@ export default function App() {
   const [goldenDatasets, setGoldenDatasets] = useState<GoldenDatasetType[]>(initialGoldenDatasets);
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
   const [notice, setNotice] = useState<string | null>("Example dataset loaded locally");
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const simulationModels = useMemo(() => [...(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id), OPENROUTER_AUTO_MODEL], [openRouterModels, activeModels]);
@@ -149,7 +147,7 @@ export default function App() {
 
   async function applyUploadedText(text: string, fileName: string) {
     const result = ingestText(text, fileName);
-    setUploadErrors(result.errors.slice(0, 8).map((error) => `Row ${error.row}: ${error.reason}`));
+    const errors = result.errors.slice(0, 8).map((error) => `Row ${error.row}: ${error.reason}`);
     if (result.traces.length) {
       setNotice(`Classifying ${result.traces.length.toLocaleString()} incoming traces with Jev...`);
       let classifiedTraces = result.traces;
@@ -163,39 +161,18 @@ export default function App() {
       }
       setTraces(classifiedTraces);
       setTraceJudgeResults(createTraceJudgeResults(classifiedTraces));
-      setPage("Overview");
-      setUploadOpen(false);
+      setPage("Traces");
       setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} distinct tasks · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
+      return { imported: result.traces.length, errors };
     } else {
       setNotice(result.errors.length ? `${result.errors.length} rows could not be ingested` : "No LLM calls found in upload");
+      return { imported: 0, errors: errors.length ? errors : ["No LLM calls were found in this file."] };
     }
   }
 
   async function upload(file?: File) {
-    if (!file) return;
-    await applyUploadedText(await file.text(), file.name);
-  }
-
-  function loadExampleDataset() {
-    setTraces(initialTraces);
-    setTraceJudgeResults(initialTraceJudgeResults);
-    setPage("Overview");
-    setUploadOpen(false);
-    setUploadErrors([]);
-    setNotice(`${initialTraces.length} traces ingested → ${createDistinctTaskBuckets(initialTraces).length} distinct tasks classified`);
-  }
-
-  function downloadTemplate(name: string, content: string) {
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
-    link.download = name;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
-  function dropUpload(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    void upload(event.dataTransfer.files?.[0]);
+    if (!file) return { imported: 0, errors: ["No file was selected."] };
+    return applyUploadedText(await file.text(), file.name);
   }
 
   function enterApp(password: string) {
@@ -324,7 +301,7 @@ export default function App() {
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} />}
-      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
+      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} />}
       {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
@@ -335,7 +312,6 @@ export default function App() {
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
       {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onGatewayApiKey={(gateway,key)=>setGatewayApiKeys(keys=>({...keys,[gateway]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
-      {uploadOpen&&<div className="modal-layer" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setUploadOpen(false)}}><section className="upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-traces-title"><div className="modal-head"><div><p className="eyebrow">Trace ingestion</p><h2 id="upload-traces-title">Upload traces</h2></div><button type="button" onClick={()=>setUploadOpen(false)} aria-label="Close upload modal">×</button></div><p>Expected columns: id, timestamp, model, prompt, response/messages, input_tokens, output_tokens, latency_ms, cost, optional workflow_id, parent_step, metadata JSON. CSV, JSONL, OpenAI, Anthropic, and LiteLLM-like exports are accepted; unfamiliar headers are normalized where possible.</p><div className="upload-dropzone" onDragOver={(event)=>event.preventDefault()} onDrop={dropUpload}><b>Drop CSV or JSONL here</b><span>or choose a file from your machine</span><label className="upload-choice">Choose file<input type="file" accept=".csv,.json,.jsonl" onChange={(event)=>void upload(event.target.files?.[0])} /></label></div><div className="upload-tools"><button type="button" onClick={()=>downloadTemplate("routelab-trace-template.csv","id,timestamp,model,prompt,response,input_tokens,output_tokens,latency_ms,cost,workflow_id,parent_step,metadata\ntrace_001,2026-06-01T12:00:00Z,gpt-5.5-pro,\"Classify this ticket\",\"intent=billing\",800,120,1800,0.12,workflow_001,root,\"{\\\"task_type\\\":\\\"classification_tagging\\\"}\"\n")}>Download CSV template</button><button type="button" onClick={()=>downloadTemplate("routelab-trace-template.jsonl",JSON.stringify({id:"trace_001",timestamp:"2026-06-01T12:00:00Z",model:"gpt-5.5-pro",prompt_text:"Classify this ticket",response_text:"intent=billing",input_tokens:800,output_tokens:120,latency_ms:1800,cost_usd:.12,workflow_id:"workflow_001",parent_step:"root",metadata:{task_type:"classification_tagging"}})+"\n")}>Download JSONL template</button><button type="button" className="primary" onClick={loadExampleDataset}>Load example dataset</button></div>{uploadErrors.length>0&&<div className="upload-errors"><b>Rows needing attention</b>{uploadErrors.map((error)=><span key={error}>{error}</span>)}</div>}</section></div>}
     </main>
   </div>;
 }
