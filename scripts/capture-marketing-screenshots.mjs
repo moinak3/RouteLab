@@ -1,18 +1,18 @@
 import { writeFile } from "node:fs/promises";
 
 const appUrl = process.env.ROUTELAB_URL ?? "http://127.0.0.1:5173/";
-const pageTarget = await fetch(`http://127.0.0.1:9222/json/new?${encodeURIComponent(appUrl)}`, { method: "PUT" }).then((response) => response.json());
-const socket = new WebSocket(pageTarget.webSocketDebuggerUrl);
+const previewPassword = process.env.ROUTELAB_PREVIEW_PASSWORD ?? "Mochinder";
+const target = await fetch(`http://127.0.0.1:9222/json/new?${encodeURIComponent(appUrl)}`, { method: "PUT" }).then((response) => response.json());
+const socket = new WebSocket(target.webSocketDebuggerUrl);
 let id = 0;
 const pending = new Map();
 
 socket.addEventListener("message", (event) => {
   const payload = JSON.parse(event.data);
-  if (payload.id && pending.has(payload.id)) {
-    const { resolve, reject } = pending.get(payload.id);
-    pending.delete(payload.id);
-    payload.error ? reject(new Error(payload.error.message)) : resolve(payload.result);
-  }
+  if (!payload.id || !pending.has(payload.id)) return;
+  const { resolve, reject } = pending.get(payload.id);
+  pending.delete(payload.id);
+  payload.error ? reject(new Error(payload.error.message)) : resolve(payload.result);
 });
 
 await new Promise((resolve) => socket.addEventListener("open", resolve, { once: true }));
@@ -20,43 +20,96 @@ await new Promise((resolve) => socket.addEventListener("open", resolve, { once: 
 function send(method, params = {}) {
   const messageId = ++id;
   socket.send(JSON.stringify({ id: messageId, method, params }));
-  return new Promise((resolve, reject) => pending.set(messageId, { resolve, reject }));
+  return new Promise((resolve, reject) => pending.set(messageId, {
+    resolve,
+    reject: (error) => reject(new Error(`${method}: ${error.message}`)),
+  }));
 }
 
-async function wait(ms) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function evaluate(expression) {
-  return send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  const result = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  return result.result?.value;
 }
 
-async function capture(name) {
-  await wait(450);
-  const result = await send("Page.captureScreenshot", { format: "jpeg", quality: 86, captureBeyondViewport: false });
-  await writeFile(`public/marketing/${name}.jpg`, Buffer.from(result.data, "base64"));
+async function navigate(path) {
+  await send("Page.navigate", { url: new URL(path, appUrl).href });
+  await wait(700);
+}
+
+async function waitFor(selector, timeout = 8_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    if (await evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`)) return;
+    await wait(120);
+  }
+  throw new Error(`Timed out waiting for ${selector}`);
+}
+
+async function clickByText(selector, text) {
+  const clicked = await evaluate(`(() => {
+    const element = Array.from(document.querySelectorAll(${JSON.stringify(selector)}))
+      .find((candidate) => candidate.textContent?.trim().includes(${JSON.stringify(text)}));
+    element?.click();
+    return Boolean(element);
+  })()`);
+  if (!clicked) throw new Error(`Could not find ${selector} containing ${text}`);
+}
+
+async function capture(name, selector, maxHeight) {
+  await waitFor(selector);
+  await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: "start", behavior: "instant" })`);
+  await wait(220);
+  const rect = await evaluate(`(() => {
+    const box = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+    return {
+      x: Math.max(0, box.left + window.scrollX),
+      y: Math.max(0, box.top + window.scrollY),
+      width: box.width,
+      height: Math.min(box.height, ${maxHeight}),
+    };
+  })()`);
+  const screenshot = await send("Page.captureScreenshot", {
+    format: "jpeg",
+    quality: 90,
+    captureBeyondViewport: true,
+    clip: { ...rect, scale: 1 },
+  });
+  await writeFile(`public/marketing/${name}.jpg`, Buffer.from(screenshot.data, "base64"));
 }
 
 await send("Page.enable");
 await send("Runtime.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-await send("Page.navigate", { url: appUrl });
-await wait(900);
-await evaluate(`Array.from(document.querySelectorAll('button')).find((button)=>button.textContent?.trim()==='Get started')?.click()`);
-await wait(200);
-await evaluate(`const input=document.querySelector('input[type=password]'); if(input){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Mochinder'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);
-await wait(150);
-await evaluate(`Array.from(document.querySelectorAll('button')).find((button)=>button.textContent?.includes('Unlock RouteLab'))?.click()`);
-await wait(900);
+await navigate("/");
+await clickByText("button", "Get Started");
+await waitFor('input[type="password"]');
+await evaluate(`(() => {
+  const input = document.querySelector('input[type="password"]');
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+  setter.call(input, ${JSON.stringify(previewPassword)});
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+})()`);
+await clickByText("button", "Unlock RouteLab");
+await wait(700);
 
-await evaluate(`Array.from(document.querySelectorAll('aside nav button,.mobile-nav button')).find((button)=>button.textContent?.trim()==='Routing Simulations')?.click()`);
-await wait(500);
-await evaluate(`document.querySelector('.routing-policy-builder')?.scrollIntoView({block:'start'})`);
-await capture("policy-builder");
+await navigate("/workloads/task-groups");
+await clickByText("button", "Generate Task Groups");
+await waitFor(".task-table-panel");
+await capture("task-groups", ".task-signatures-page", 800);
 
-await evaluate(`Array.from(document.querySelectorAll('aside nav button,.mobile-nav button')).find((button)=>button.textContent?.trim()==='Overview')?.click()`);
-await wait(500);
-await evaluate(`document.querySelector('.overview-routing-state')?.scrollIntoView({block:'start'})`);
-await capture("policy-enforcement");
+await clickByText('button[role="radio"]', "LLM grouped");
+await waitFor('.llm-view-switch button[role="tab"]');
+await clickByText('.llm-view-switch button[role="tab"]', "Compare methods");
+await waitFor(".llm-comparison");
+await capture("compare-methods", ".llm-comparison", 820);
+
+await navigate("/routing-simulations");
+await capture("routing-simulations-current", ".scenario-results", 360);
+await capture("policy-history", ".policy-publish-workflow", 620);
+
+await navigate("/quality/review-queue");
+await capture("review-queue", ".review-page", 820);
 
 socket.close();
