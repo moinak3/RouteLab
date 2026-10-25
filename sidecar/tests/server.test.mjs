@@ -95,7 +95,7 @@ describe("RouteLab sidecar HTTP server", () => {
       if (req.url === "/chat") {
         proxiedRequest = await readBody(req);
         res.writeHead(200, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify({ id: "chat_smoke", choices: [{ message: { role: "assistant", content: "Refund queued." } }] }));
+        return res.end(JSON.stringify({ id: "chat_smoke", model: "deepseek/deepseek-r1", choices: [{ message: { role: "assistant", content: "Refund queued." } }] }));
       }
       res.writeHead(404).end();
     });
@@ -150,8 +150,8 @@ describe("RouteLab sidecar HTTP server", () => {
       decision: { signatureId: "billing", confidence: .95, status: "matched" },
       route: { source: "task_override", taskBucketId: "billing", openRouterModelId: "deepseek/deepseek-r1", policyVersion: 7 },
       openRouterRequest: { model: "deepseek/deepseek-r1", provider: { order: ["DeepInfra"] }, stream: false },
-      openRouterResponse: { choices: [{ message: { content: "Refund queued." } }] },
-      upstream: { status: 200 },
+      openRouterResponse: { model: "deepseek/deepseek-r1", choices: [{ message: { content: "Refund queued." } }] },
+      upstream: { status: 200, selectedModel: "deepseek/deepseek-r1" },
     });
     expect(decisionRequests).toBe(decisionsBeforeInspection + 1);
   });

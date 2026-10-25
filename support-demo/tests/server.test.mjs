@@ -68,9 +68,9 @@ describe("RouteLab Support Console server", () => {
           route: { source: "task_override", taskBucketId: "billing", modelId: "deepseek-r1", openRouterModelId: "deepseek/deepseek-r1", policyVersion: 4, reason: "Matched Billing." },
           openRouterRequest: { model: "deepseek/deepseek-r1", provider: { order: ["DeepInfra"] }, messageCount: receivedRequest.messages.length, tools: [], stream: false },
           openRouterResponse: toolResult
-            ? { id: "chat_demo_final", choices: [{ message: { role: "assistant", content: "I found your invoice." } }], usage: { total_tokens: 38 } }
-            : { id: "chat_demo_tool", choices: [{ message: { role: "assistant", content: null, tool_calls: [{ id: "call_invoice", type: "function", function: { name: "lookup_invoice", arguments: "{\"invoice_id\":\"123\"}" } }] } }], usage: { total_tokens: 20 } },
-          upstream: { status: 200, requestId: "req_demo" },
+            ? { id: "chat_demo_final", model: "google/gemini-3-flash", choices: [{ message: { role: "assistant", content: "I found your invoice." } }], usage: { total_tokens: 38 } }
+            : { id: "chat_demo_tool", model: "google/gemini-3-flash", choices: [{ message: { role: "assistant", content: null, tool_calls: [{ id: "call_invoice", type: "function", function: { name: "lookup_invoice", arguments: "{\"invoice_id\":\"123\"}" } }] } }], usage: { total_tokens: 20 } },
+          upstream: { status: 200, requestId: "req_demo", selectedModel: "google/gemini-3-flash" },
           timing: { classificationMs: 18, totalMs: 210 },
         }));
       }
@@ -110,7 +110,8 @@ describe("RouteLab Support Console server", () => {
       route: { taskBucketId: "billing" },
       toolExecutions: [{ name: "lookup_invoice", arguments: { invoice_id: "123" }, result: { status: "available" } }],
       routingPasses: [{ route: { taskBucketId: "billing" } }, { route: { taskBucketId: "billing" } }],
-      openRouterResponse: { choices: [{ message: { content: "I found your invoice." } }] },
+      openRouterResponse: { model: "google/gemini-3-flash", choices: [{ message: { content: "I found your invoice." } }] },
+      upstream: { selectedModel: "google/gemini-3-flash" },
     });
     expect(receivedAuthorization).toBe("Bearer support-demo-secret");
     expect(receivedRequests).toHaveLength(2);

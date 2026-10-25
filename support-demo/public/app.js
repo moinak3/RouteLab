@@ -193,13 +193,20 @@ function renderTrace(result) {
   ]));
 
   const usage = result.openRouterResponse?.usage;
+  const autoSelectedModel = result.openRouterRequest.model === "openrouter/auto"
+    ? result.upstream?.selectedModel ?? result.openRouterResponse?.model ?? "Not reported by OpenRouter"
+    : null;
   setStep("response", "complete", details([
     { label: "Status", value: result.upstream.status, className: result.ok ? "success" : "" },
+    ...(autoSelectedModel ? [{ label: "Model selected", value: autoSelectedModel, className: autoSelectedModel === "Not reported by OpenRouter" ? "" : "success mono" }] : []),
     { label: "Latency", value: `${result.timing.totalMs}ms` },
     { label: "Tokens", value: usage?.total_tokens ?? "Not reported" },
     { label: "Request ID", value: result.upstream.requestId ?? result.openRouterResponse?.id ?? "Not reported", className: "mono" },
   ]));
-  setTraceState(result.ok ? "complete" : "error", `${result.decision.signatureLabel} routed to ${result.openRouterRequest.model}`);
+  const routeSummary = autoSelectedModel && autoSelectedModel !== "Not reported by OpenRouter"
+    ? `${result.openRouterRequest.model} selected ${autoSelectedModel}`
+    : result.openRouterRequest.model;
+  setTraceState(result.ok ? "complete" : "error", `${result.decision.signatureLabel} routed to ${routeSummary}`);
 }
 
 function renderTraceError(message) {

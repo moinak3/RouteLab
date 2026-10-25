@@ -107,6 +107,9 @@ async function inspectChat(request, route) {
   const payload = await upstream.json().catch(() => ({
     error: { message: `OpenRouter returned a non-JSON response with HTTP ${upstream.status}.` },
   }));
+  const selectedModel = typeof payload?.model === "string" && payload.model.trim()
+    ? payload.model.trim()
+    : null;
   const { decision, selectedRoute } = inspectableRoute(route);
   const messages = Array.isArray(request.messages) ? request.messages : [];
   const tools = Array.isArray(request.tools) ? request.tools : [];
@@ -137,6 +140,7 @@ async function inspectChat(request, route) {
     upstream: {
       status: upstream.status,
       requestId: upstream.headers.get("x-request-id") ?? upstream.headers.get("x-openrouter-request-id"),
+      selectedModel,
     },
     timing: {
       classificationMs: decision.latencyMs,
