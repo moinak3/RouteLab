@@ -478,6 +478,16 @@ code{color:#a9e8c0}
 	    font-size:12px;
 	    white-space:nowrap;
 	  }
+	  .mobile-nav a{
+	    flex:0 0 auto;
+	    padding:9px 11px;
+	    color:#b9c7c0;
+	    border:1px solid var(--line);
+	    border-radius:8px;
+	    font:600 12px var(--font-sans);
+	    text-decoration:none;
+	    white-space:nowrap;
+	  }
 	  .mobile-nav button.active{
 	    background:rgba(88,240,132,.16);
 	    border-color:rgba(88,240,132,.32);
@@ -493,6 +503,29 @@ code{color:#a9e8c0}
 h1{font-size:32px}
 .eyebrow{font-size:12px}
 nav button{font-size:14px}
+.nav-external{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:11px 12px;
+  color:#b9c7c0;
+  border:1px solid transparent;
+  border-radius:10px;
+  font:600 14px var(--font-sans);
+  text-decoration:none;
+}
+.nav-external span{
+  display:grid;
+  place-items:center;
+  width:22px;
+  height:22px;
+  color:#93a39b;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(185,199,192,.22);
+  border-radius:6px;
+  font-size:12px;
+}
+.nav-external:hover{color:#fff;background:rgba(255,255,255,.04);border-color:var(--line)}
 .brand b{font-size:18px}
 .brand small,.privacy small{font-size:12px}
 button,.upload,.search,select{font-size:13px}
