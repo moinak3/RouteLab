@@ -9,8 +9,9 @@ import {
   sidecarAuthorized,
 } from "./sidecar/_runtime.js";
 import { listRuntimeTraces, runtimeTraceFromResult, saveRuntimeTrace } from "./sidecar/_traceStore.js";
+import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./llm-grouping/_api.js";
 
-export const maxDuration = 150;
+export const maxDuration = 300;
 
 function parseToolArguments(value: unknown) {
   if (value && typeof value === "object") return value as Record<string, unknown>;
@@ -86,6 +87,8 @@ async function supportCompletion(request: any) {
 export default async function handler(req: any, res: any) {
   const action = String(req.query?.action ?? "");
   try {
+    if (action === "llm-grouping-latest") return handleLLMGroupingLatest(req, res);
+    if (action === "llm-grouping-run") return handleLLMGroupingRun(req, res);
     if (action === "runtime-traces") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
       const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500));

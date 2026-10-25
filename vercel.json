@@ -6,6 +6,8 @@
     { "source": "/api/sidecar/status", "destination": "/api/runtime?action=sidecar-status" },
     { "source": "/api/sidecar/route", "destination": "/api/runtime?action=sidecar-route" },
     { "source": "/api/sidecar/inspect", "destination": "/api/runtime?action=sidecar-inspect" },
-    { "source": "/api/sidecar/chat", "destination": "/api/runtime?action=sidecar-chat" }
+    { "source": "/api/sidecar/chat", "destination": "/api/runtime?action=sidecar-chat" },
+    { "source": "/api/llm-grouping/latest", "destination": "/api/runtime?action=llm-grouping-latest" },
+    { "source": "/api/llm-grouping/run", "destination": "/api/runtime?action=llm-grouping-run" }
   ]
 }
