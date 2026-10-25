@@ -51,8 +51,6 @@ body:before{
 .home-brand{color:var(--dossier-ink)}
 .home-brand img{width:34px;height:34px;border-radius:4px;box-shadow:none}
 .home-brand b{font-size:16px;font-weight:700;letter-spacing:-.02em}
-.home-document-meta{display:flex;align-items:center;gap:12px;margin-right:auto;color:var(--dossier-muted);font:500 12px var(--font-mono);text-transform:uppercase;letter-spacing:.05em}
-.home-document-meta span+span{padding-left:12px;border-left:1px solid var(--dossier-rule)}
 .home-nav-links{gap:18px}
 .home-nav a:not(.home-brand){color:#48566a;font-size:12px;font-weight:600}
 .home-nav a:not(.home-brand):hover{color:var(--dossier-blue)}
@@ -458,7 +456,6 @@ body:before{
 .drawer-section pre{border:1px solid var(--dossier-rule-soft);border-radius:0;background:#f2eee4;color:#26344b}
 
 @media(max-width:1050px){
-  .home-document-meta{display:none}
   .home-hero{grid-template-columns:1fr;gap:30px}.home-review-docket{max-width:520px}.home-allocation-ledger{margin-top:12px}
 }
 @media(max-width:1500px){
