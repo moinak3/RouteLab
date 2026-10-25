@@ -319,7 +319,7 @@ export default function App() {
       </nav>
     </aside>
     <main>
-      {page !== "Benchmarking" ? <header><div><p className="eyebrow">Intelligent model simulations - the right model to tradeoff cost, quality and latency for your business</p><h1>{topLevelLabel(page)}</h1></div><div className="actions"><button type="button" className="upload" onClick={()=>setUploadOpen(true)}>Upload traces</button><button className="primary" onClick={() => setPage("Simulations")}>Run simulation</button></div></header> : null}
+      {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1></header> : null}
       <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><button type="button" className={item.pages.includes(page)?"active":""} onClick={()=>setPage(item.page)} key={item.label}>{item.label}</button>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
