@@ -1,11 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-const supportDecisions = [
-  { step: "01", title: "Interpret the request", detail: "Identify the customer intent, entities, and constraints.", need: "Fast language understanding and structured extraction" },
-  { step: "02", title: "Assess policy eligibility", detail: "Apply retrieved policy evidence to the specific account context.", need: "Grounded reasoning with consistent policy adherence" },
-  { step: "03", title: "Draft the response", detail: "Explain the decision clearly in the right customer-facing tone.", need: "Reliable generation with style and latency constraints" },
-];
-
 const developerProblems = [
   { number: "01", title: "Know what work appears", text: "Production traces contain recurring tasks, edge cases, and unfamiliar requests. Teams need a reviewable view of that work before they can route it responsibly." },
   { number: "02", title: "Choose against your requirements", text: "A public benchmark can suggest what to test. Application-specific examples and quality requirements are what establish whether a model is suitable for a task." },
@@ -118,9 +112,9 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-hero-copy">
           <p className="eyebrow">Model routing for AI agents</p>
           <h1>Choose the right model for each task your agent takes on.</h1>
-          <p>Understand the work in your production traffic, compare models against your quality requirements, and deploy routing policies your team can inspect and improve.</p>
+          <p>Categorize your work in your production traffic, compare models against your quality requirements, and deploy routing policies your team can inspect and improve.</p>
           <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a></div>
-          <p className="home-hero-boundary">Built today for task grouping, model evaluation, and model-routing policies. The broader vision spans more intelligence primitives over time.</p>
+          <p className="home-hero-boundary">Built today for task grouping, model evaluation, and model-routing policies.</p>
         </div>
         <aside className="home-review-docket" aria-label="RouteLab evidence standard">
           <div className="home-docket-head"><span>Decision standard</span><b>Evidence before allocation</b></div>
@@ -135,7 +129,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-allocation-ledger" aria-label="RouteLab routing policy behavior">
           <div className="home-ledger-head"><b>Routing policy behavior</b><span>What the runtime does with each request</span><small>Conservative by default</small></div>
           <div className="home-ledger-row home-ledger-columns"><span>Request state</span><span>Evidence required</span><span>Decision</span><span>Runtime behavior</span></div>
-          <div className="home-ledger-row"><b>Known task group</b><span>Candidate clears quality, latency, and cost requirements</span><strong>Approved override</strong><em>Route to selected model</em></div>
+          <div className="home-ledger-row"><b>Known task group</b><span>Candidate clears quality, latency, and cost requirements</span><strong>Approved user override</strong><em>Route to selected model</em></div>
           <div className="home-ledger-row"><b>Unknown or low confidence</b><span>No task-specific evidence available</span><strong>General default</strong><em>Keep the conservative route</em></div>
           <div className="home-ledger-row"><b>Applicable provider failure</b><span>Emergency behavior configured and verified</span><strong>Emergency model</strong><em>Use the separate failure route</em></div>
         </div>
@@ -146,10 +140,6 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-driver-row">
           <article><span>Driver 01</span><h3>More varied work per agent</h3><p>Classification, document interpretation, policy assessment, and difficult analysis can sit behind one conversation.</p></article>
           <article><span>Driver 02</span><h3>More capability choices</h3><p>Success, consistency, latency, retries, and cost all change with the model and the job it is asked to perform.</p></article>
-        </div>
-        <div className="home-conversation-example">
-          <div className="home-example-intro"><small>Illustrative support experience</small><h3>One customer conversation. Several routing decisions.</h3><p>No model winner is assumed. Each call has a different capability profile to validate.</p></div>
-          <div className="home-example-calls">{supportDecisions.map((decision) => <article key={decision.step}><span>{decision.step}</span><div><h4>{decision.title}</h4><p>{decision.detail}</p><small>{decision.need}</small></div></article>)}</div>
         </div>
       </section>
 

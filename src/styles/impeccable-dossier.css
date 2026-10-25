@@ -173,18 +173,8 @@ body:before{
 .home-driver-row,.home-problem-list{border-block:1px solid var(--dossier-blue)}
 .home-driver-row article+article,.home-problem-list article+article{border-left-color:var(--dossier-rule)}
 .home-driver-row span,.home-feature-copy>span,.home-workflow-steps>li>span{color:var(--dossier-red);font-weight:600}
-.home-driver-row h3,.home-feature-copy h3,.home-problem-list h3,.home-workflow-steps h3,.home-example-intro h3,.home-stack-table b,.home-fit-layout h3{color:var(--dossier-ink)}
-.home-driver-row p,.home-feature-copy p,.home-problem-list p,.home-workflow-steps p,.home-example-intro p,.home-example-calls p,.home-stack-table p{color:#566172}
-.home-conversation-example{
-  border:1px solid var(--dossier-blue);
-  border-radius:0;
-  background:rgba(251,248,240,.66);
-  box-shadow:8px 8px 0 rgba(33,77,134,.1);
-}
-.home-example-intro small,.home-example-calls small{color:#6b7481}
-.home-example-calls article{border-bottom-color:var(--dossier-rule-soft)}
-.home-example-calls article>span{color:var(--dossier-red)}
-.home-example-calls h4{color:var(--dossier-ink)}
+.home-driver-row h3,.home-feature-copy h3,.home-problem-list h3,.home-workflow-steps h3,.home-stack-table b,.home-fit-layout h3{color:var(--dossier-ink)}
+.home-driver-row p,.home-feature-copy p,.home-problem-list p,.home-workflow-steps p,.home-stack-table p{color:#566172}
 .home-problem-note,.home-stack-note{border-left-color:var(--dossier-red);color:#5f697a}
 .home-workflow-steps{border-top-color:var(--dossier-blue)}
 .home-workflow-steps li{border-bottom-color:var(--dossier-rule)}
@@ -333,7 +323,7 @@ body:before{
 .shell>main .projection :is(small,span){color:#d7e2ef}.shell>main .projection strong{color:var(--dossier-green)}
 .shell>main .prompt-cache-marker code{border:1px solid var(--dossier-rule);background:var(--dossier-ink);color:#fff}
 .home-problem-list article>span{color:var(--dossier-red)}
-.home-example-intro small,.home-example-calls small,.home-docket-signoff small,.home-waitlist-form>small{color:#586579}
+.home-docket-signoff small,.home-waitlist-form>small{color:#586579}
 .shell>main .judge-score.unknown{background:#ece9df;color:#526075}
 .shell>main .judge-score.pass{background:#e5f2e5;color:#216437}
 .shell>main .judge-score.fail{background:#f4dfda;color:#9e3929}
