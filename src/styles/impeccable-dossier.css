@@ -378,6 +378,47 @@ body:before{
 .shell>main .projection{background-color:#10241a}
 .shell>main .trace-source-bar .eyebrow{color:#d7e2ef}
 
+/* Simulation controls need field boundaries that remain legible on paper. */
+.shell>main .scenario-controls :is(.model-picker>summary,.scope-picker summary){
+  min-height:48px;
+  border:1px solid #8e9db2;
+  background:#fffdf8;
+  color:var(--dossier-ink);
+  box-shadow:inset 0 0 0 1px rgba(33,77,134,.08);
+}
+.shell>main .scenario-controls :is(.model-picker>summary,.scope-picker summary):hover{
+  border-color:var(--dossier-blue);
+  background:#fff;
+}
+.shell>main .scenario-controls :is(.model-picker>summary,.scope-picker summary):focus-visible{
+  outline:3px solid rgba(33,77,134,.22);
+  outline-offset:2px;
+}
+.shell>main .scenario-controls .model-picker summary small{color:#526075}
+.shell>main .scenario-controls .model-picker summary>i{border-color:var(--dossier-blue)}
+.shell>main .scenario-controls .scope-picker summary b{
+  border:1px solid #84bd8c;
+  background:#e5f2e5;
+  color:#215c34;
+}
+.shell>main .scenario-controls .range-tabs{
+  min-width:0;
+  border:1px solid #8e9db2;
+  background:#e8ecf1;
+}
+.shell>main .scenario-controls .range-tabs button{
+  min-width:0;
+  padding-inline:6px;
+  overflow:hidden;
+  color:#526075;
+  text-overflow:ellipsis;
+}
+.shell>main .scenario-controls .range-tabs button.active{
+  background:#fffdf8;
+  color:var(--dossier-ink);
+  box-shadow:0 1px 0 rgba(17,27,51,.12),inset 0 0 0 1px rgba(33,77,134,.16);
+}
+
 /* Benchmarking retains dark run cells inside the light evidence dossier. */
 .shell>main section.frontier-intro.panel{background-color:var(--dossier-ink)}
 .shell>main .frontier-intro :is(h2,.eyebrow){color:#fff}
@@ -424,7 +465,9 @@ body:before{
   .home-hero{grid-template-columns:1fr;gap:30px}.home-review-docket{max-width:520px}.home-allocation-ledger{margin-top:12px}
 }
 @media(max-width:1500px){
+  .shell>main .scenario-builder{grid-template-columns:minmax(0,1fr)}
   .shell>main .scenario-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .shell>main .projection{grid-column:1}
   .shell>main .scenario-controls .scenario-note{grid-column:1/-1}
 }
 @media(max-width:760px){
