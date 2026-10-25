@@ -45,7 +45,6 @@ const workflowNav: NavDestination[] = [
   { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
 ];
 const advancedNav: NavDestination[] = [
-  { label: "Routes", page: "Fine-Tuning", pages: ["Fine-Tuning"], icon: "R", children: [{ label: "Fine-Tuning Opportunities", page: "Fine-Tuning" }] },
   { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
   { label: "Settings", page: "Model Catalog", pages: ["Model Catalog"], icon: "S" },
 ];
@@ -54,7 +53,7 @@ const topLevelLabel = (page: Page) => allNav.find((item) => item.pages.includes(
 
 export default function App() {
   const [page, setPage] = useState<Page>("Home");
-  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Quality: false, Routes: false });
+  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Quality: false });
   const [traces, setTraces] = useState<Trace[]>(initialTraces);
   const [traceJudgeResults, setTraceJudgeResults] = useState<TraceJudgeResult[]>(initialTraceJudgeResults);
   const [candidate, setCandidate] = useState("deepseek-r1");

@@ -14,7 +14,6 @@ const destinations = [
   { name: "Human Calibration", top: "Quality", child: "Human Calibration" },
   { name: "Review Queue", top: "Quality", child: "Review Queue" },
   { name: "Routing Simulations", top: "Routing Simulations" },
-  { name: "Fine-Tuning Opportunities", top: "Routes", child: "Fine-Tuning Opportunities" },
   { name: "Benchmarking", top: "Benchmarking" },
   { name: "Settings", top: "Settings" },
 ];
