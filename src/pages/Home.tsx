@@ -53,7 +53,7 @@ const steps = [
     alt: "RouteLab Traces tab showing normalized LLM calls",
   },
   {
-    title: "Classify Traces into Distinct Tasks",
+    title: "Classify Traces into Task Groups",
     text: "Group traces into repeatable task-level workloads so routing and evaluation decisions are made against stable patterns, not one-off prompts.",
     image: "/marketing/traces.jpg",
     alt: "RouteLab Traces tab showing normalized LLM calls",
@@ -217,7 +217,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <p>
             Open and managed-open models are good enough for many workflows, while premium frontier models still cost
             dramatically more. The decision is no longer which model is best. It is which model is good enough for this
-            distinct task, under this eval, with this golden dataset evidence.
+            task group, under this eval, with this golden dataset evidence.
           </p>
         </div>
         <div className="home-why-panel">

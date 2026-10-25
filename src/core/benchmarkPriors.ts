@@ -50,7 +50,7 @@ export function mapDistinctTaskToBenchmarkPriors(task: DistinctTask): BenchmarkP
     benchmark_id: "custom_signaleval",
     alignment_score: .55,
     confidence: 2,
-    rationale: "No public benchmark family maps strongly to this Distinct Task; custom SignalEval traces should dominate selection.",
+    rationale: "No public benchmark family maps strongly to this Task Group; custom SignalEval traces should dominate selection.",
     weight: 1,
   }];
 }
@@ -97,7 +97,7 @@ export function recommendCandidateModels(task: DistinctTask, options: CandidateR
         confidence: customer && customer.sample_size >= 3 ? 3 : 1,
         rationale: customer && customer.sample_size >= 3
           ? "Customer evaluation evidence drives this shortlist position because public benchmark alignment is weak."
-          : "Generally strong frontier model candidate; public benchmark priors are weak for this Distinct Task.",
+          : "Generally strong frontier model candidate; public benchmark priors are weak for this Task Group.",
         why_match: "Broad capability makes this a useful comparison point when no public benchmark closely matches the task.",
         caveats: ["Custom SignalEval traces should dominate model selection before production routing.", "Do not interpret this as the best model for the workload."],
       };

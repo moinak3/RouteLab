@@ -42,7 +42,7 @@ Output JSON:
 
 type EvalDefinition = typeof activeEvalDefinition & { scope: string };
 const seededEvalDefinitions: EvalDefinition[] = [
-  { ...activeEvalDefinition, scope: "All distinct tasks" },
+  { ...activeEvalDefinition, scope: "All task groups" },
   {
     id: "policy_compliance_check",
     name: "Policy compliance check",
@@ -135,7 +135,7 @@ export function Evals({
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(seededEvalDefinitions);
   const [modal,setModal]=useState<"import"|"create"|null>(null);
-  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All distinct tasks",prompt:""});
+  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All task groups",prompt:""});
   const [importText,setImportText]=useState(JSON.stringify(seededEvalDefinitions[0],null,2));
   const [formError,setFormError]=useState<string|null>(null);
   function importEval(event: FormEvent) {
@@ -159,7 +159,7 @@ export function Evals({
       threshold:Number(draft.threshold)||.85,
       prompt:draft.prompt||"Evaluate candidate response against the selected task rubric.",
       dimensions:["Task scope", "Pass threshold", "Evaluator prompt"],
-      scope:draft.scope||"All distinct tasks",
+      scope:draft.scope||"All task groups",
     },...items]);
     setModal(null); setFormError(null);
   }

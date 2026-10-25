@@ -24,7 +24,7 @@ function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, t
     const filtered = buckets.filter(bucket => `${bucket.bucket_name} ${bucket.bucket_id} ${Object.values(bucket.task).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
     const filteredIds = filtered.map(bucket => bucket.bucket_id);
     const selectedCount = selectedIds.reduce((sum, id) => sum + (callCounts.get(id) ?? 0), 0);
-    const summary = selectedIds.length ? `${selectedIds.length} selected · ${selectedCount.toLocaleString()} calls` : `All Distinct Tasks · ${totalCalls.toLocaleString()} calls`;
+    const summary = selectedIds.length ? `${selectedIds.length} selected · ${selectedCount.toLocaleString()} calls` : `All Task Groups · ${totalCalls.toLocaleString()} calls`;
     const toggle = (id: string) => onChange(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
     const selectFiltered = () => onChange(ids => [...new Set([...ids, ...filteredIds])]);
     useEffect(() => {
@@ -36,7 +36,7 @@ function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, t
         document.addEventListener("pointerdown", closeOnOutsideClick);
         return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
     }, []);
-    return <div className="scope-picker"><label>Distinct Task scope</label><details ref={detailsRef}><summary><span>{summary}</span><b>{selectedIds.length ? "Filtered" : "All"}</b></summary><div className="scope-menu"><input aria-label="Search Distinct Tasks" placeholder="Search Distinct Tasks" value={query} onChange={event => setQuery(event.target.value)}/><div className="scope-menu-actions"><button type="button" onClick={selectFiltered} disabled={!filtered.length}>Select all Distinct Tasks</button><button type="button" onClick={() => onChange([])}>All tasks</button>{selectedIds.length > 0 && <button type="button" onClick={() => onChange([])}>Clear selected</button>}</div><div className="scope-menu-count">Showing <b>{filtered.length.toLocaleString()}</b> of <b>{buckets.length.toLocaleString()}</b> Distinct Tasks</div><div className="scope-options">{filtered.length ? filtered.map(bucket => { const calls = callCounts.get(bucket.bucket_id) ?? 0; const selected = selectedSet.has(bucket.bucket_id); return <button type="button" className={`scope-option ${selected ? "selected" : ""}`} aria-pressed={selected} key={bucket.bucket_id} onClick={() => toggle(bucket.bucket_id)}><input type="checkbox" tabIndex={-1} checked={selected} readOnly aria-hidden="true"/><span><b>{bucket.bucket_name}</b><small>{distinctTaskValue("task_type", bucket.task.task_type)} · {distinctTaskValue("complexity", bucket.task.complexity)}</small></span><em>{calls.toLocaleString()} calls</em></button>; }) : <p>No matching Distinct Tasks</p>}</div></div></details></div>;
+    return <div className="scope-picker"><label>Task Group scope</label><details ref={detailsRef}><summary><span>{summary}</span><b>{selectedIds.length ? "Filtered" : "All"}</b></summary><div className="scope-menu"><input aria-label="Search Task Groups" placeholder="Search Task Groups" value={query} onChange={event => setQuery(event.target.value)}/><div className="scope-menu-actions"><button type="button" onClick={selectFiltered} disabled={!filtered.length}>Select all Task Groups</button><button type="button" onClick={() => onChange([])}>All tasks</button>{selectedIds.length > 0 && <button type="button" onClick={() => onChange([])}>Clear selected</button>}</div><div className="scope-menu-count">Showing <b>{filtered.length.toLocaleString()}</b> of <b>{buckets.length.toLocaleString()}</b> Task Groups</div><div className="scope-options">{filtered.length ? filtered.map(bucket => { const calls = callCounts.get(bucket.bucket_id) ?? 0; const selected = selectedSet.has(bucket.bucket_id); return <button type="button" className={`scope-option ${selected ? "selected" : ""}`} aria-pressed={selected} key={bucket.bucket_id} onClick={() => toggle(bucket.bucket_id)}><input type="checkbox" tabIndex={-1} checked={selected} readOnly aria-hidden="true"/><span><b>{bucket.bucket_name}</b><small>{distinctTaskValue("task_type", bucket.task.task_type)} · {distinctTaskValue("complexity", bucket.task.complexity)}</small></span><em>{calls.toLocaleString()} calls</em></button>; }) : <p>No matching Task Groups</p>}</div></div></details></div>;
 }
 const seededRandom = (seed: number) => {
     let state = seed % 2147483647;
@@ -289,7 +289,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const routeAssessments = new Map(distinctTaskImpact.map(row => [row.distinct_task_bucket_id, assessRouteCandidate({ passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count }, { minimumPassRate: draftPolicy.minimumPassRate, maximumLatencyIncreasePct: draftPolicy.maximumLatencyIncreasePct, minimumReplayCount: DEFAULT_ROUTE_GUARDRAILS.minimumReplayCount })]));
     const setTaskOverride = (row: (typeof distinctTaskImpact)[number]) => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { overrides: { ...policy.overrides, [row.distinct_task_bucket_id]: { taskId: row.distinct_task_bucket_id, taskName: row.name, modelId: candidate, modelName: candidateName, openRouterModelId: getModel(candidate)?.pricing_source_model_id, provider: providerName, providerId, passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count, updatedAt: new Date().toISOString() } } }));
     const removeTaskOverride = (taskId: string) => setDraftPolicy(policy => { const overrides = { ...policy.overrides }; delete overrides[taskId]; return reviseDraftRoutingPolicy(policy, { overrides }); });
-    const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Distinct Task" : `${distinctTaskBucketIds.length} selected Distinct Tasks`;
+    const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Task Group" : `${distinctTaskBucketIds.length} selected Task Groups`;
     const baselineJudges = scenarioTraces.map(trace => judgeByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
     const baselinePassRate = baselineJudges.length ? baselineJudges.filter(judge => judge.passed).length / baselineJudges.length : undefined;
     const metricRows = [
@@ -382,7 +382,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <section className="panel task-impact-panel">
 <div className="panelhead">
 <div>
-<p className="eyebrow">Impact by Distinct Task</p>
+<p className="eyebrow">Impact by Task Group</p>
 <h2>Before and after by task signature</h2>
 <p className="impact-explainer">Cost is the projected monthly run rate. Latency is the average per request. Quality is the eval pass rate; its impact is shown in percentage points.</p>
 </div>
@@ -392,7 +392,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <table className="task-impact-table">
 <thead>
 <tr>
-<th rowSpan={2}>Distinct Task</th>
+<th rowSpan={2}>Task Group</th>
 <th colSpan={3}>Cost / month</th>
 <th colSpan={3}>Average latency</th>
 <th colSpan={3}>Quality / accuracy</th>

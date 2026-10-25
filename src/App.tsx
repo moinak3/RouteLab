@@ -162,7 +162,7 @@ export default function App() {
       setTraces(classifiedTraces);
       setTraceJudgeResults(createTraceJudgeResults(classifiedTraces));
       setPage("Traces");
-      setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} distinct tasks · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
+      setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} task groups · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
       return { imported: result.traces.length, errors };
     } else {
       setNotice(result.errors.length ? `${result.errors.length} rows could not be ingested` : "No LLM calls found in upload");

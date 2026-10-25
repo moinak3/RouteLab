@@ -69,7 +69,7 @@ function copyAndDownload(name: string, content: string) {
 
 export function Recommendations({ policy, activeModels, traceCount }: { policy: RecommendationPolicy; activeModels: Model[]; traceCount: number }) {
   if (!activeModels.length) {
-    return <section className="panel"><p className="eyebrow">Distinct Task routing</p><h2>No enabled models</h2><p>Enable at least one model in Model Catalog before generating recommendations.</p></section>;
+    return <section className="panel"><p className="eyebrow">Task Group routing</p><h2>No enabled models</h2><p>Enable at least one model in Model Catalog before generating recommendations.</p></section>;
   }
   const automationRecommendations = policy.script_automation_recommendations;
   return <div className="recommendations-page">
@@ -104,7 +104,7 @@ export function Recommendations({ policy, activeModels, traceCount }: { policy: 
       </div>
     </>}
     <div className="policy-note">
-      <b>Monthly savings by Distinct Task</b>
+      <b>Monthly savings by Task Group</b>
       <span>{policy.candidate_model_ids.length} candidate model{policy.candidate_model_ids.length === 1 ? "" : "s"} evaluated across at least five inference providers each. Each card shows the winning model-provider pair, estimated cost, and latency.</span>
     </div>
     <div className="cards recommendations-grid">

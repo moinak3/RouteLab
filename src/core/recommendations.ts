@@ -175,7 +175,7 @@ export function recommendPolicy(traces: Trace[], buckets: DistinctTaskBucket[], 
       rationale = `High-risk workload stays on its current strong model; ${candidateIds.length} candidate models were evaluated but automatic switching is disabled for this risk level.`;
     } else if (bucket.task.tool_use === "failed") {
       strategy = { type: "keep_current" };
-      rationale = `Keep current routing: this Distinct Task contains unrecovered tool failures and requires recovery-focused evaluation before automatic switching.`;
+      rationale = `Keep current routing: this Task Group contains unrecovered tool failures and requires recovery-focused evaluation before automatic switching.`;
     } else if (winner?.type === "direct") {
       strategy = { type: "direct", model: winner.modelId, provider: winner.providerQuote.provider_name };
       recommended = winner.result;
