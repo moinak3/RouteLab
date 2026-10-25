@@ -106,6 +106,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
     <main className="home-page">
       <nav className="home-nav" aria-label="Marketing navigation">
         <a className="home-brand" href="/" aria-label="RouteLab home"><img src="/routelab-icon.svg" alt="" /><b>RouteLab</b></a>
+        <div className="home-document-meta" aria-label="Document status"><span>Model allocation brief</span><span>Private preview</span><span>Rev. 01</span></div>
         <div className="home-nav-links">
           <a href="#why-now">Why now</a><a href="#how-it-works">How it works</a><a href="#product">Product</a><a href="#stack">Stack</a><a href="#for-teams">Who it is for</a>
           <a className="home-nav-waitlist" href="#waitlist">Join waitlist</a>
@@ -121,16 +122,22 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a></div>
           <p className="home-hero-boundary">Built today for task grouping, model evaluation, and model-routing policies. The broader vision spans more intelligence primitives over time.</p>
         </div>
-        <div className="home-hero-system" aria-label="RouteLab model routing workflow">
-          <div className="home-system-head"><span>Production traffic</span><small>Evidence loop</small></div>
-          <div className="home-system-input"><b>Agent request</b><span>Prompt, conversation, tools, constraints</span></div>
-          <div className="home-system-path" aria-hidden="true"><i /><i /><i /></div>
-          <ol>
-            <li><span>01</span><div><b>Task group</b><small>Understand the recurring work</small></div></li>
-            <li><span>02</span><div><b>Evaluation evidence</b><small>Compare candidates on your requirements</small></div></li>
-            <li><span>03</span><div><b>Approved policy</b><small>Choose an override or the configured default</small></div></li>
-          </ol>
-          <div className="home-system-output"><span>Customer runtime</span><b>OpenRouter route</b></div>
+        <aside className="home-review-docket" aria-label="RouteLab evidence standard">
+          <div className="home-docket-head"><span>Decision standard</span><b>Evidence before allocation</b></div>
+          <dl>
+            <div><dt>Task group</dt><dd>Defined</dd></div>
+            <div><dt>Evaluation</dt><dd>Calibrated</dd></div>
+            <div><dt>Quality bar</dt><dd>Explicit</dd></div>
+            <div><dt>Fallback</dt><dd>Required</dd></div>
+          </dl>
+          <div className="home-docket-signoff"><span>Prepared for</span><b>Platform review</b><small>Decision remains inspectable</small></div>
+        </aside>
+        <div className="home-allocation-ledger" aria-label="RouteLab routing policy behavior">
+          <div className="home-ledger-head"><b>Routing policy behavior</b><span>What the runtime does with each request</span><small>Conservative by default</small></div>
+          <div className="home-ledger-row home-ledger-columns"><span>Request state</span><span>Evidence required</span><span>Decision</span><span>Runtime behavior</span></div>
+          <div className="home-ledger-row"><b>Known task group</b><span>Candidate clears quality, latency, and cost requirements</span><strong>Approved override</strong><em>Route to selected model</em></div>
+          <div className="home-ledger-row"><b>Unknown or low confidence</b><span>No task-specific evidence available</span><strong>General default</strong><em>Keep the conservative route</em></div>
+          <div className="home-ledger-row"><b>Applicable provider failure</b><span>Emergency behavior configured and verified</span><strong>Emergency model</strong><em>Use the separate failure route</em></div>
         </div>
       </section>
 
@@ -162,15 +169,15 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-section-head"><div><p className="eyebrow">Product evidence</p><h2>Inspect the work, the evidence, and the resulting policy.</h2></div><p>These previews use current RouteLab demo surfaces. Counts, replay results, and classifier values shown in the images are workflow examples, not customer outcome claims.</p></div>
         <article className="home-product-feature">
           <div className="home-feature-copy"><span>01 · Discover</span><h3>Define task groups and compare methods.</h3><p>RouteLab rules produce deterministic groups. The independent LLM experiment adds inclusion and exclusion criteria, representative traces, confusing counterexamples, neighboring groups, and a method comparison.</p><p>LLM grouping remains analysis-only. It does not replace the approved catalog or publish routes.</p></div>
-          <div className="home-preview-pair"><figure><img src="/marketing/task-groups.jpg" alt="RouteLab Task Groups showing deterministic rules and grouped production traces" loading="lazy" /><figcaption>Deterministic demo data · RouteLab rules</figcaption></figure><figure><img src="/marketing/compare-methods.jpg" alt="RouteLab Compare Methods showing deterministic and independent LLM group distributions" loading="lazy" /><figcaption>Saved analysis experiment · Compare Methods</figcaption></figure></div>
+          <div className="home-preview-pair"><figure><img src="/marketing/task-groups.jpg" alt="RouteLab Task Groups showing deterministic rules and grouped production traces" /><figcaption>Deterministic demo data · RouteLab rules</figcaption></figure><figure><img src="/marketing/compare-methods.jpg" alt="RouteLab Compare Methods showing deterministic and independent LLM group distributions" /><figcaption>Saved analysis experiment · Compare Methods</figcaption></figure></div>
         </article>
         <article className="home-product-feature reverse">
           <div className="home-feature-copy"><span>02 · Evaluate</span><h3>Measure candidates against application requirements.</h3><p>Routing Simulations compares observed traffic with candidate replay across quality, latency, and cost. Real live replays and deterministic demo estimates are presented as different evidence types.</p><p>Each task group can show three models to evaluate. Public benchmark priors are estimated, available customer evaluations carry more weight, and the adoption interface is not proof of quality or an established customer network.</p></div>
-          <figure className="home-preview-wide"><img src="/marketing/routing-simulations-current.jpg" alt="RouteLab Routing Simulations comparing current traffic and candidate replay" loading="lazy" /><figcaption>Deterministic demo replay · illustrative results</figcaption></figure>
+          <figure className="home-preview-wide"><img src="/marketing/routing-simulations-current.jpg" alt="RouteLab Routing Simulations comparing current traffic and candidate replay" /><figcaption>Deterministic demo replay · illustrative results</figcaption></figure>
         </article>
         <article className="home-product-feature">
           <div className="home-feature-copy"><span>03 · Deploy and review</span><h3>Version the policy, then inspect its gaps.</h3><p>Policies support explicit task overrides, a fixed model or OpenRouter Auto as the ordinary default, and a separate emergency model for applicable runtime failures. Signed versions can be deployed, reactivated, and exported.</p><p>The review queue surfaces unknowns and evidence gaps. Policy verification failures can make the runtime unavailable, so RouteLab does not promise that every failure returns a fallback completion.</p></div>
-          <div className="home-preview-pair"><figure><img src="/marketing/policy-history.jpg" alt="RouteLab policy version history with deployed and published versions" loading="lazy" /><figcaption>Current policy lifecycle · signed versions</figcaption></figure><figure><img src="/marketing/review-queue.jpg" alt="RouteLab Review Queue showing stratified review lanes and a trace selected for review" loading="lazy" /><figcaption>Bundled demo data · focused human review</figcaption></figure></div>
+          <div className="home-preview-pair"><figure><img src="/marketing/policy-history.jpg" alt="RouteLab policy version history with deployed and published versions" /><figcaption>Current policy lifecycle · signed versions</figcaption></figure><figure><img src="/marketing/review-queue.jpg" alt="RouteLab Review Queue showing stratified review lanes and a trace selected for review" /><figcaption>Bundled demo data · focused human review</figcaption></figure></div>
         </article>
       </section>
 

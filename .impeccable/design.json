@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T22:28:00Z",
+  "title": "Design System: RouteLab Model Review Dossier",
+  "extensions": {
+    "colorMeta": {
+      "archival-paper": { "role": "neutral", "displayName": "Archival Paper", "canonical": "#f3efe4", "tonalRamp": ["#fbf8f0", "#f3efe4", "#e9e1d2"] },
+      "audit-ink": { "role": "primary", "displayName": "Audit Ink", "canonical": "#111b33", "tonalRamp": ["#31405c", "#111b33", "#091022"] },
+      "structural-blue": { "role": "primary", "displayName": "Structural Blue", "canonical": "#214d86", "tonalRamp": ["#c9d6e3", "#214d86", "#15355f"] },
+      "decision-vermilion": { "role": "secondary", "displayName": "Decision Vermilion", "canonical": "#d14c31", "tonalRamp": ["#f0c3b9", "#d14c31", "#8f2f20"] },
+      "passing-green": { "role": "tertiary", "displayName": "Passing Green", "canonical": "#62d975", "tonalRamp": ["#d9f1dc", "#62d975", "#2f7840"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Editorial Judgment", "purpose": "Public promises and major decisions." },
+      "body": { "displayName": "Operational Copy", "purpose": "Controls, explanations, tables, and navigation." },
+      "label": { "displayName": "Evidence Metadata", "purpose": "Versions, IDs, measurements, and compact states." }
+    },
+    "shadows": [
+      { "name": "registered-blue", "value": "8px 8px 0 rgba(33,77,134,.12)", "purpose": "Product proof and consequential document surfaces." },
+      { "name": "registered-vermilion", "value": "8px 8px 0 rgba(209,76,49,.10)", "purpose": "Review and conversion records." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "160ms ease", "purpose": "Color, border, and one-pixel hover movement only." }
+    ],
+    "breakpoints": [
+      { "name": "stack", "value": "1050px" },
+      { "name": "mobile", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single high-confidence action on a surface.",
+      "html": "<button class=\"ds-btn-primary\">GET STARTED</button>",
+      "css": ".ds-btn-primary{background:#62d975;color:#0b2915;border:1px solid #1e6f38;border-radius:2px;padding:12px 18px;font:700 13px Inter,system-ui,sans-serif;box-shadow:3px 3px 0 #173827}.ds-btn-primary:hover{transform:translateY(-1px)}.ds-btn-primary:focus-visible{outline:3px solid #d14c31;outline-offset:3px}"
+    },
+    {
+      "name": "Decision Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A ruled paper record for evidence or policy state.",
+      "html": "<section class=\"ds-panel\"><small>QUALITY BAR</small><strong>90.0%</strong><p>Maximum latency increase +20%</p></section>",
+      "css": ".ds-panel{display:grid;gap:8px;padding:20px;border:1px solid rgba(33,77,134,.3);border-radius:2px;background:#fbf8f0;color:#111b33;box-shadow:4px 4px 0 rgba(33,77,134,.07)}.ds-panel small{font:600 12px 'DM Mono',monospace;color:#667080}.ds-panel strong{font:600 28px Newsreader,Georgia,serif}.ds-panel p{margin:0;font:400 14px Inter,system-ui,sans-serif;color:#667080}"
+    },
+    {
+      "name": "Evidence Field",
+      "kind": "input",
+      "description": "Square paper field with a structural blue rule.",
+      "html": "<input class=\"ds-field\" value=\"OpenRouter Auto Router\" aria-label=\"Default strategy\">",
+      "css": ".ds-field{width:100%;padding:11px 12px;border:1px solid rgba(33,77,134,.3);border-radius:2px;background:#fbf8f0;color:#111b33;font:500 14px Inter,system-ui,sans-serif}.ds-field:focus-visible{outline:3px solid #d14c31;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Model Review Dossier",
+    "overview": "RouteLab presents model allocation as a reviewable engineering decision. Editorial judgment and operational density share one material system of paper, ink, rules, ledgers, and decision marks.",
+    "keyCharacteristics": ["Editorial judgment with operational density", "Flat ruled paper surfaces", "Scarce decision colors", "Distinct voices for judgment, operation, and evidence"],
+    "rules": [
+      { "name": "The Scarce Signal Rule", "body": "Vermilion and green identify decisions; neither becomes decorative atmosphere.", "section": "colors" },
+      { "name": "The Three Voices Rule", "body": "Use serif for judgment, sans for operation, and mono only for evidence metadata.", "section": "typography" },
+      { "name": "The Registered Paper Rule", "body": "Offset shadows indicate a physical decision artifact; ordinary data rows remain flat.", "section": "elevation" }
+    ],
+    "dos": ["Expose evidence, decision state, and runtime behavior together.", "Use current product screenshots as factual proof.", "Keep dense operational tables horizontally scrollable."],
+    "donts": ["Do not use glows, glassmorphism, or gradient text.", "Do not turn every content group into a rounded floating card.", "Do not fabricate approval or performance outcomes."]
+  }
+}
