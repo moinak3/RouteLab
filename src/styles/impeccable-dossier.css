@@ -6,9 +6,9 @@
   --dossier-ink:#111b33;
   --dossier-blue:#214d86;
   --dossier-blue-soft:#c9d6e3;
-  --dossier-red:#d14c31;
+  --dossier-red:#a83b28;
   --dossier-green:#62d975;
-  --dossier-muted:#667080;
+  --dossier-muted:#536075;
   --dossier-rule:rgba(33,77,134,.3);
   --dossier-rule-soft:rgba(17,27,51,.15);
   --font-editorial:"Newsreader Variable",Newsreader,Georgia,serif;
@@ -184,6 +184,7 @@ body:before{
 .home-example-intro small,.home-example-calls small{color:#6b7481}
 .home-example-calls article{border-bottom-color:var(--dossier-rule-soft)}
 .home-example-calls article>span{color:var(--dossier-red)}
+.home-example-calls h4{color:var(--dossier-ink)}
 .home-problem-note,.home-stack-note{border-left-color:var(--dossier-red);color:#5f697a}
 .home-workflow-steps{border-top-color:var(--dossier-blue)}
 .home-workflow-steps li{border-bottom-color:var(--dossier-rule)}
@@ -219,7 +220,7 @@ body:before{
 .home-waitlist-status.success{border-color:#84bd8c;background:#e5f2e5;color:#2e7140}
 .home-waitlist-status.error{border-color:#d99686;background:#f4dfda;color:#9e3929}
 .home-final{border:1px solid var(--dossier-red);border-radius:0;background:rgba(251,248,240,.76);box-shadow:8px 8px 0 rgba(209,76,49,.1)}
-.home-footer{border-top:1px solid var(--dossier-blue);color:#697384}.home-footer .home-brand{color:var(--dossier-ink)}
+.home-footer{border-top:1px solid var(--dossier-blue);color:#586579}.home-footer .home-brand{color:var(--dossier-ink)}
 .home-password-layer{background:rgba(17,27,51,.68);backdrop-filter:blur(5px)}
 .home-password-dialog{border:1px solid var(--dossier-blue);border-radius:0;background:var(--dossier-sheet);box-shadow:12px 12px 0 rgba(17,27,51,.3)}
 .home-password-dialog h2{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:30px;font-weight:600}.home-password-dialog label{color:#566172}.home-password-dialog input{border-color:var(--dossier-rule);border-radius:0;background:#fff;color:var(--dossier-ink)}
@@ -247,6 +248,8 @@ body:before{
 .shell nav .nav-submenu a{border-radius:0;color:#9facbd}.shell nav .nav-submenu a.active{background:rgba(98,217,117,.08);color:#fff}
 .shell nav .nav-submenu a.active:before{background:var(--dossier-green);box-shadow:none}
 .shell>main{padding:28px 36px 64px;background:var(--dossier-paper);color:var(--dossier-ink)}
+.shell>main :is(p,span,small,label,li,dt,dd,figcaption){color:#526075}
+.shell>main :is(b,strong,summary){color:var(--dossier-ink)}
 .shell>main>header{padding-bottom:18px;border-bottom:1px solid var(--dossier-blue)}
 .shell>main>header h1{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:34px;font-weight:600;letter-spacing:-.025em}
 .shell>main :is(h1,h2,h3,h4){text-wrap:balance}
@@ -281,7 +284,7 @@ body:before{
 .shell>main .overview-routing-summary span{color:#5f6d7d}
 .shell>main .overview-route-list>div{border-color:var(--dossier-rule-soft);border-radius:1px;background:rgba(33,77,134,.035)}
 .shell>main .overview-route-list b{color:var(--dossier-ink)}
-.shell>main .overview-route-list small{color:#687386}
+.shell>main .overview-route-list small{color:#526075}
 .shell>main .overview-route-list em{color:#356047}
 .shell>main .task-signature-config{
   border-color:var(--dossier-rule);
@@ -315,6 +318,7 @@ body:before{
 }
 .shell>main button:hover,.shell>main .upload:hover{border-color:var(--dossier-blue);background:#eef2f6}
 .shell>main .primary{border-color:#1e6f38;background:var(--dossier-green);color:#0c2b16;box-shadow:2px 2px 0 #173827}
+.shell>main :is(button,select,input,textarea):disabled{background:#eee9dc;color:#536075;opacity:1}
 .shell>main .notice{border-color:#83b18d;border-radius:0;background:#e6f2e5;color:#31543b}
 .shell>main :is(table,.task-impact-table){color:var(--dossier-ink)}
 .shell>main th{border-color:var(--dossier-rule);background:rgba(33,77,134,.07);color:#56657d}
@@ -324,7 +328,91 @@ body:before{
 .shell>main :is(.comparison-head,.scenario-metric-head,.monthly-breakdown-head){border-color:var(--dossier-rule);background:rgba(33,77,134,.07);color:#5e6b7f}
 .shell>main :is(.comparison-row,.scenario-metric-row,.monthly-breakdown-row,.saving){border-color:var(--dossier-rule-soft);color:#2f3c50}
 .shell>main :is(.clusterrow b,.clusterrow strong,.comparison-row b,.comparison-row strong,.scenario-metric-row strong,.monthly-breakdown-row strong,.task-impact-table td b,.task-impact-table td strong,.policy-flow b){color:var(--dossier-ink)}
-.shell>main .status.success,.shell>main .good{color:#237641}.shell>main .status.error,.shell>main .warn{color:#b4402c}
+.shell>main :is(.status.success,.severity.none,.eval-status,.good){color:#216437}.shell>main .status.error,.shell>main .warn{color:#a23827}
+.shell>main .ghost-link{color:var(--dossier-blue)}
+.shell>main .projection :is(small,span){color:#d7e2ef}.shell>main .projection strong{color:var(--dossier-green)}
+.shell>main .prompt-cache-marker code{border:1px solid var(--dossier-rule);background:var(--dossier-ink);color:#fff}
+.home-problem-list article>span{color:var(--dossier-red)}
+.home-example-intro small,.home-example-calls small,.home-docket-signoff small,.home-waitlist-form>small{color:#586579}
+.shell>main .judge-score.unknown{background:#ece9df;color:#526075}
+.shell>main .judge-score.pass{background:#e5f2e5;color:#216437}
+.shell>main .judge-score.fail{background:#f4dfda;color:#9e3929}
+.shell>main .severity.major{background:#f7e8ca;color:#79520f}
+.shell>main .severity.critical{background:#f5dcd7;color:#8f2d24}
+.shell>main .task-signature-methods small{color:#526075}
+.shell>main .eval-history-tooltip :is(b,span,small){color:#fff}
+.shell>main .danger{color:#9e3929}
+.shell>main .classifier-validation-page :is(p,span,small){color:#526075}
+.shell>main .classifier-confusion td.correct{color:#216437}
+.shell>main .classifier-confusion td.error{color:#9e3929}
+.shell>main .review-filter-actions button.active{border-color:#4c8f5d;background:#e5f2e5;color:#173923}
+
+/* Dark interactive surfaces remain dark, with an explicit light foreground. */
+.shell>main .model-picker-menu,
+.shell>main .scope-menu,
+.shell>main .frontier-cell,
+.shell>main .frontier-harness-diff>div,
+.shell>main .frontier-progress{
+  color:#eef5f1;
+}
+.shell>main .model-picker-menu :is(h3,b,small,span,i),
+.shell>main .scope-menu :is(b,small,span),
+.shell>main .frontier-cell :is(b,strong){color:#eef5f1}
+.shell>main .model-picker-menu :is(h3,small),
+.shell>main .scope-menu .scope-menu-count,
+.shell>main .scope-menu .scope-option small,
+.shell>main .frontier-cell :is(span,small){color:#aebfb7}
+.shell>main .model-picker-group button.selected b{color:#fff}
+.shell>main .model-picker-group button{background:transparent;color:#eef5f1}
+.shell>main .model-picker-group button:hover,.shell>main .model-picker-group button:focus-visible{background:#17242d}
+.shell>main .model-picker-group button.selected{background:#17372b}
+.shell>main .scope-menu :is(button,input){border-color:rgba(255,255,255,.18);background:#111d25;color:#eef5f1}
+.shell>main .scope-option.selected{border-color:#4c8f5d;background:#17372b}
+.shell>main .scope-option em{color:#d7c7f0}
+.shell>main .task-impact-table th{color:#526075}
+.shell>main .task-impact-table thead tr:first-child th:not(:first-child){color:#526075}
+.shell>main .comparison-row em.warn,.shell>main .task-impact-table td em.warn{color:#a23827}
+.shell>main .scenario-note,.shell>main .scope-note,.shell>main .routing-policy-controls em{color:#526075}
+.shell>main .scenario-controls .scenario-note{color:#526075}
+.shell>main .policy-publish-head p:not(.eyebrow){color:#526075}
+.shell>main .projection{background-color:#10241a}
+.shell>main .trace-source-bar .eyebrow{color:#d7e2ef}
+
+/* Benchmarking retains dark run cells inside the light evidence dossier. */
+.shell>main section.frontier-intro.panel{background-color:var(--dossier-ink)}
+.shell>main .frontier-intro :is(h2,.eyebrow){color:#fff}
+.shell>main .frontier-intro p:last-child{color:#d7e2ef}
+.shell>main .frontier-case-summary b,
+.shell>main .frontier-matrix>tbody>tr>th b,
+.shell>main .frontier-summary-table td:first-child b{color:var(--dossier-ink)}
+.shell>main button.frontier-cell{background:#081117;color:#eef5f1}
+.shell>main button.frontier-cell:hover{background:#0b171d}
+.shell>main .frontier-cell.pass .frontier-cell-head b{color:#8ff0a6}
+.shell>main .frontier-cell.mixed .frontier-cell-head b{color:#f2cf75}
+.shell>main .frontier-cell.fail .frontier-cell-head b{color:#ffaaa2}
+.shell>main .frontier-summary-table td:first-child small,
+.shell>main .frontier-matrix>tbody>tr>th span,
+.shell>main .frontier-case-summary small{color:#526075}
+.shell>main .frontier-routing article :is(b,p){color:#526075}
+.shell>main .frontier-routing article strong{color:#216437}
+
+/* Recommendation evidence uses paper-safe semantic colors. */
+.shell>main .recommendations-page .recommendation-intro{color:#526075}
+.shell>main .recommendations-page .hero :is(.eyebrow,small,span){color:#d7e2ef}
+.shell>main .recommendations-page .rejected-saving{color:#216437}
+.shell>main .recommendations-page .rejected-alternative :is(span,p){color:#8f3c2b!important}
+.shell>main .recommendations-page .comparison-head :is(span,small){color:#526075}
+.shell>main .recommendations-page .strategy{color:#526075}
+
+/* Model benchmark evidence is rendered on paper, not the retired dark cards. */
+.shell>main .model-catalog-page .model-benchmarks summary span,
+.shell>main .model-catalog-page .benchmark-score b{color:var(--dossier-ink)}
+.shell>main .model-catalog-page .model-benchmarks summary strong,
+.shell>main .model-catalog-page .benchmark-score :is(span,small),
+.shell>main .model-catalog-page .model-benchmarks p,
+.shell>main .model-catalog-page .provider{color:#526075}
+.shell>main .model-catalog-page .benchmark-score strong{color:#216437}
+.shell>main .model-catalog-page .benchmark-score a{color:var(--dossier-blue)}
 .shell>main .risk.low{border-color:#84bd8c;background:#e5f2e5;color:#2e7140}.shell>main .risk.medium{border-color:#d4b56d;background:#f6edd2;color:#7a5c17}.shell>main .risk.high{border-color:#d99686;background:#f4dfda;color:#9e3929}
 .shell>main .drawer-layer{background:rgba(17,27,51,.4)}
 .shell>main .trace-drawer,.trace-drawer{background:var(--dossier-paper);color:var(--dossier-ink);box-shadow:-12px 0 0 rgba(17,27,51,.2)}
