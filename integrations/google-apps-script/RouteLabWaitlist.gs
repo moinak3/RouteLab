@@ -21,7 +21,7 @@ function doPost(event) {
     const sheet = SpreadsheetApp.openById(ROUTELAB_WAITLIST_SHEET_ID).getSheetByName(ROUTELAB_WAITLIST_SHEET_NAME);
     if (!sheet) throw new Error("Waitlist sheet not found.");
 
-    const values = [[
+    const values = [
       payload.submittedAt ? new Date(payload.submittedAt) : new Date(),
       email,
       String(payload.name || ""),
@@ -29,12 +29,9 @@ function doPost(event) {
       String(payload.useCase || ""),
       String(payload.source || "marketing"),
       new Date(),
-    ]];
-    const existing = sheet.getLastRow() > 1
-      ? sheet.getRange(2, 2, sheet.getLastRow() - 1, 1).createTextFinder(email).matchEntireCell(true).findNext()
-      : null;
-    const row = existing ? existing.getRow() : sheet.getLastRow() + 1;
-    sheet.getRange(row, 1, 1, values[0].length).setValues(values);
+    ];
+    sheet.appendRow(values);
+    const row = sheet.getLastRow();
     sheet.getRange(row, 1).setNumberFormat("yyyy-mm-dd hh:mm:ss");
     sheet.getRange(row, 7).setNumberFormat("yyyy-mm-dd hh:mm:ss");
     sheet.getRange(row, 5).setWrap(true);
