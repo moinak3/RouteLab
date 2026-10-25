@@ -458,6 +458,13 @@ body:before{
 .shell>main .drawer-layer{background:rgba(17,27,51,.4)}
 .shell>main .trace-drawer,.trace-drawer{background:var(--dossier-paper);color:var(--dossier-ink);box-shadow:-12px 0 0 rgba(17,27,51,.2)}
 .drawer-head{background:var(--dossier-ink);color:#fff}.drawer-head h2{color:#fff}.drawer-section,.drawer-facts div{border-color:var(--dossier-rule);border-radius:1px;background:var(--dossier-sheet)}
+.shell>main .eval-modal .modal-head h2,
+.shell>main .eval-modal .eval-version-list article strong,
+.shell>main .eval-modal .eval-version-list article>div>span{color:#fff}
+.shell>main .eval-modal .modal-head .eyebrow,
+.shell>main .eval-modal .eval-version-list article small,
+.shell>main .eval-modal .eval-version-list article p>span{color:#9fb3a8}
+.shell>main .eval-modal .eval-version-list article>div>b{color:#58f084}
 .drawer-section pre{border:1px solid var(--dossier-rule-soft);border-radius:0;background:#f2eee4;color:#26344b}
 
 @media(max-width:1050px){
