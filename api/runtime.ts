@@ -10,6 +10,7 @@ import {
 } from "./sidecar/_runtime.js";
 import { listRuntimeTraces, runtimeTraceFromResult, saveRuntimeTrace } from "./sidecar/_traceStore.js";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./llm-grouping/_api.js";
+import waitlistHandler from "../src/server/waitlist.js";
 
 export const maxDuration = 300;
 
@@ -89,6 +90,7 @@ export default async function handler(req: any, res: any) {
   try {
     if (action === "llm-grouping-latest") return handleLLMGroupingLatest(req, res);
     if (action === "llm-grouping-run") return handleLLMGroupingRun(req, res);
+    if (action === "waitlist") return waitlistHandler(req, res);
     if (action === "runtime-traces") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
       const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500));

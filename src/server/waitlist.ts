@@ -1,9 +1,14 @@
 import { neon } from "@neondatabase/serverless";
-import { parseWaitlistSignup } from "../src/core/waitlist.js";
-import { sendJson } from "./live/_shared.js";
+import { parseWaitlistSignup } from "../core/waitlist.js";
 
 let initializedForUrl = "";
 let initialization: Promise<unknown> | null = null;
+
+const sendJson = (res: any, status: number, payload: unknown) => {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(payload));
+};
 
 async function syncToGoogleSheet(signup: { email: string; name: string; company: string; useCase: string }) {
   const url = String(process.env.ROUTELAB_WAITLIST_SHEETS_WEBHOOK_URL ?? "").trim();
@@ -64,7 +69,7 @@ function waitlistStore(databaseUrl: string) {
   return { sql, ready: initialization };
 }
 
-export default async function handler(req: any, res: any) {
+export default async function waitlistHandler(req: any, res: any) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
 
   const parsed = parseWaitlistSignup(req.body);

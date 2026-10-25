@@ -14,7 +14,7 @@ import activateRoutingPolicy from "./api/routing-policy/activate";
 import routingPolicyBundle from "./api/routing-policy/bundle";
 import routingPolicyVersions from "./api/routing-policy/versions";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-grouping/_api";
-import waitlistHandler from "./api/waitlist";
+import waitlistHandler from "./src/server/waitlist";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
