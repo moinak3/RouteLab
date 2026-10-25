@@ -24,7 +24,7 @@ export function TaskSignatures({ traces, traceJudgeResults, serverGatewayKey }: 
   return <div className="task-signatures-page">
     <section className="task-signature-config">
       <div className="task-signature-config-head">
-        <div><p className="eyebrow">Task grouping configuration</p><h2>Choose how RouteLab creates task groups</h2><p>Every trace is processed by the selected method. Switching methods does not change deployed routing policies.</p></div>
+        <div><p className="eyebrow">Task Groups</p><h2>Choose how RouteLab creates task groups</h2><p>A task group brings together requests that are trying to achieve the same outcome, even when their wording, context, or execution differs. Every trace is processed by the selected method. Switching methods does not change deployed routing policies.</p></div>
         <div className="task-signature-generate">
           <span>{traces.length.toLocaleString()} traces ready</span>
           <button type="button" className="primary" disabled={!canGenerate} onClick={generate}>{llmRunning ? "Generating…" : "Generate Task Groups"}</button>
