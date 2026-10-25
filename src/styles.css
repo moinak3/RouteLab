@@ -238,7 +238,7 @@ nav button.active{
 }
 .pulse{background:var(--green);box-shadow:0 0 18px rgba(88,240,132,.7)}
 main{padding:24px 34px 52px;max-width:1580px}
-.shell>main{min-width:0;overflow-x:clip}
+.shell>main{min-width:0;overflow-x:auto}
 header{margin-bottom:20px}
 h1{font-size:28px;letter-spacing:-.02em;color:#fff;margin-top:4px}
 .eyebrow{color:#8da097;letter-spacing:.06em}
