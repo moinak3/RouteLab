@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { providerConfig } from "../api/live/_shared";
 import { getModel, registerOpenRouterModels } from "../src/core/catalog";
 import { liveRoutingStatus } from "../src/core/liveRouting";
-import { latestOpenRouterModels } from "../src/core/openRouterModels";
+import { latestOpenRouterModels, openRouterFamilyLabels } from "../src/core/openRouterModels";
 
 const record = (id: string, created: number, options: { outputs?: string[]; prompt?: string; completion?: string; parameters?: string[] } = {}) => ({
   id,
@@ -42,6 +42,30 @@ describe("OpenRouter model catalog", () => {
       output_cost_per_1m: 1.5,
       pricing_source_model_id: "mistralai/mistral-new",
     });
+  });
+
+  it("keeps the newest three general models for GLM, MiniMax, and NVIDIA", () => {
+    const records = [
+      ...Array.from({ length: 5 }, (_, index) => record(`z-ai/glm-${index}`, index + 10)),
+      ...Array.from({ length: 5 }, (_, index) => record(`minimax/minimax-${index}`, index + 20)),
+      ...Array.from({ length: 5 }, (_, index) => record(`nvidia/nemotron-${index}`, index + 30)),
+      record("nvidia/switchyard", 100),
+      record("nvidia/nemotron-content-safety", 99),
+      record("nvidia/nemotron-latest:free", 98),
+    ];
+
+    const models = latestOpenRouterModels(records);
+
+    expect(models.filter(model => model.family === "GLM").map(model => model.pricing_source_model_id)).toEqual([
+      "z-ai/glm-4", "z-ai/glm-3", "z-ai/glm-2",
+    ]);
+    expect(models.filter(model => model.family === "MiniMax").map(model => model.pricing_source_model_id)).toEqual([
+      "minimax/minimax-4", "minimax/minimax-3", "minimax/minimax-2",
+    ]);
+    expect(models.filter(model => model.family === "NVIDIA").map(model => model.pricing_source_model_id)).toEqual([
+      "nvidia/nemotron-4", "nvidia/nemotron-3", "nvidia/nemotron-2",
+    ]);
+    expect(openRouterFamilyLabels).toMatchObject({ GLM: "GLM", MiniMax: "MiniMax", NVIDIA: "NVIDIA" });
   });
 
   it("registers live candidates for simulation and keeps them on OpenRouter", () => {

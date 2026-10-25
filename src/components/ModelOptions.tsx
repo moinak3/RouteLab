@@ -7,8 +7,14 @@ const modelDate = (model: Model) => model.openrouter_created_at
   ? new Date(model.openrouter_created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
   : model.family === "Router" ? "dynamic per-request selection" : `${model.family_tier} · ${model.quality_tier}`;
 
+const pickerFamilies = (models: Model[]) => {
+  const present = new Set(models.map((model) => model.family));
+  const ordered = [...modelFamilies.filter((family) => family !== "Router"), ...models.map((model) => model.family), "Router" as const];
+  return [...new Set(ordered)].filter((family) => present.has(family));
+};
+
 export function ModelOptions({ models }: { models: Model[] }) {
-  return <>{modelFamilies.map(family=>{const familyModels=models.filter(model=>model.family===family);return familyModels.length?<optgroup label={openRouterFamilyLabels[family]} key={family}>{familyModels.map(model=><option value={model.id} key={model.id}>{model.display_name} · {modelDate(model)}</option>)}</optgroup>:null})}</>;
+  return <>{pickerFamilies(models).map(family=>{const familyModels=models.filter(model=>model.family===family);return familyModels.length?<optgroup label={openRouterFamilyLabels[family]} key={family}>{familyModels.map(model=><option value={model.id} key={model.id}>{model.display_name} · {modelDate(model)}</option>)}</optgroup>:null})}</>;
 }
 
 export function ModelPicker({ models, value, onChange }: { models: Model[]; value: string; onChange: (value: string) => void }) {
@@ -44,7 +50,7 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
       <i aria-hidden="true" />
     </summary>
     <div className="model-picker-menu" role="listbox" aria-label="Candidate models">
-      {modelFamilies.map((family) => {
+      {pickerFamilies(models).map((family) => {
         const familyModels = models.filter((model) => model.family === family);
         if (!familyModels.length) return null;
         return <section className="model-picker-group" key={family}>

@@ -97,7 +97,7 @@ export type Model = {
   openrouter_created_at?: string;
   enabled?: boolean;
   quality_tier: "cheap" | "balanced" | "strong" | "specialist";
-  family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local" | "Router";
+  family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "GLM" | "MiniMax" | "NVIDIA" | "Local" | "Router";
   family_tier: "top" | "mid" | "cheapest";
 };
 export type InferenceProviderQuote = {

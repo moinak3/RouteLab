@@ -7,6 +7,10 @@ type ProviderTemplate = {
 
 export const MIN_PROVIDER_QUOTES = 5;
 
+const openRouterOnly: ProviderTemplate[] = [
+  { id: "openrouter", name: "OpenRouter", costMultiplier: 1, latencyMultiplier: 1 },
+];
+
 const familyProviders: Record<Model["family"], ProviderTemplate[]> = {
   OpenAI: [
     { id: "openai-direct", name: "OpenAI Direct API", costMultiplier: 1, latencyMultiplier: .92 },
@@ -43,6 +47,9 @@ const familyProviders: Record<Model["family"], ProviderTemplate[]> = {
     { id: "fireworks-ai", name: "Fireworks AI", costMultiplier: .86, latencyMultiplier: .89 },
     { id: "deepinfra", name: "DeepInfra", costMultiplier: .82, latencyMultiplier: .97 },
   ],
+  GLM: openRouterOnly,
+  MiniMax: openRouterOnly,
+  NVIDIA: openRouterOnly,
   Local: [
     { id: "self-hosted", name: "Self-hosted cluster", costMultiplier: 1, latencyMultiplier: 1 },
     { id: "runpod", name: "RunPod", costMultiplier: 1.15, latencyMultiplier: .9 },

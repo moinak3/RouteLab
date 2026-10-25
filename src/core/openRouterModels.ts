@@ -15,7 +15,18 @@ const familyByAuthor = {
   google: "Gemini",
   mistralai: "Mistral",
   deepseek: "DeepSeek",
+  "z-ai": "GLM",
+  minimax: "MiniMax",
+  nvidia: "NVIDIA",
 } as const satisfies Record<string, Model["family"]>;
+
+const familyLimits: Partial<Record<Model["family"], number>> = {
+  GLM: 3,
+  MiniMax: 3,
+  NVIDIA: 3,
+};
+
+const excludedModelVariant = /(?:^|[-_])(batch|free|content-safety|guard|moderation|embedding|rerank|switchyard)(?:$|[-_])/i;
 
 export const openRouterFamilyLabels: Record<Model["family"], string> = {
   OpenAI: "OpenAI",
@@ -23,6 +34,9 @@ export const openRouterFamilyLabels: Record<Model["family"], string> = {
   Gemini: "Google",
   Mistral: "Mistral",
   DeepSeek: "DeepSeek",
+  GLM: "GLM",
+  MiniMax: "MiniMax",
+  NVIDIA: "NVIDIA",
   Local: "Local",
   Router: "Routing strategies",
 };
@@ -60,14 +74,15 @@ export function latestOpenRouterModels(records: OpenRouterModelRecord[], perFami
     const created = Number(record.created);
     const input = numericPrice(record.pricing?.prompt);
     const output = numericPrice(record.pricing?.completion);
-    if (!family || !slug || extra.length || slug.includes(":") || !Number.isFinite(created) || input === undefined || output === undefined || !isTextGenerationModel(record)) return;
+    if (!family || !slug || extra.length || slug.includes(":") || excludedModelVariant.test(slug) || !Number.isFinite(created) || input === undefined || output === undefined || !isTextGenerationModel(record)) return;
     selected.set(family, [...(selected.get(family) ?? []), { record, runtimeId, created, input, output }]);
   });
 
   return Object.values(familyByAuthor).flatMap((family) => {
+    const limit = Math.min(perFamily, familyLimits[family] ?? perFamily);
     const newest = (selected.get(family) ?? [])
       .sort((a, b) => b.created - a.created || a.runtimeId.localeCompare(b.runtimeId))
-      .slice(0, Math.max(0, perFamily));
+      .slice(0, Math.max(0, limit));
     const prices = newest.map((item) => item.input + item.output);
     const cheapest = prices.length ? Math.min(...prices) : 0;
     const priciest = prices.length ? Math.max(...prices) : 0;
@@ -89,7 +104,7 @@ export function latestOpenRouterModels(records: OpenRouterModelRecord[], perFami
         input_cost_per_1m: input,
         output_cost_per_1m: output,
         default_latency_ms: familyTier === "top" ? 1_300 : familyTier === "cheapest" ? 550 : 850,
-        deployment_type: family === "Mistral" || family === "DeepSeek" ? "managed_open" : "closed_managed",
+        deployment_type: family === "Mistral" || family === "DeepSeek" || family === "GLM" || family === "MiniMax" || family === "NVIDIA" ? "managed_open" : "closed_managed",
         quality_tier: qualityTier,
         pricing_source: "OpenRouter",
         pricing_source_model_id: runtimeId,
