@@ -40,7 +40,7 @@ type NavDestination = {
 };
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
-  { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Trace Library", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }] },
+  { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }] },
   { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue", "Classifier Validation"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Classifier Validation", page: "Classifier Validation" }, { label: "Review Queue", page: "Review Queue" }] },
   { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
 ];
