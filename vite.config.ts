@@ -14,6 +14,7 @@ import activateRoutingPolicy from "./api/routing-policy/activate";
 import routingPolicyBundle from "./api/routing-policy/bundle";
 import routingPolicyVersions from "./api/routing-policy/versions";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-grouping/_api";
+import waitlistHandler from "./api/waitlist";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -66,7 +67,7 @@ const toMessages = (trace: any) => Array.isArray(trace.messages) && trace.messag
 
 export default defineConfig(({ mode }) => {
   loadedEnv = loadEnv(mode, process.cwd(), "");
-  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL", "ROUTELAB_LLM_GROUPING_MODEL", "ROUTELAB_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
+  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL", "ROUTELAB_LLM_GROUPING_MODEL", "ROUTELAB_OPENROUTER_API_KEY", "OPENROUTER_API_KEY", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_URL", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_SECRET"]
     .forEach((key) => { if (!process.env[key] && loadedEnv[key]) process.env[key] = loadedEnv[key]; });
   return {
   plugins: [react(), {
@@ -201,6 +202,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use("/api/routing-policy/versions", (req, res) => runApiHandler(routingPolicyVersions, req, res));
       server.middlewares.use("/api/llm-grouping/latest", (req, res) => runApiHandler(handleLLMGroupingLatest, req, res));
       server.middlewares.use("/api/llm-grouping/run", (req, res) => runApiHandler(handleLLMGroupingRun, req, res));
+      server.middlewares.use("/api/waitlist", (req, res) => runApiHandler(waitlistHandler, req, res));
     },
   }],
   test: { environment: "node" },

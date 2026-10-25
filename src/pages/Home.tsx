@@ -126,6 +126,8 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
   const [isPasswordOpen, setIsPasswordOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [waitlistMessage, setWaitlistMessage] = useState("");
 
   function openPasswordPrompt() {
     setPassword("");
@@ -139,6 +141,35 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
     setPasswordError("Incorrect password.");
   }
 
+  async function submitWaitlist(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    setWaitlistStatus("submitting");
+    setWaitlistMessage("");
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          email: formData.get("email"),
+          company: formData.get("company"),
+          useCase: formData.get("useCase"),
+          website: formData.get("website"),
+        }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "We could not add you to the waitlist.");
+      form.reset();
+      setWaitlistStatus("success");
+      setWaitlistMessage("You're on the RouteLab waitlist. We'll be in touch when access opens.");
+    } catch (error) {
+      setWaitlistStatus("error");
+      setWaitlistMessage(error instanceof Error ? error.message : "We could not add you to the waitlist.");
+    }
+  }
+
   return (
     <main className="home-page">
       <nav className="home-nav" aria-label="Marketing navigation">
@@ -147,6 +178,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
           <a href="#problem">Problem</a>
           <a href="#why-now">Why now</a>
           <a href="#how-it-works">How it works</a>
+          <a href="#waitlist">Waitlist</a>
           <button type="button" onClick={openPasswordPrompt}>Get started</button>
         </div>
       </nav>
@@ -312,6 +344,52 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
 
       <section className="home-proof" aria-label="RouteLab trust principles">
         {proof.map((item) => <span key={item}>{item}</span>)}
+      </section>
+
+      <section className="home-waitlist" id="waitlist">
+        <div className="home-waitlist-copy">
+          <p className="eyebrow">Early access</p>
+          <h2>Join the RouteLab waitlist.</h2>
+          <p>Interested in evaluating model allocation on your own workloads? Share your details and we’ll contact you when RouteLab opens additional pilot access.</p>
+          <div className="home-waitlist-notes" aria-label="Waitlist details">
+            <span>Bring your own traces</span>
+            <span>Evaluate before routing</span>
+            <span>No production integration required</span>
+          </div>
+        </div>
+        <form className="home-waitlist-form" onSubmit={submitWaitlist}>
+          <label className="home-waitlist-field-name">
+            Name
+            <input name="name" type="text" autoComplete="name" maxLength={120} placeholder="Your name" />
+          </label>
+          <label className="home-waitlist-field-email">
+            Work email
+            <input name="email" type="email" autoComplete="email" maxLength={254} placeholder="you@company.com" required />
+          </label>
+          <label className="home-waitlist-field-company">
+            Company
+            <input name="company" type="text" autoComplete="organization" maxLength={160} placeholder="Company name" />
+          </label>
+          <label className="home-waitlist-field-use-case">
+            How would you use RouteLab?
+            <textarea
+              name="useCase"
+              maxLength={1200}
+              placeholder="Tell us what you want to evaluate or route, and what outcome you hope to improve."
+              rows={4}
+              required
+            />
+          </label>
+          <label className="home-waitlist-honeypot" aria-hidden="true">
+            Website
+            <input name="website" type="text" tabIndex={-1} autoComplete="off" />
+          </label>
+          <button type="submit" className="primary" disabled={waitlistStatus === "submitting"}>
+            {waitlistStatus === "submitting" ? "Joining…" : "Join the waitlist"}
+          </button>
+          <small>By joining, you agree that RouteLab may email you about product access. You can unsubscribe at any time.</small>
+          {waitlistMessage && <p className={`home-waitlist-status ${waitlistStatus}`} role="status" aria-live="polite">{waitlistMessage}</p>}
+        </form>
       </section>
 
       <section className="home-final">

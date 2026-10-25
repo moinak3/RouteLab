@@ -64,6 +64,7 @@
 .home-page .home-nav button,
 .home-page .home-cta-row button,
 .home-page .home-final button,
+.home-page .home-waitlist-form button,
 .home-page .home-password-dialog button[type="submit"]{
   width:auto;
   min-height:42px;
@@ -474,7 +475,7 @@
   grid-template-columns:repeat(4,minmax(0,1fr));
   gap:10px;
   margin-top:18px;
-  margin-bottom:92px;
+  margin-bottom:18px;
 }
 .home-proof span{
   padding:18px;
@@ -505,6 +506,142 @@
 }
 .home-assessment-condensed h2{
   margin:0 0 8px;
+}
+.home-waitlist{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(340px,480px);
+  gap:42px;
+  align-items:center;
+  margin-bottom:18px;
+  padding:44px;
+  border:1px solid rgba(88,240,132,.2);
+  border-radius:26px;
+  background:
+    radial-gradient(circle at 12% 12%,rgba(154,108,255,.15),transparent 36%),
+    radial-gradient(circle at 90% 20%,rgba(88,240,132,.14),transparent 32%),
+    linear-gradient(180deg,rgba(17,25,33,.88),rgba(8,13,18,.92));
+  box-shadow:0 22px 70px rgba(0,0,0,.2);
+}
+.home-waitlist-copy h2{
+  margin:8px 0 0;
+  color:#fff;
+}
+.home-waitlist-copy>p:not(.eyebrow){
+  max-width:650px;
+  margin:18px 0 0;
+  color:#a9bab2;
+  font-size:15px;
+  line-height:1.55;
+}
+.home-waitlist-notes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:24px;
+}
+.home-waitlist-notes span{
+  padding:9px 11px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:999px;
+  background:rgba(255,255,255,.035);
+  color:#c7d6ce;
+  font-size:12px;
+  font-weight:600;
+}
+.home-waitlist-form{
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  padding:24px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:22px;
+  background:rgba(3,8,12,.56);
+}
+.home-waitlist-form label{
+  display:grid;
+  gap:7px;
+  color:#9fb0a8;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.3;
+}
+.home-waitlist-field-email,
+.home-waitlist-field-use-case{
+  grid-column:1/-1;
+}
+.home-waitlist-field-email{
+  grid-row:1;
+}
+.home-waitlist-form input,
+.home-waitlist-form textarea{
+  width:100%;
+  min-height:46px;
+  padding:0 13px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:11px;
+  outline:none;
+  background:rgba(255,255,255,.055);
+  color:#fff;
+  font-size:15px;
+  font-family:var(--font-sans);
+}
+.home-waitlist-form textarea{
+  min-height:108px;
+  padding:12px 13px;
+  resize:vertical;
+  line-height:1.55;
+}
+.home-waitlist-form input::placeholder,
+.home-waitlist-form textarea::placeholder{
+  color:#71837a;
+}
+.home-waitlist-form input:focus,
+.home-waitlist-form textarea:focus{
+  border-color:rgba(88,240,132,.58);
+  box-shadow:0 0 0 3px rgba(88,240,132,.13);
+}
+.home-waitlist-form button{
+  grid-column:1/-1;
+  justify-self:start;
+  margin-top:2px;
+}
+.home-waitlist-form button:disabled{
+  cursor:wait;
+  opacity:.7;
+}
+.home-waitlist-form>small{
+  grid-column:1/-1;
+  color:#71837a;
+  font-size:12px;
+  line-height:1.45;
+}
+.home-waitlist-honeypot{
+  position:absolute!important;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+.home-waitlist-status{
+  grid-column:1/-1;
+  margin:0;
+  padding:11px 12px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  line-height:1.45;
+}
+.home-waitlist-status.success{
+  border:1px solid rgba(88,240,132,.28);
+  background:rgba(88,240,132,.1);
+  color:#c8ffb3;
+}
+.home-waitlist-status.error{
+  border:1px solid rgba(255,125,98,.3);
+  background:rgba(255,125,98,.09);
+  color:#ffb2a1;
 }
 .home-final{
   display:flex;
@@ -601,7 +738,8 @@
   .home-problem,
   .home-why,
   .home-assessment,
-  .home-icp{
+  .home-icp,
+  .home-waitlist{
     grid-template-columns:1fr;
   }
   .home-hero-copy{
@@ -624,7 +762,8 @@
   .home-why,
   .home-allocation,
   .home-assessment,
-  .home-icp{
+  .home-icp,
+  .home-waitlist{
     padding:28px;
   }
 }
@@ -646,6 +785,15 @@
   }
   .home-assessment-card>div{
     grid-template-columns:1fr;
+  }
+  .home-waitlist-form{
+    grid-template-columns:1fr;
+    padding:20px;
+  }
+  .home-waitlist-field-email,
+  .home-waitlist-field-use-case{
+    grid-column:auto;
+    grid-row:auto;
   }
   .home-steps{
     padding:58px 0;
