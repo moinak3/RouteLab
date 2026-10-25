@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { dashboardMetrics } from "./core/analysis";
+import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
@@ -30,6 +31,7 @@ const initialTraceJudgeResults = createTraceJudgeResults(initialTraces);
 const initialGoldenDatasets = [createSimulatedGoldenDataset(initialTraces, initialTraceJudgeResults)];
 const DEEPSEEK_RECOMMENDATION_SCOPE = "deepseek_family";
 const APP_PASSWORD = "Mochinder";
+const PREVIEW_SESSION_KEY = "routelab-preview-unlocked";
 
 type NavDestination = {
   label: string;
@@ -51,8 +53,17 @@ const advancedNav: NavDestination[] = [
 const allNav = [...workflowNav, ...advancedNav];
 const topLevelLabel = (page: Page) => allNav.find((item) => item.pages.includes(page))?.label ?? page;
 
+function hasPreviewAccess() {
+  try {
+    return window.sessionStorage.getItem(PREVIEW_SESSION_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
-  const [page, setPage] = useState<Page>("Home");
+  const [page, setPage] = useState<Page>(() => pageForPath(window.location.pathname) ?? "Home");
+  const [previewUnlocked, setPreviewUnlocked] = useState(hasPreviewAccess);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Quality: false });
   const [traces, setTraces] = useState<Trace[]>(initialTraces);
   const [traceJudgeResults, setTraceJudgeResults] = useState<TraceJudgeResult[]>(initialTraceJudgeResults);
@@ -78,6 +89,29 @@ export default function App() {
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
   const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
+
+  function navigateTo(nextPage: Page, options?: { replace?: boolean }) {
+    const nextPath = pathForPage(nextPage);
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (currentPath !== nextPath) {
+      window.history[options?.replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextPath);
+    }
+    setPage(nextPage);
+  }
+
+  function handlePageLink(nextPage: Page) {
+    return (event: ReactMouseEvent<HTMLAnchorElement>) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateTo(nextPage);
+    };
+  }
+
+  useEffect(() => {
+    const handlePopState = () => setPage(pageForPath(window.location.pathname) ?? "Home");
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!notice) return;
@@ -160,7 +194,7 @@ export default function App() {
       }
       setTraces(classifiedTraces);
       setTraceJudgeResults(createTraceJudgeResults(classifiedTraces));
-      setPage("Traces");
+      navigateTo("Traces");
       setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} task groups · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
       return { imported: result.traces.length, errors };
     } else {
@@ -176,7 +210,13 @@ export default function App() {
 
   function enterApp(password: string) {
     if (password === APP_PASSWORD) {
-      setPage("Overview");
+      try {
+        window.sessionStorage.setItem(PREVIEW_SESSION_KEY, "true");
+      } catch {
+        // Session storage can be unavailable in privacy-restricted browsers.
+      }
+      setPreviewUnlocked(true);
+      navigateTo(page === "Home" ? "Overview" : page, { replace: page !== "Home" });
       return true;
     }
     return false;
@@ -253,8 +293,8 @@ export default function App() {
     setNotice(`${target} selected for fine-tuned model`);
   }
 
-  if (page === "Home") {
-    return <Home onGetStarted={enterApp} />;
+  if (page === "Home" || !previewUnlocked) {
+    return <Home onGetStarted={enterApp} promptForPassword={page !== "Home"} />;
   }
 
   return <div className="shell">
@@ -273,9 +313,9 @@ export default function App() {
             <span>{item.icon}</span>{item.label}<i className="nav-caret" aria-hidden="true">{expandedNav[item.label] ? "-" : "+"}</i>
           </button>
           {expandedNav[item.label] && <div className="nav-submenu" id={`${item.label.toLowerCase()}-submenu`}>
-            {item.children.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}
+            {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
           </div>}
-        </div> : <button type="button" className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}
+        </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
         <small className="nav-group-label advanced">Advanced</small>
         {advancedNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
           <button
@@ -288,21 +328,21 @@ export default function App() {
             <span>{item.icon}</span>{item.label}<i className="nav-caret" aria-hidden="true">{expandedNav[item.label] ? "-" : "+"}</i>
           </button>
           {expandedNav[item.label] && <div className="nav-submenu" id={`${item.label.toLowerCase()}-submenu`}>
-            {item.children.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}
+            {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
           </div>}
-        </div> : <button type="button" className={item.pages.includes(page) ? "active" : ""} onClick={() => setPage(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</button>)}
+        </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
         <a className="nav-external" href="/support-console/" target="_blank" rel="noreferrer"><span>C</span>Support Console</a>
       </nav>
     </aside>
     <main>
       {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1></header> : null}
-      <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><button type="button" className={item.pages.includes(page)?"active":""} onClick={()=>setPage(item.page)} key={item.label}>{item.label}</button>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
-      {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <button type="button" className={page === child.page ? "active" : ""} onClick={() => setPage(child.page)} key={child.page}>{child.label}</button>)}</nav>}
+      <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
+      {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} />}
       {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
-      {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
+      {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); navigateTo("Review Queue"); }} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
       {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}

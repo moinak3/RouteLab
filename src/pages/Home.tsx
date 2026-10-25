@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 const heroStats = [
   { value: "Per task", label: "model decisions backed by calibrated evals" },
@@ -122,12 +122,16 @@ const proof = [
   "Gateway and model agnostic",
 ];
 
-export function Home({ onGetStarted }: { onGetStarted: (password: string) => boolean }) {
-  const [isPasswordOpen, setIsPasswordOpen] = useState(false);
+export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted: (password: string) => boolean; promptForPassword?: boolean }) {
+  const [isPasswordOpen, setIsPasswordOpen] = useState(promptForPassword);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [waitlistMessage, setWaitlistMessage] = useState("");
+
+  useEffect(() => {
+    if (promptForPassword) setIsPasswordOpen(true);
+  }, [promptForPassword]);
 
   function openPasswordPrompt() {
     setPassword("");
