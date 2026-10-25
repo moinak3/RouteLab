@@ -259,7 +259,7 @@ export default function App() {
 
   return <div className="shell">
     <aside>
-      <div className="brand"><span className="brandmark">R</span><div><b>RouteLab</b><small>Routing intelligence</small></div></div>
+      <a className="brand" href="/" aria-label="RouteLab home"><span className="brandmark">R</span><div><b>RouteLab</b><small>Routing intelligence</small></div></a>
       <nav aria-label="Primary navigation">
         <small className="nav-group-label">Workflow</small>
         {workflowNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>

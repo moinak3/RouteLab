@@ -40,6 +40,10 @@
   align-items:center;
   gap:11px;
 }
+.home-nav .home-brand{
+  color:#fff;
+  text-decoration:none;
+}
 .home-brand img{
   display:block;
   width:36px;

@@ -173,7 +173,7 @@ export function Home({ onGetStarted }: { onGetStarted: (password: string) => boo
   return (
     <main className="home-page">
       <nav className="home-nav" aria-label="Marketing navigation">
-        <div className="home-brand"><img src="/routelab-icon.svg" alt="" /><b>RouteLab</b></div>
+        <a className="home-brand" href="/" aria-label="RouteLab home"><img src="/routelab-icon.svg" alt="" /><b>RouteLab</b></a>
         <div>
           <a href="#problem">Problem</a>
           <a href="#why-now">Why now</a>
