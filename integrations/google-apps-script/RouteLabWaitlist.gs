@@ -16,7 +16,7 @@ function doPost(event) {
   if (!email) return jsonResponse({ ok: false, error: "Email is required" });
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10_000);
+  lock.waitLock(10000);
   try {
     const sheet = SpreadsheetApp.openById(ROUTELAB_WAITLIST_SHEET_ID).getSheetByName(ROUTELAB_WAITLIST_SHEET_NAME);
     if (!sheet) throw new Error("Waitlist sheet not found.");
