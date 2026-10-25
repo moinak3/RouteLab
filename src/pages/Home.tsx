@@ -106,7 +106,6 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
     <main className="home-page">
       <nav className="home-nav" aria-label="Marketing navigation">
         <a className="home-brand" href="/" aria-label="RouteLab home"><img src="/routelab-icon.svg" alt="" /><b>RouteLab</b></a>
-        <div className="home-document-meta" aria-label="Document status"><span>Model allocation brief</span><span>Private preview</span><span>Rev. 01</span></div>
         <div className="home-nav-links">
           <a href="#why-now">Why now</a><a href="#how-it-works">How it works</a><a href="#product">Product</a><a href="#stack">Stack</a><a href="#for-teams">Who it is for</a>
           <a className="home-nav-waitlist" href="#waitlist">Join waitlist</a>
