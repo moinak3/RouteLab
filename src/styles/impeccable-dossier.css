@@ -345,6 +345,36 @@ body:before{
 .shell>main .classifier-confusion td.error{color:#9e3929}
 .shell>main .review-filter-actions button.active{border-color:#4c8f5d;background:#e5f2e5;color:#173923}
 
+/* The review workspace stays dark so long-form traces remain visually contained. */
+.shell>main .review-card{
+  border-color:#42504f;
+  color:#eef5f1;
+}
+.shell>main .review-card :is(p,span,small,label,li,summary){color:#c5d3cd}
+.shell>main .review-card :is(.review-score b,.review-facts b,.review-choice b,.review-user-feedback b,.review-workflow b){color:#f7fbf9}
+.shell>main .review-card :is(.review-score small,section>small){color:#aebfb7}
+.shell>main .review-card .review-why{
+  border-color:rgba(88,240,132,.48)!important;
+  background:rgba(42,113,68,.28)!important;
+}
+.shell>main .review-card .review-why>b{color:#bdf58a}
+.shell>main .review-card .review-tags span{
+  border-color:#52615e;
+  background:#26312f;
+  color:#d5e1dc;
+}
+.shell>main .review-card .review-facts span,
+.shell>main .review-card .review-user-feedback span,
+.shell>main .review-card .review-choice span{color:#b8c7c0}
+.shell>main .review-card .review-user-feedback.thumbs_down b{color:#ffbcaa}
+.shell>main .review-card .review-user-feedback.thumbs_up b{color:#bdf58a}
+.shell>main .review-card .review-choice.approve{border-color:#43985e;background:#173f2b}
+.shell>main .review-card .review-choice.reject{border-color:#b25a49;background:#422826}
+.shell>main .review-card .review-choice.escalate{border-color:#aa8130;background:#403722}
+.shell>main .review-card .review-choice.skip{border-color:#7565a4;background:#2d2845}
+.shell>main .review-card .review-choice:hover,
+.shell>main .review-card .review-choice:focus-visible{filter:brightness(1.14);color:#fff}
+
 /* Dark interactive surfaces remain dark, with an explicit light foreground. */
 .shell>main .model-picker-menu,
 .shell>main .scope-menu,
