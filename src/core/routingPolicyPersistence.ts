@@ -95,8 +95,8 @@ export async function activateRoutingPolicy(version: number) {
   return response.json() as Promise<{ version: number; activatedAt: string }>;
 }
 
-export async function fetchSignedRoutingPolicy(version: number | "active") {
-  const response = await fetch(`/api/routing-policy/bundle?version=${encodeURIComponent(String(version))}`, { headers: { Accept: "application/json" } });
+export async function fetchSignedRoutingPolicy(version: number | "active", signal?: AbortSignal) {
+  const response = await fetch(`/api/routing-policy/bundle?version=${encodeURIComponent(String(version))}`, { headers: { Accept: "application/json" }, signal });
   const payload = await response.json().catch(() => null) as (SignedRoutingPolicyEnvelope & { error?: string }) | null;
   if (!response.ok) throw new Error(payload?.error ?? "Could not export the policy bundle.");
   if (!isSignedRoutingPolicyEnvelope(payload)) throw new Error("Policy export returned an invalid bundle.");
