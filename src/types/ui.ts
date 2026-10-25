@@ -4,7 +4,7 @@ export type Page = "Home" | "Overview" | "Traces" | "Distinct Tasks" | "Evals" |
 
 export type ReviewDecision = "approve" | "reject" | "escalate" | "skip";
 
-export type ReviewQueueFilter = "all" | "passing" | "needs_review";
+export type ReviewQueueFilter = "all" | "passing" | "needs_review" | "unknown_classifier";
 
 export type SortDirection = "asc" | "desc";
 

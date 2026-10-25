@@ -6,6 +6,7 @@ import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
 import { applyJevSignatureDecisions, classifyTraceSignaturesWithJev } from "./core/jevSignatureGate";
 import { recommendPolicy } from "./core/recommendations";
+import { mergeRuntimeTraces } from "./core/runtimeTraces";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
@@ -105,6 +106,22 @@ export default function App() {
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (page !== "Overview" && page !== "Traces" && page !== "Review Queue") return;
+    let cancelled = false;
+    fetch("/api/runtime-traces?limit=500", { cache: "no-store" })
+      .then(async response => {
+        const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
+        if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
+        return payload.traces;
+      })
+      .then(runtimeTraces => {
+        if (!cancelled && runtimeTraces.length) setTraces(current => mergeRuntimeTraces(current, runtimeTraces));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [page]);
 
   useEffect(() => {
     let cancelled = false;

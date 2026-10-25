@@ -8,6 +8,7 @@ import {
   runtimeError,
   sidecarAuthorized,
 } from "./sidecar/_runtime.js";
+import { listRuntimeTraces, runtimeTraceFromResult, saveRuntimeTrace } from "./sidecar/_traceStore.js";
 
 export const maxDuration = 150;
 
@@ -42,7 +43,11 @@ async function supportCompletion(request: any) {
   const first = await runInspectedCompletion(request);
   const message = first.payload?.openRouterResponse?.choices?.[0]?.message;
   const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
-  if (first.status !== 200 || !first.payload?.ok || !toolCalls.length) return first;
+  if (first.status !== 200 || !first.payload?.ok || !toolCalls.length) return {
+    ...first,
+    traceDecision: first.payload?.decision,
+    traceRoute: first.payload?.route,
+  };
 
   const toolExecutions = toolCalls.map(executeSupportTool);
   const toolMessages = toolCalls.map((call: any, index: number) => ({
@@ -61,6 +66,8 @@ async function supportCompletion(request: any) {
   });
   return {
     ...second,
+    traceDecision: first.payload?.decision,
+    traceRoute: first.payload?.route,
     payload: {
       ...second.payload,
       toolExecutions,
@@ -79,6 +86,12 @@ async function supportCompletion(request: any) {
 export default async function handler(req: any, res: any) {
   const action = String(req.query?.action ?? "");
   try {
+    if (action === "runtime-traces") {
+      if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
+      const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500));
+      res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+      return sendJson(res, 200, { traces, count: traces.length });
+    }
     if (action === "support-status" || action === "sidecar-status") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
       const bundle = await loadPolicyBundle();
@@ -98,21 +111,44 @@ export default async function handler(req: any, res: any) {
     }
     if (action === "sidecar-route") {
       const route = await runRoute(req.body ?? {});
+      const { decision, ...selectedRoute } = route;
+      await saveRuntimeTrace(runtimeTraceFromResult({
+        request: req.body ?? {},
+        payload: { ok: true, decision, route: selectedRoute, timing: { totalMs: decision.latencyMs } },
+        decision,
+        route: selectedRoute,
+        source: "routelab_sidecar",
+      }));
       Object.entries(routeHeaders(route)).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, 200, { route });
     }
     if (action === "sidecar-inspect") {
       const result = await runInspectedCompletion(req.body ?? {});
+      await saveRuntimeTrace(runtimeTraceFromResult({ request: req.body ?? {}, payload: result.payload, source: "routelab_sidecar" }));
       Object.entries(result.headers).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, result.status, result.payload);
     }
     if (action === "sidecar-chat") {
       const result = await runChatCompletion(req.body ?? {});
+      await saveRuntimeTrace(runtimeTraceFromResult({
+        request: req.body ?? {},
+        payload: { ok: result.status >= 200 && result.status < 300, openRouterResponse: result.payload },
+        decision: result.route.decision,
+        route: result.route,
+        source: "routelab_sidecar",
+      }));
       Object.entries(result.headers).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, result.status, result.payload);
     }
     if (action === "support-chat") {
       const result = await supportCompletion(req.body ?? {});
+      await saveRuntimeTrace(runtimeTraceFromResult({
+        request: req.body ?? {},
+        payload: result.payload,
+        decision: result.traceDecision,
+        route: result.traceRoute,
+        source: "routelab_support",
+      }));
       return sendJson(res, result.status, result.payload);
     }
     return sendJson(res, 404, { error: { message: "Unknown RouteLab runtime action.", type: "not_found" } });

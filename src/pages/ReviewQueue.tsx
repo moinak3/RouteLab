@@ -5,6 +5,7 @@ import type { ReviewDecision, ReviewQueueFilter } from "../types/ui";
 import { money, pct, preview } from "../lib/format";
 import { distinctTaskFieldColumns, distinctTaskValue } from "../components/DistinctTaskDisplay";
 import { traceUserFeedback, traceUserFeedbackLabel } from "../core/traceFeedback";
+import { isUnknownClassifierTrace } from "../core/runtimeTraces";
 
 const MAX_JUDGE_FILTER_ITEMS = 120;
 const laneLabels: Record<ReviewLane, string> = {
@@ -22,7 +23,7 @@ function judgeFilterItems(
   traces: Trace[],
   results: TraceJudgeResult[],
   buckets: DistinctTaskBucket[],
-  filter: Exclude<ReviewQueueFilter, "all">,
+  filter: "passing" | "needs_review",
 ): ReviewQueueItem[] {
   const traceById = new Map(traces.map((trace) => [trace.id, trace]));
   const bucketByTrace = new Map<string, DistinctTaskBucket>();
@@ -40,6 +41,21 @@ function judgeFilterItems(
           : "Included in this filter because the existing evaluator marked the response as needing review.",
       }] : [];
     });
+}
+
+function unknownClassifierItems(traces: Trace[], buckets: DistinctTaskBucket[]): ReviewQueueItem[] {
+  const bucketByTrace = new Map<string, DistinctTaskBucket>();
+  buckets.forEach((bucket) => bucket.traces.forEach((id) => bucketByTrace.set(id, bucket)));
+  return traces
+    .filter(isUnknownClassifierTrace)
+    .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
+    .slice(0, MAX_JUDGE_FILTER_ITEMS)
+    .map((trace) => ({
+      trace,
+      bucket: bucketByTrace.get(trace.id),
+      lane: "unusual" as const,
+      reviewReason: String(trace.signature_decision?.reason ?? trace.metadata?.classifier_reason ?? "The sidecar could not map this conversation to a published trace bucket."),
+    }));
 }
 
 export function ReviewQueue({
@@ -61,8 +77,10 @@ export function ReviewQueue({
   const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>({});
   const selection = useMemo(() => buildReviewQueue(traces, traceJudgeResults, distinctTaskBuckets, goldenDatasets), [traces, traceJudgeResults, distinctTaskBuckets, goldenDatasets]);
   const reviewItems = useMemo(() => filter === "all" ? selection.reviewItems
-    : judgeFilterItems(traces, traceJudgeResults, distinctTaskBuckets, filter),
+    : filter === "unknown_classifier" ? unknownClassifierItems(traces, distinctTaskBuckets)
+      : judgeFilterItems(traces, traceJudgeResults, distinctTaskBuckets, filter),
   [filter, selection, traces, traceJudgeResults, distinctTaskBuckets]);
+  const unknownClassifierCount = useMemo(() => traces.filter(isUnknownClassifierTrace).length, [traces]);
   useEffect(() => setIndex(0), [filter, traces]);
 
   const current = reviewItems[Math.min(index, Math.max(reviewItems.length - 1, 0))];
@@ -88,7 +106,7 @@ export function ReviewQueue({
     ["escalate", "Escalate to expert", "Needs domain review"],
     ["skip", "Skip", "Not enough context"],
   ];
-  const title = filter === "all" ? "Review sampling" : filter === "passing" ? "Passing prompts" : "Needs review prompts";
+  const title = filter === "all" ? "Review sampling" : filter === "passing" ? "Passing prompts" : filter === "unknown_classifier" ? "Unknown classifier" : "Needs review prompts";
   const laneOrder: ReviewLane[] = ["representative", "unusual", "uncovered"];
 
   return <div className="review-page">
@@ -113,19 +131,22 @@ export function ReviewQueue({
       <div className="review-top">
         <div><p className="eyebrow">Human review</p><h2>{title}</h2>
           <small>{filter === "all"
-            ? "Selected from " + traces.length.toLocaleString() + " uploaded traces. Review reasons appear on every item."
-            : "Showing " + reviewItems.length.toLocaleString() + " existing judge results. The three-lane mix applies to All."}</small>
+            ? "Selected from " + traces.length.toLocaleString() + " traces. Review reasons appear on every item."
+            : filter === "unknown_classifier"
+              ? "Showing sidecar conversations that did not map reliably to a published trace bucket."
+              : "Showing " + reviewItems.length.toLocaleString() + " existing judge results. The three-lane mix applies to All."}</small>
         </div>
         <div className="review-filter-actions" aria-label="Review queue filters">
           <button type="button" className={filter === "all" ? "active" : ""} onClick={() => onFilterChange("all")}>All</button>
           <button type="button" className={filter === "passing" ? "active" : ""} onClick={() => onFilterChange("passing")}>Passing</button>
           <button type="button" className={filter === "needs_review" ? "active" : ""} onClick={() => onFilterChange("needs_review")}>Needs review</button>
+          <button type="button" className={filter === "unknown_classifier" ? "active" : ""} onClick={() => onFilterChange("unknown_classifier")}>Unknown classifier ({unknownClassifierCount})</button>
         </div>
         <span>{reviewed}/{reviewItems.length.toLocaleString()} reviewed</span>
       </div>
       {!current ? <div className="panel review-empty"><h2>No traces match this view</h2><p>{filter === "all"
         ? "Upload traces to build the review sample."
-        : "No scored traces match this judge filter."}</p></div> : <>
+        : filter === "unknown_classifier" ? "No unknown sidecar classifications have been recorded." : "No scored traces match this judge filter."}</p></div> : <>
         <article className="review-card">
           <div className="review-score">
             <div><small>{current.judge ? "Judge score" : "Evaluation status"}</small><b>{current.judge ? pct(current.judge.score * 100) : "Not scored"}</b></div>
@@ -133,7 +154,7 @@ export function ReviewQueue({
           </div>
           <section className="review-why">
             <small>Why this trace was chosen</small>
-            <b>{filter === "all" ? laneLabels[current.lane] : "Judge filter"}</b>
+            <b>{filter === "all" ? laneLabels[current.lane] : filter === "unknown_classifier" ? "Classifier exception" : "Judge filter"}</b>
             <p>{current.reviewReason}</p>
           </section>
           <section className="review-facts">

@@ -140,7 +140,7 @@ export async function runChatCompletion(request: any) {
   const payload = await upstream.json().catch(() => ({
     error: { message: `OpenRouter returned a non-JSON response with HTTP ${upstream.status}.` },
   }));
-  return { status: upstream.status, headers: routeHeaders(route), payload };
+  return { status: upstream.status, headers: routeHeaders(route), payload, route };
 }
 
 export function runtimeError(error: unknown) {

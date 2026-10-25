@@ -56,4 +56,4 @@ The sidecar requires `routelab.policy.v2`, which includes canonical OpenRouter m
 
 ## Hosted Vercel demo
 
-RouteLab also exposes stateless demo equivalents at `/api/sidecar/status`, `/api/sidecar/route`, `/api/sidecar/inspect`, and `/api/sidecar/chat`. The routing and completion endpoints require the same bearer credential as the Docker sidecar. The hosted adapter reloads and verifies the active signed policy on demand and intentionally does not support streaming. It is a product demo, not a replacement for the customer-hosted sidecar's privacy boundary.
+RouteLab also exposes stateless demo equivalents at `/api/sidecar/status`, `/api/sidecar/route`, `/api/sidecar/inspect`, and `/api/sidecar/chat`. The routing and completion endpoints require the same bearer credential as the Docker sidecar. The hosted adapter reloads and verifies the active signed policy on demand, records each decision as a runtime trace, and intentionally does not support streaming. Unknown classifier decisions are tagged for the Review Queue. It is a product demo, not a replacement for the customer-hosted sidecar's privacy boundary.

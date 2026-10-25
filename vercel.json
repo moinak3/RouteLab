@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/runtime-traces", "destination": "/api/runtime?action=runtime-traces" },
     { "source": "/api/support/status", "destination": "/api/runtime?action=support-status" },
     { "source": "/api/support/chat", "destination": "/api/runtime?action=support-chat" },
     { "source": "/api/sidecar/status", "destination": "/api/runtime?action=sidecar-status" },
