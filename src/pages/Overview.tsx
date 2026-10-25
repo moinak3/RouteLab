@@ -7,6 +7,10 @@ import { LineChart } from "../components/LineChart";
 import { TraceTable } from "../components/TraceTable";
 import { modelCatalog } from "../core/catalog";
 import { useRoutingPolicyDraft } from "../core/useRoutingPolicyDraft";
+import { fetchPublishedPolicyHistory, fetchSignedRoutingPolicy } from "../core/routingPolicyPersistence";
+import type { PublishedPolicyHistory, RoutingPolicyBundle } from "../core/publishedRoutingPolicy";
+import { isUnknownClassifierTrace } from "../core/runtimeTraces";
+import type { Page, ReviewQueueFilter } from "../types/ui";
 
 type StatIconName = "calls" | "spend" | "tokens" | "latency" | "quality";
 
@@ -40,7 +44,13 @@ const averageLatency = (items: Trace[]) => {
   return latencies.length ? latencies.reduce((sum, value) => sum + value, 0) / latencies.length : 0;
 };
 
-export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResults, workflowCount }: { metrics: ReturnType<typeof dashboardMetrics>; distinctTaskBuckets: DistinctTaskBucket[]; traces: Trace[]; traceJudgeResults: TraceJudgeResult[]; workflowCount: number }) {
+const modelName = (id: string) => modelCatalog.find((model) => model.id === id)?.display_name ?? id;
+const policyDate = (value?: string | null) => value && Number.isFinite(Date.parse(value))
+  ? new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+  : "Not available";
+const ratio = (value: number, total: number) => total ? value / total * 100 : 0;
+
+export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResults, workflowCount, onNavigate, onReviewQueue }: { metrics: ReturnType<typeof dashboardMetrics>; distinctTaskBuckets: DistinctTaskBucket[]; traces: Trace[]; traceJudgeResults: TraceJudgeResult[]; workflowCount: number; onNavigate: (page: Page) => void; onReviewQueue: (filter: ReviewQueueFilter) => void }) {
   const [segmentType,setSegmentType]=useState<"all"|"model"|"task">("all");
   const [segmentValue,setSegmentValue]=useState("all");
   const max = Math.max(...Object.values(metrics.byModel).map((item) => item.cost));
@@ -50,9 +60,72 @@ export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResul
     return [...counts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]??modelCatalog[0]?.id??"";
   },[traces]);
   const {draftPolicy:routingPolicy,status:routingPolicyStatus}=useRoutingPolicyDraft(defaultFallbackModelId,{readOnly:true});
-  const defaultStrategyName=routingPolicy.defaultStrategyType==="openrouter_auto"?"OpenRouter Auto Router":modelCatalog.find(model=>model.id===routingPolicy.defaultModelId)?.display_name??routingPolicy.defaultModelId;
-  const emergencyFallbackName=modelCatalog.find(model=>model.id===routingPolicy.emergencyFallbackModelId)?.display_name??routingPolicy.emergencyFallbackModelId;
-  const routingOverrides=Object.values(routingPolicy.overrides);
+  const [publishedHistory,setPublishedHistory]=useState<PublishedPolicyHistory|null>(null);
+  const [activeBundle,setActiveBundle]=useState<RoutingPolicyBundle|null>(null);
+  const [publishedState,setPublishedState]=useState<"loading"|"ready"|"unavailable">("loading");
+  useEffect(()=>{
+    const controller=new AbortController();
+    let active=true;
+    const load=async()=>{
+      try {
+        const history=await fetchPublishedPolicyHistory(controller.signal);
+        if(!active)return;
+        setPublishedHistory(history);
+        if(history.activeVersion!==null){
+          const signed=await fetchSignedRoutingPolicy("active",controller.signal);
+          if(active)setActiveBundle(signed.bundle);
+        }
+        if(active)setPublishedState("ready");
+      } catch {
+        if(active&&!controller.signal.aborted)setPublishedState("unavailable");
+      }
+    };
+    void load();
+    return()=>{active=false;controller.abort()};
+  },[]);
+  const activeSummary=publishedHistory?.versions.find(version=>version.active);
+  const draftDefaultName=routingPolicy.defaultStrategyType==="openrouter_auto"?"OpenRouter Auto Router":modelName(routingPolicy.defaultModelId);
+  const activeDefaultName=activeBundle?.defaultStrategy?.type==="openrouter_auto"
+    ? `OpenRouter Auto · ${activeBundle.defaultStrategy.costTier} cost tier`
+    : activeBundle?.defaultStrategy?.type==="fixed_model"
+      ? modelName(activeBundle.defaultStrategy.target.modelId)
+      : activeSummary?.defaultStrategyLabel;
+  const defaultStrategyName=activeDefaultName??draftDefaultName;
+  const emergencyFallbackName=activeBundle?.emergencyFallback?.modelId
+    ? modelName(activeBundle.emergencyFallback.modelId)
+    : activeSummary?.emergencyFallbackModelId
+      ? modelName(activeSummary.emergencyFallbackModelId)
+      : modelName(routingPolicy.emergencyFallbackModelId);
+  const overrideIds=useMemo(()=>new Set(activeBundle?.overrides.map(override=>override.taskId)??(!activeSummary?Object.keys(routingPolicy.overrides):[])),[activeBundle,activeSummary,routingPolicy.overrides]);
+  const overrideCount=activeSummary?.overrideCount??Object.keys(routingPolicy.overrides).length;
+  const taskGroupCount=activeSummary?.signatureCount??distinctTaskBuckets.length;
+  const policyGuardrails=activeBundle?.guardrails??routingPolicy;
+  const draftUpdatedAfterDeployment=Boolean(activeSummary&&Date.parse(routingPolicy.updatedAt)>Date.parse(activeSummary.publishedAt));
+  const bucketByTrace=useMemo(()=>{
+    const result=new Map<string,string>();
+    distinctTaskBuckets.forEach(bucket=>bucket.traces.forEach(traceId=>result.set(traceId,bucket.bucket_id)));
+    return result;
+  },[distinctTaskBuckets]);
+  const coverage=useMemo(()=>traces.reduce((summary,trace)=>{
+    const fallback=trace.signature_decision?.routing_action==="fallback_model"||isUnknownClassifierTrace(trace)||trace.signature_decision?.status==="low_confidence";
+    if(fallback)summary.fallback+=1;
+    else if(overrideIds.has(trace.signature_decision?.signature_id??bucketByTrace.get(trace.id)??""))summary.override+=1;
+    else summary.default+=1;
+    return summary;
+  },{override:0,default:0,fallback:0}),[traces,bucketByTrace,overrideIds]);
+  const qualityPassing=traceJudgeResults.filter(result=>result.passed).length;
+  const qualityRate=ratio(qualityPassing,traceJudgeResults.length);
+  const spendPerThousand=metrics.totalRequests?metrics.totalCost/metrics.totalRequests*1000:0;
+  const failingCount=traceJudgeResults.length-qualityPassing;
+  const scoredTraceIds=new Set(traceJudgeResults.map(result=>result.trace_id));
+  const unscoredGroups=distinctTaskBuckets.filter(bucket=>!bucket.traces.some(traceId=>scoredTraceIds.has(traceId))).length;
+  const attentionItems=[
+    coverage.fallback?{label:`${coverage.fallback.toLocaleString()} unknown or low-confidence requests`,detail:"Inspect classifier fallbacks",action:()=>onReviewQueue("unknown_classifier")} : null,
+    failingCount?{label:`${failingCount.toLocaleString()} responses below the quality threshold`,detail:"Open needs-review queue",action:()=>onReviewQueue("needs_review")} : null,
+    unscoredGroups?{label:`${unscoredGroups.toLocaleString()} task groups have no scored traces`,detail:"Review eval coverage",action:()=>onNavigate("Evals")} : null,
+    draftUpdatedAfterDeployment?{label:"Saved draft changed after the active policy was published",detail:"Review and publish the draft",action:()=>onNavigate("Simulations")} : null,
+    !activeSummary&&publishedState==="ready"?{label:"No signed policy is deployed",detail:"Publish a routing policy",action:()=>onNavigate("Simulations")} : null,
+  ].filter((item):item is NonNullable<typeof item>=>Boolean(item));
   const segmentOptions=useMemo(()=>segmentType==="model"?[...new Set(traces.map(trace=>trace.model))].sort():segmentType==="task"?distinctTaskBuckets.map(bucket=>bucket.bucket_id):[],[segmentType,traces,distinctTaskBuckets]);
   const scopedTraces=useMemo(()=>{
     if(segmentType==="all"||segmentValue==="all") return traces;
@@ -74,9 +147,12 @@ export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResul
     });
   },[traces,traceJudgeResults,distinctTaskBuckets,segmentType,segmentValue,segmentOptions]);
   useEffect(()=>{setSegmentValue("all")},[segmentType]);
-  void workflowCount;
-  return <><section className="panel overview-routing-state"><div className="panelhead"><div><p className="eyebrow">Current routing logic</p><h2>Latest saved draft</h2><p className="impact-explainer">Read-only status from Routing Simulations. Publishing immutable policy versions is the next control-plane step.</p></div><span>Draft v{routingPolicy.version} · {routingPolicyStatus.state === "saved" ? "cloud" : routingPolicyStatus.state === "loading" ? "loading" : "browser"}</span></div><div className="overview-routing-summary"><article><small>Default strategy</small><strong>{defaultStrategyName}</strong><span>Unknown, low-confidence, and unapproved tasks</span></article><article><small>Emergency fallback</small><strong>{emergencyFallbackName}</strong><span>Classifier failure and constrained high-risk work</span></article><article><small>Task categories</small><strong>{distinctTaskBuckets.length}</strong><span>{distinctTaskBuckets.length-routingOverrides.length} on default · {routingOverrides.length} overridden</span></article><article><small>Quality bar</small><strong>{pct(routingPolicy.minimumPassRate*100)}</strong><span>Maximum latency increase +{routingPolicy.maximumLatencyIncreasePct}%</span></article></div><div className="overview-route-list"><h3>Per-task routing state</h3>{[...distinctTaskBuckets].sort((a,b)=>b.trace_count-a.trace_count).map(bucket=>{const override=routingPolicy.overrides[bucket.bucket_id];return <div key={bucket.bucket_id}><span className={`risk ${bucket.risk_level}`}>{bucket.risk_level}</span><p><b>{bucket.bucket_name}</b><small>{bucket.trace_count.toLocaleString()} traces</small></p><em>{override?`${override.modelName}${override.provider?` via ${override.provider}`:""}`:`Default · ${defaultStrategyName}`}</em></div>})}</div></section><section className="panel trend-panel"><div className="panelhead"><div><p className="eyebrow">Six-month traffic trend</p><h2>Monthly LLM usage, spend, latency and quality</h2></div><div className="trend-filters"><select aria-label="Segment charts by" value={segmentType} onChange={event=>setSegmentType(event.target.value as "all"|"model"|"task")}><option value="all">All traffic</option><option value="model">Segment by model</option><option value="task">Segment by Task Group</option></select>{segmentType!=="all"&&<select aria-label={`Select ${segmentType}`} value={segmentValue} onChange={event=>setSegmentValue(event.target.value)}><option value="all">All</option>{segmentOptions.map(option=><option value={option} key={option}>{segmentType==="task"?distinctTaskBuckets.find(bucket=>bucket.bucket_id===option)?.bucket_name:option}</option>)}</select>}</div></div><div className="trend-grid"><LineChart title="LLM calls" series={chartSeries} metric="calls" format={value=>value.toLocaleString()} icon={<span className="stat-icon calls"><StatIcon name="calls" /></span>} /><LineChart title="Spend" series={chartSeries} metric="spend" format={money} icon={<span className="stat-icon spend"><StatIcon name="spend" /></span>} /><LineChart title="Total tokens" series={chartSeries} metric="tokens" format={value=>value.toLocaleString()} icon={<span className="stat-icon tokens"><StatIcon name="tokens" /></span>} /><LineChart title="Average latency" series={chartSeries} metric="latency" format={value=>`${value.toFixed(0)}ms`} summaryValue={averageLatency(scopedTraces)} icon={<span className="stat-icon latency"><StatIcon name="latency" /></span>} /><LineChart title="Agent quality score" series={qualityChartSeries} metric="quality" format={value=>pct(value*100)} icon={<span className="stat-icon quality"><StatIcon name="quality" /></span>} /></div></section>
+  const policyStatusLabel=publishedState==="loading"?"Checking deployment":activeSummary?`Policy v${activeSummary.version} deployed`:publishedState==="ready"?"No active policy":"Deployment unavailable";
+  return <><section className="panel overview-policy-panel"><div className="overview-policy-head"><div><p className="eyebrow">Routing control plane</p><h2>{policyStatusLabel}</h2><p>{activeSummary?`Activated ${policyDate(activeSummary.activatedAt)} · expires ${policyDate(activeSummary.expiresAt)}`:"The saved draft is not production routing until a signed version is deployed."}</p></div><div><span className={`overview-policy-status ${activeSummary?"active":publishedState}`}>{activeSummary?"Active":publishedState}</span><button type="button" onClick={()=>onNavigate("Simulations")}>Open policy</button></div></div><div className="overview-policy-facts"><div><small>Default strategy</small><strong>{defaultStrategyName}</strong><span>{activeBundle?.defaultStrategy?.type==="openrouter_auto"?"Actual model selection varies by request":"Used when no approved task override applies"}</span></div><div><small>Emergency fallback</small><strong>{emergencyFallbackName}</strong><span>Separate route for applicable runtime failures</span></div><div><small>Task groups</small><strong>{taskGroupCount.toLocaleString()}</strong><span>{overrideCount.toLocaleString()} approved overrides · {Math.max(0,taskGroupCount-overrideCount).toLocaleString()} use default</span></div><div><small>Policy guardrails</small><strong>{pct(policyGuardrails.minimumPassRate*100)} quality</strong><span>Maximum latency increase +{policyGuardrails.maximumLatencyIncreasePct}%</span></div></div><div className={`overview-draft-state ${draftUpdatedAfterDeployment?"changed":""}`}><span>Saved draft v{routingPolicy.version} · {routingPolicyStatus.state==="saved"?"cloud":routingPolicyStatus.state}</span><small>{draftUpdatedAfterDeployment?"Updated after the active policy was published":"No newer draft change detected"}</small></div></section>
+    <section className="overview-kpis" aria-label="Observed routing metrics"><article className="panel"><span className="stat-icon calls"><StatIcon name="calls" /></span><small>Observed requests</small><strong>{metrics.totalRequests.toLocaleString()}</strong><p>{workflowCount.toLocaleString()} workflow trees in the loaded traffic</p></article><article className="panel"><span className="stat-icon quality"><StatIcon name="quality" /></span><small>Quality pass rate</small><strong>{traceJudgeResults.length?pct(qualityRate):"No scores"}</strong><p>{traceJudgeResults.length.toLocaleString()} scored traces · target {pct(policyGuardrails.minimumPassRate*100)}</p></article><article className="panel"><span className="stat-icon latency"><StatIcon name="latency" /></span><small>P95 latency</small><strong>{metrics.p95Latency.toFixed(0)}ms</strong><p>Average {metrics.averageLatency.toFixed(0)}ms across loaded traces</p></article><article className="panel"><span className="stat-icon spend"><StatIcon name="spend" /></span><small>Spend per 1,000 calls</small><strong>{money(spendPerThousand)}</strong><p>{money(metrics.totalCost)} total observed spend</p></article></section>
+    <section className="grid two overview-decision-grid"><article className="panel overview-coverage"><div className="panelhead"><div><p className="eyebrow">Observed routing coverage</p><h2>Where loaded traffic would route</h2></div><button type="button" onClick={()=>onNavigate("Distinct Tasks")}>View task groups</button></div><div className="overview-coverage-bar" aria-label={`${coverage.override} override, ${coverage.default} default, ${coverage.fallback} fallback requests`}><i className="override" style={{width:`${ratio(coverage.override,traces.length)}%`}}/><i className="default" style={{width:`${ratio(coverage.default,traces.length)}%`}}/><i className="fallback" style={{width:`${ratio(coverage.fallback,traces.length)}%`}}/></div><div className="overview-coverage-legend"><div><i className="override"/><span>Approved override</span><strong>{coverage.override.toLocaleString()} · {pct(ratio(coverage.override,traces.length))}</strong></div><div><i className="default"/><span>Configured default</span><strong>{coverage.default.toLocaleString()} · {pct(ratio(coverage.default,traces.length))}</strong></div><div><i className="fallback"/><span>Unknown or low confidence</span><strong>{coverage.fallback.toLocaleString()} · {pct(ratio(coverage.fallback,traces.length))}</strong></div></div><p className="overview-data-note">Coverage uses the loaded trace set and the {activeSummary?"active policy":"saved draft"}. It is not measured classifier accuracy.</p></article><article className="panel overview-attention"><div className="panelhead"><div><p className="eyebrow">Needs attention</p><h2>{attentionItems.length?`${attentionItems.length} follow-ups`:"No immediate follow-ups"}</h2></div><button type="button" onClick={()=>onReviewQueue("all")}>Open review queue</button></div>{attentionItems.length?<div>{attentionItems.slice(0,4).map(item=><button type="button" onClick={item.action} key={item.label}><span>{item.label}</span><small>{item.detail}</small><b aria-hidden="true">›</b></button>)}</div>:<p className="overview-attention-empty">The loaded evidence has no unknown classifications, quality failures, unscored groups, or unpublished draft changes.</p>}</article></section>
+    <section className="panel trend-panel"><div className="panelhead"><div><p className="eyebrow">Six-month traffic trend</p><h2>Monthly LLM usage, spend, latency and quality</h2></div><div className="trend-filters"><select aria-label="Segment charts by" value={segmentType} onChange={event=>setSegmentType(event.target.value as "all"|"model"|"task")}><option value="all">All traffic</option><option value="model">Segment by model</option><option value="task">Segment by Task Group</option></select>{segmentType!=="all"&&<select aria-label={`Select ${segmentType}`} value={segmentValue} onChange={event=>setSegmentValue(event.target.value)}><option value="all">All</option>{segmentOptions.map(option=><option value={option} key={option}>{segmentType==="task"?distinctTaskBuckets.find(bucket=>bucket.bucket_id===option)?.bucket_name:option}</option>)}</select>}</div></div><div className="trend-grid"><LineChart title="LLM calls" series={chartSeries} metric="calls" format={value=>value.toLocaleString()} icon={<span className="stat-icon calls"><StatIcon name="calls" /></span>} /><LineChart title="Spend" series={chartSeries} metric="spend" format={money} icon={<span className="stat-icon spend"><StatIcon name="spend" /></span>} /><LineChart title="Total tokens" series={chartSeries} metric="tokens" format={value=>value.toLocaleString()} icon={<span className="stat-icon tokens"><StatIcon name="tokens" /></span>} /><LineChart title="Average latency" series={chartSeries} metric="latency" format={value=>`${value.toFixed(0)}ms`} summaryValue={averageLatency(scopedTraces)} icon={<span className="stat-icon latency"><StatIcon name="latency" /></span>} /><LineChart title="Agent quality score" series={qualityChartSeries} metric="quality" format={value=>pct(value*100)} icon={<span className="stat-icon quality"><StatIcon name="quality" /></span>} /></div></section>
     <section className="grid two"><article className="panel"><div className="panelhead"><div><p className="eyebrow">Spend analysis</p><h2>Cost by model</h2></div><span>Current traffic</span></div><div className="bars">{Object.entries(metrics.byModel).sort((a,b)=>b[1].cost-a[1].cost).map(([model, item]) => <div className="barrow" key={model}><div><b>{model}</b><span>{money(item.cost)}</span></div><div className="bar"><i style={{ width: `${item.cost / max * 100}%` }} /></div></div>)}</div></article>
-    <article className="panel"><div className="panelhead"><div><p className="eyebrow">Workload map</p><h2>Top Task Groups</h2></div><span>{distinctTaskBuckets.length} tasks</span></div>{[...distinctTaskBuckets].sort((a,b)=>b.total_cost_usd-a.total_cost_usd).slice(0,8).map((bucket) => {const override=routingPolicy.overrides[bucket.bucket_id];return <div className="clusterrow" key={bucket.bucket_id}><span className={`risk ${bucket.risk_level}`}>{bucket.risk_level}</span><div><b>{bucket.bucket_name}</b><small>{bucket.trace_count.toLocaleString()} traces · {override?`override: ${override.modelName}`:`default: ${defaultStrategyName}`}</small></div><strong>{money(bucket.total_cost_usd)}</strong></div>})}</article></section>
+    <article className="panel"><div className="panelhead"><div><p className="eyebrow">Workload map</p><h2>Top Task Groups</h2></div><button type="button" onClick={()=>onNavigate("Distinct Tasks")}>View all {distinctTaskBuckets.length}</button></div>{[...distinctTaskBuckets].sort((a,b)=>b.total_cost_usd-a.total_cost_usd).slice(0,5).map((bucket) => {const override=activeBundle?.overrides.find(item=>item.taskId===bucket.bucket_id)??routingPolicy.overrides[bucket.bucket_id];return <div className="clusterrow" key={bucket.bucket_id}><span className={`risk ${bucket.risk_level}`}>{bucket.risk_level}</span><div><b>{bucket.bucket_name}</b><small>{bucket.trace_count.toLocaleString()} traces · {override?`approved override: ${modelName(override.modelId)}`:`default: ${defaultStrategyName}`}</small></div><strong>{money(bucket.total_cost_usd)}</strong></div>})}</article></section>
     <section className="panel"><div className="panelhead"><div><p className="eyebrow">Cost outliers</p><h2>Most expensive traces</h2></div></div><TraceTable traces={[...traces].sort((a,b)=>(b.cost_usd??0)-(a.cost_usd??0)).slice(0,5)} /></section></>;
 }
