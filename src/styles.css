@@ -194,13 +194,14 @@ body:before{
   mask-image:linear-gradient(to bottom,rgba(0,0,0,.7),transparent 82%);
 }
 .shell{grid-template-columns:248px 1fr;background:transparent}
-aside{
+.shell>aside{
   width:248px;
   background:linear-gradient(180deg,rgba(8,14,18,.96),rgba(3,7,10,.96));
   border-right:1px solid var(--line);
   color:var(--text);
   padding:22px 16px;
   box-shadow:18px 0 48px rgba(0,0,0,.25);
+  z-index:30;
 }
 .brand{padding:0 6px 26px;align-items:flex-start}
 .brandmark{
@@ -237,7 +238,7 @@ nav button.active{
 }
 .pulse{background:var(--green);box-shadow:0 0 18px rgba(88,240,132,.7)}
 main{padding:24px 34px 52px;max-width:1580px}
-main{min-width:0}
+.shell>main{min-width:0;overflow-x:clip}
 header{margin-bottom:20px}
 h1{font-size:28px;letter-spacing:-.02em;color:#fff;margin-top:4px}
 .eyebrow{color:#8da097;letter-spacing:.06em}
