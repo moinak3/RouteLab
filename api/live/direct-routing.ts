@@ -50,6 +50,8 @@ export default async function handler(req: any, res: any) {
           trace_id: String(trace.id ?? ""),
           response_text: String(payload.choices?.[0]?.message?.content ?? ""),
           output_tokens: Number(payload.usage?.completion_tokens ?? 0) || undefined,
+          selected_model: String(payload.model ?? config.modelName),
+          cost_usd: Number(payload.usage?.cost ?? payload.usage?.cost_details?.upstream_inference_cost ?? NaN),
           latency_ms: Date.now() - started,
           status: "success",
         });

@@ -20,7 +20,7 @@ const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek)\/[
 export const providerConfig = (source: string, modelId: string, openRouterModelId?: string) => {
   if (source === "openrouter") {
     const runtimeModelId = String(openRouterModelId ?? "").trim();
-    if (runtimeModelId && !dynamicOpenRouterModel.test(runtimeModelId)) throw new Error("Unsupported OpenRouter candidate model.");
+    if (runtimeModelId && runtimeModelId !== "openrouter/auto" && !dynamicOpenRouterModel.test(runtimeModelId)) throw new Error("Unsupported OpenRouter candidate model.");
     const model = getModel(modelId);
     if (!runtimeModelId && !model) throw new Error("Unknown candidate model.");
     return {

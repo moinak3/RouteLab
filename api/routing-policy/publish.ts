@@ -51,8 +51,12 @@ export default async function handler(req: any, res: any) {
     }
     if (!signatures.every(isPublishedTaskSignature)) return sendJson(res, 400, { error: "The task signature catalog is invalid." });
     const errors = validatePublishableDraft(current.draft, signatures);
-    const fallbackOpenRouterModelId = openRouterModelId(current.draft.fallbackModelId, current.draft.fallbackOpenRouterModelId);
-    if (!fallbackOpenRouterModelId) errors.push("The fallback model does not have an OpenRouter runtime target.");
+    const defaultOpenRouterModelId = current.draft.defaultStrategyType === "fixed_model"
+      ? openRouterModelId(current.draft.defaultModelId, current.draft.defaultOpenRouterModelId)
+      : "openrouter/auto";
+    const emergencyOpenRouterModelId = openRouterModelId(current.draft.emergencyFallbackModelId, current.draft.emergencyFallbackOpenRouterModelId);
+    if (!defaultOpenRouterModelId) errors.push("The fixed default model does not have an OpenRouter runtime target.");
+    if (!emergencyOpenRouterModelId) errors.push("The emergency fallback model does not have an OpenRouter runtime target.");
     for (const override of Object.values(current.draft.overrides)) {
       if (!openRouterModelId(override.modelId, override.openRouterModelId)) errors.push(`${override.taskName} does not have an OpenRouter runtime target.`);
     }
@@ -76,7 +80,10 @@ export default async function handler(req: any, res: any) {
         unknownSignatureId: "unknown",
         riskThresholds: JEV_RISK_THRESHOLDS,
       },
-      fallback: { modelId: current.draft.fallbackModelId, openRouterModelId: fallbackOpenRouterModelId },
+      defaultStrategy: current.draft.defaultStrategyType === "openrouter_auto"
+        ? { type: "openrouter_auto", openRouterModelId: "openrouter/auto", costTier: current.draft.autoRouterCostTier }
+        : { type: "fixed_model", target: { modelId: current.draft.defaultModelId, openRouterModelId: defaultOpenRouterModelId } },
+      emergencyFallback: { modelId: current.draft.emergencyFallbackModelId, openRouterModelId: emergencyOpenRouterModelId },
       guardrails: {
         minimumPassRate: current.draft.minimumPassRate,
         maximumLatencyIncreasePct: current.draft.maximumLatencyIncreasePct,

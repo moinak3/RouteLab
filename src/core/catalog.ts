@@ -18,6 +18,22 @@ export const modelCatalog: Model[] = [
   { id: "local-qwen-14b", provider: "local", family: "Local", family_tier: "cheapest", display_name: "Local Qwen 14B", input_cost_per_1m: 0, output_cost_per_1m: 0, default_latency_ms: 420, deployment_type: "local", quality_tier: "cheap", pricing_source: "User configured" },
 ];
 
+export const OPENROUTER_AUTO_MODEL: Model = {
+  id: "openrouter-auto",
+  provider: "openrouter",
+  family: "Router",
+  family_tier: "mid",
+  display_name: "OpenRouter Auto Router",
+  input_cost_per_1m: 0,
+  output_cost_per_1m: 0,
+  default_latency_ms: 0,
+  deployment_type: "dynamic_router",
+  quality_tier: "balanced",
+  pricing_source: "OpenRouter",
+  pricing_source_model_id: "openrouter/auto",
+  pricing_updated_at: "2026-10-25",
+};
+
 let registeredOpenRouterModels: Model[] = [];
 
 export const getModel = (id: string, catalog?: Model[]) => (catalog ?? modelCatalog).find((model) => model.id === id)
@@ -43,7 +59,7 @@ export function updateModelEnabled(id: string, enabled: boolean) {
 export function updateFamilyEnabled(family: Model["family"], enabled: boolean) {
   modelCatalog.filter((model) => model.family === family).forEach((model) => { model.enabled = enabled; });
 }
-export const modelFamilies = Array.from(new Set(modelCatalog.map((model) => model.family)));
+export const modelFamilies = Array.from(new Set([...modelCatalog.map((model) => model.family), OPENROUTER_AUTO_MODEL.family]));
 export const recommendationCandidates = modelCatalog;
 export const calculateCost = (input: number, output: number, model: Model) =>
   input * model.input_cost_per_1m / 1_000_000 + output * model.output_cost_per_1m / 1_000_000;

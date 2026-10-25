@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import type { DraftRoutingPolicy } from "../../src/core/routingDraft.js";
+import { normalizeDraftRoutingPolicy, type DraftRoutingPolicy } from "../../src/core/routingDraft.js";
 import type { PublishedPolicyHistory, SignedRoutingPolicyEnvelope } from "../../src/core/publishedRoutingPolicy.js";
 
 export type StoredRoutingPolicyDraft = {
@@ -61,7 +61,7 @@ function store(databaseUrl: string) {
 
 function envelope(row?: { policy: DraftRoutingPolicy; revision: number; updated_at: string | Date }): StoredRoutingPolicyDraft {
   return row
-    ? { draft: row.policy, revision: Number(row.revision), updatedAt: new Date(row.updated_at).toISOString() }
+    ? { draft: normalizeDraftRoutingPolicy(row.policy, (row.policy as DraftRoutingPolicy & { fallbackModelId?: string }).fallbackModelId ?? ""), revision: Number(row.revision), updatedAt: new Date(row.updated_at).toISOString() }
     : { draft: null, revision: 0, updatedAt: null };
 }
 
@@ -163,13 +163,20 @@ export async function getPublishedRoutingPolicyHistory(databaseUrl: string, work
     activeVersion,
     versions: versions.map((row) => {
       const signed = row.envelope as SignedRoutingPolicyEnvelope;
+      const defaultStrategyLabel = signed.bundle.defaultStrategy?.type === "openrouter_auto"
+        ? "OpenRouter Auto Router"
+        : signed.bundle.defaultStrategy?.type === "fixed_model"
+          ? signed.bundle.defaultStrategy.target.modelId
+          : signed.bundle.fallback?.modelId ?? "Unknown";
+      const emergencyFallbackModelId = signed.bundle.emergencyFallback?.modelId ?? signed.bundle.fallback?.modelId ?? "Unknown";
       return {
         policyId: signed.bundle.policyId,
         version: signed.bundle.version,
         publishedAt: new Date(row.published_at as string | Date).toISOString(),
         activatedAt: activeVersion === signed.bundle.version ? activatedAt : null,
         active: activeVersion === signed.bundle.version,
-        fallbackModelId: signed.bundle.fallback.modelId,
+        defaultStrategyLabel,
+        emergencyFallbackModelId,
         overrideCount: signed.bundle.overrides.length,
         signatureCount: signed.bundle.signatures.length,
         expiresAt: signed.bundle.expiresAt,

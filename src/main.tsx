@@ -6,5 +6,6 @@ import "@fontsource/dm-mono/500.css";
 import App from "./App";
 import "./styles.css";
 import "./styles/frontier-lab.css";
+import "./styles/classifier-validation.css";
 import "./styles/typography.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);

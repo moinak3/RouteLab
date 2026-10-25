@@ -53,9 +53,16 @@ describe("benchmark priors", () => {
   it("returns suggested candidate models with separate model confidence", () => {
     const task = base({ task_type: "customer_support_responses", domain: "billing", tool_use: "success", grounding_requirement: "policy_grounded" });
     const candidates = recommendCandidateModels(task);
-    expect(candidates).toHaveLength(5);
+    expect(candidates).toHaveLength(3);
     expect(candidates[0].candidate_score).toBeGreaterThan(0);
     expect(candidates[0].confidence).toBeGreaterThanOrEqual(1);
-    expect(candidates[0].rationale).toContain("Suggested candidate");
+    expect(candidates[0].rationale).toContain("Public benchmark relevance");
+    expect(candidates[0].why_match.length).toBeGreaterThan(20);
+  });
+  it("weights sufficient customer evaluation evidence above public priors", () => {
+    const task = base({ task_type: "customer_support_responses", domain: "billing", tool_use: "success", grounding_requirement: "policy_grounded" });
+    const candidates = recommendCandidateModels(task, { customerEvaluations: [{ model_id: "gpt-5.4", sample_size: 12, pass_rate: .98, average_score: .97, evaluated_at: "2026-10-25" }] });
+    expect(candidates[0].model_id).toBe("gpt-5.4");
+    expect(candidates[0].rationale).toContain("Customer evaluation evidence carries most");
   });
 });

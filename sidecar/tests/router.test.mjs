@@ -9,7 +9,7 @@ import {
 } from "../src/router.mjs";
 
 const bundle = {
-  schemaVersion: "routelab.policy.v2",
+  schemaVersion: "routelab.policy.v3",
   workspaceId: "workspace_test",
   policyId: "policy_test",
   version: 4,
@@ -23,7 +23,8 @@ const bundle = {
     unknownSignatureId: "unknown",
     riskThresholds: { low: .8, medium: .86, high: .92 },
   },
-  fallback: { modelId: "gpt-5.5-pro", openRouterModelId: "openai/gpt-5.5-pro" },
+  defaultStrategy: { type: "fixed_model", target: { modelId: "gpt-5.5-pro", openRouterModelId: "openai/gpt-5.5-pro" } },
+  emergencyFallback: { modelId: "claude-opus-4.8", openRouterModelId: "anthropic/claude-opus-4.8" },
   guardrails: { minimumPassRate: .9, maximumLatencyIncreasePct: 20, minimumReplayCount: 3 },
   signatures: [{
     id: "billing_dispute",
@@ -99,7 +100,7 @@ describe("RouteLab sidecar routing", () => {
     expect(classifierBody.state.available_tools[0].name).toBe("lookup_invoice");
   });
 
-  it("uses the signed fallback when confidence is below the bucket risk threshold", async () => {
+  it("uses the configured default strategy when confidence is below the bucket risk threshold", async () => {
     const decision = await classifyConversation({
       request,
       bundle,
@@ -107,13 +108,19 @@ describe("RouteLab sidecar routing", () => {
       fetchImpl: vi.fn().mockResolvedValue(decisionResponse("billing_dispute", .84)),
     });
     expect(decision.status).toBe("low_confidence");
-    expect(selectRoute(bundle, decision)).toMatchObject({ source: "fallback", openRouterModelId: "openai/gpt-5.5-pro" });
+    expect(selectRoute(bundle, decision)).toMatchObject({ source: "default_strategy", openRouterModelId: "openai/gpt-5.5-pro" });
   });
 
-  it("uses the fallback if classification is unavailable", async () => {
+  it("uses the emergency fallback if classification is unavailable", async () => {
     const route = await routeConversation({ request, bundle, apiKey: "" });
-    expect(route.source).toBe("fallback");
+    expect(route).toMatchObject({ source: "emergency_fallback", openRouterModelId: "anthropic/claude-opus-4.8" });
     expect(route.decision.status).toBe("provider_unavailable");
+  });
+
+  it("uses OpenRouter Auto Router for uncovered tasks when configured as the default", () => {
+    const autoBundle = { ...bundle, defaultStrategy: { type: "openrouter_auto", openRouterModelId: "openrouter/auto", costTier: "medium" } };
+    const route = selectRoute(autoBundle, { signatureId: "unknown", signatureLabel: "Unknown", status: "unknown", reason: "unknown" });
+    expect(route).toMatchObject({ source: "default_strategy", openRouterModelId: "openrouter/auto" });
   });
 
   it("overrides the requested model in enforce mode and preserves it in shadow mode", () => {

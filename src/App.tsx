@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { dashboardMetrics } from "./core/analysis";
-import { enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
+import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
@@ -10,6 +10,7 @@ import { mergeRuntimeTraces } from "./core/runtimeTraces";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { DistinctTasks } from "./pages/DistinctTasks";
+import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
 import { FrontierModelLab } from "./pages/FrontierModelLab";
@@ -40,7 +41,7 @@ type NavDestination = {
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Trace Library", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }] },
-  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }] },
+  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue", "Classifier Validation"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Classifier Validation", page: "Classifier Validation" }, { label: "Review Queue", page: "Review Queue" }] },
   { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
 ];
 const advancedNav: NavDestination[] = [
@@ -71,7 +72,7 @@ export default function App() {
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
-  const simulationModels = openRouterModels ?? activeModels;
+  const simulationModels = useMemo(() => [...(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id), OPENROUTER_AUTO_MODEL], [openRouterModels, activeModels]);
   const simulationModelIds = useMemo(() => simulationModels.map((model) => model.id), [simulationModels]);
   const distinctTaskBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
   const metrics = useMemo(() => dashboardMetrics(traces), [traces]);
@@ -133,7 +134,7 @@ export default function App() {
       })
       .then(models => {
         if (cancelled) return;
-        registerOpenRouterModels(models);
+        registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...models]);
         setOpenRouterModels(models);
       })
       .catch(() => undefined);
@@ -324,10 +325,11 @@ export default function App() {
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
-      {page === "Distinct Tasks" && <DistinctTasks traces={traces} />}
+      {page === "Distinct Tasks" && <DistinctTasks traces={traces} traceJudgeResults={traceJudgeResults} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
+      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}
       {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}

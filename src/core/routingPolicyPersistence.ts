@@ -1,5 +1,5 @@
 import type { DraftRoutingPolicy, RoutingPolicyDraftEnvelope } from "./routingDraft";
-import { isDraftRoutingPolicy } from "./routingDraft";
+import { isDraftRoutingPolicy, normalizeDraftRoutingPolicy } from "./routingDraft";
 import {
   isPublishedPolicyHistory,
   isSignedRoutingPolicyEnvelope,
@@ -27,7 +27,10 @@ function validEnvelope(value: unknown): value is RoutingPolicyDraftEnvelope {
 }
 
 async function parseEnvelope(response: Response): Promise<RoutingPolicyDraftEnvelope> {
-  const payload = await response.json().catch(() => null) as unknown;
+  const raw = await response.json().catch(() => null) as any;
+  const payload = raw?.draft && !isDraftRoutingPolicy(raw.draft)
+    ? { ...raw, draft: normalizeDraftRoutingPolicy(raw.draft, raw.draft.fallbackModelId ?? "") }
+    : raw;
   if (!validEnvelope(payload)) throw new Error("Policy storage returned an invalid response.");
   return payload;
 }

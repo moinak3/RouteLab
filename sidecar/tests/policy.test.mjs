@@ -8,14 +8,15 @@ async function signedEnvelope(overrides = {}) {
   const keyPair = await subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const publicKey = Buffer.from(await subtle.exportKey("spki", keyPair.publicKey)).toString("base64");
   const bundle = {
-    schemaVersion: "routelab.policy.v2",
+    schemaVersion: "routelab.policy.v3",
     workspaceId: "workspace_test",
     policyId: "policy_test",
     version: 1,
     issuedAt: "2026-10-24T00:00:00.000Z",
     expiresAt: "2027-01-24T00:00:00.000Z",
     classifier: { provider: "openrouter", model: "typesafe/jev-1.14", endpoint: "https://openrouter.ai/api/alpha/decisions", timeoutMs: 1_500, unknownSignatureId: "unknown", riskThresholds: { low: .8, medium: .86, high: .92 } },
-    fallback: { modelId: "gpt-5.5-pro", openRouterModelId: "openai/gpt-5.5-pro" },
+    defaultStrategy: { type: "openrouter_auto", openRouterModelId: "openrouter/auto", costTier: "medium" },
+    emergencyFallback: { modelId: "gpt-5.5-pro", openRouterModelId: "openai/gpt-5.5-pro" },
     guardrails: { minimumPassRate: .9, maximumLatencyIncreasePct: 20, minimumReplayCount: 3 },
     signatures: [{ id: "billing", label: "Billing", description: "Billing requests", riskLevel: "medium" }],
     overrides: [],
@@ -34,7 +35,7 @@ describe("RouteLab sidecar policy verification", () => {
   it("rejects tampering, an unexpected key, and expired policies", async () => {
     const { envelope, publicKey } = await signedEnvelope();
     const tampered = structuredClone(envelope);
-    tampered.bundle.fallback.openRouterModelId = "attacker/model";
+    tampered.bundle.emergencyFallback.openRouterModelId = "attacker/model";
     await expect(verifyPolicyEnvelope(tampered, publicKey, Date.parse("2026-10-25T00:00:00.000Z"))).rejects.toThrow("signature is invalid");
     await expect(verifyPolicyEnvelope(envelope, Buffer.from("wrong-key").toString("base64"), Date.parse("2026-10-25T00:00:00.000Z"))).rejects.toThrow("unexpected key");
     await expect(verifyPolicyEnvelope(envelope, publicKey, Date.parse("2027-01-25T00:00:00.000Z"))).rejects.toThrow("expired");

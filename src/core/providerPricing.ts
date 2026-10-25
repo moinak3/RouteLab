@@ -50,6 +50,9 @@ const familyProviders: Record<Model["family"], ProviderTemplate[]> = {
     { id: "replicate", name: "Replicate", costMultiplier: 1.35, latencyMultiplier: 1.08 },
     { id: "together-dedicated", name: "Together Dedicated", costMultiplier: 1.1, latencyMultiplier: .93 },
   ],
+  Router: [
+    { id: "openrouter", name: "OpenRouter", costMultiplier: 1, latencyMultiplier: 1 },
+  ],
 };
 
 const roundPrice = (value: number) => Number(value.toFixed(6));

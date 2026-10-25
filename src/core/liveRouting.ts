@@ -20,6 +20,8 @@ export type LiveRunResponse = {
     trace_id: string;
     response_text: string;
     output_tokens?: number;
+    selected_model?: string;
+    cost_usd?: number;
     latency_ms: number;
     status: "success" | "error";
     error?: string;
@@ -89,8 +91,9 @@ export async function runLiveDirectRouting(traces: Trace[], candidateId: string,
         input_tokens: trace?.input_tokens ?? 0,
         output_tokens: outputTokens,
         latency_ms: run.latency_ms,
-        cost_usd: calculateCost(trace?.input_tokens ?? 0, outputTokens, model),
+        cost_usd: Number.isFinite(run.cost_usd) ? run.cost_usd! : calculateCost(trace?.input_tokens ?? 0, outputTokens, model),
         status: run.status,
+        selected_model: run.selected_model,
       };
     }),
   };

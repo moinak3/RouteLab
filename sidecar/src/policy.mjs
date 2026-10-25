@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 
 const subtle = globalThis.crypto?.subtle ?? webcrypto.subtle;
-const supportedSchemas = new Set(["routelab.policy.v2"]);
+const supportedSchemas = new Set(["routelab.policy.v1", "routelab.policy.v2", "routelab.policy.v3"]);
 
 export function stableStringify(value) {
   if (value === undefined) return "null";
@@ -37,8 +37,16 @@ export function assertPolicyEnvelope(envelope) {
   if (!bundle.classifier || typeof bundle.classifier.endpoint !== "string" || typeof bundle.classifier.model !== "string") {
     throw new Error("The policy classifier configuration is invalid.");
   }
-  const requireRuntimeTarget = bundle.schemaVersion === "routelab.policy.v2";
-  assertModelTarget(bundle.fallback, "The fallback route", requireRuntimeTarget);
+  const requireRuntimeTarget = bundle.schemaVersion !== "routelab.policy.v1";
+  if (bundle.schemaVersion === "routelab.policy.v3") {
+    if (bundle.defaultStrategy?.type === "fixed_model") assertModelTarget(bundle.defaultStrategy.target, "The fixed default route", true);
+    else if (bundle.defaultStrategy?.type !== "openrouter_auto" || bundle.defaultStrategy.openRouterModelId !== "openrouter/auto") {
+      throw new Error("The default routing strategy is invalid.");
+    }
+    assertModelTarget(bundle.emergencyFallback, "The emergency fallback route", true);
+  } else {
+    assertModelTarget(bundle.fallback, "The fallback route", requireRuntimeTarget);
+  }
   bundle.overrides.forEach((override) => {
     if (typeof override?.taskId !== "string") throw new Error("A policy override is missing its task bucket ID.");
     assertModelTarget(override, `The ${override.taskId} route`, requireRuntimeTarget);

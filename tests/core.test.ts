@@ -87,12 +87,12 @@ describe("analysis and risk inference", () => {
 
   it("versions every routing policy edit", () => {
     const initial = createDraftRoutingPolicy("gpt-5.5-pro");
-    const revised = reviseDraftRoutingPolicy(initial, { fallbackModelId: "deepseek-r1" });
+    const revised = reviseDraftRoutingPolicy(initial, { defaultModelId: "deepseek-r1" });
     expect(revised.version).toBe(initial.version + 1);
-    expect(revised.fallbackModelId).toBe("deepseek-r1");
+    expect(revised.defaultModelId).toBe("deepseek-r1");
   });
   it("imports a browser draft only when cloud storage has no draft", () => {
-    const local = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { fallbackModelId: "deepseek-r1" });
+    const local = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { defaultModelId: "deepseek-r1" });
     const cloud = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { minimumPassRate: .95 });
     expect(initialDraftSync(local, null)).toEqual({ draft: local, shouldImportLocal: true });
     expect(initialDraftSync(local, cloud)).toEqual({ draft: cloud, shouldImportLocal: false });

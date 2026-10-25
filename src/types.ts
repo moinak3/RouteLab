@@ -97,7 +97,7 @@ export type Model = {
   openrouter_created_at?: string;
   enabled?: boolean;
   quality_tier: "cheap" | "balanced" | "strong" | "specialist";
-  family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local";
+  family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "Local" | "Router";
   family_tier: "top" | "mid" | "cheapest";
 };
 export type InferenceProviderQuote = {
@@ -110,6 +110,7 @@ export type CandidateRun = {
   id: string; trace_id: string; candidate_model: string; response_text: string; input_tokens: number;
   output_tokens: number; latency_ms: number; cost_usd: number; status: "success" | "error";
   provider?: string; provider_id?: string;
+  selected_model?: string;
 };
 export type EvalResult = {
   id: string; trace_id: string; candidate_run_id: string; evaluator_type: string;
@@ -167,7 +168,7 @@ export type RoutingPolicy = {
 };
 export type BenchmarkFamily = {
   id: string; name: string; description: string; best_for: string[]; weak_for: string[];
-  source_url?: string; freshness_date?: string;
+  source_url?: string; freshness_date?: string; benchmark_version?: string; configuration?: string;
 };
 export type BenchmarkPrior = {
   benchmark_id: string; alignment_score: number; confidence: number; rationale: string; weight: number;
@@ -175,11 +176,19 @@ export type BenchmarkPrior = {
 export type ModelBenchmarkScore = {
   model_id: string; model_name: string; benchmark_id: string; score?: number; rank?: number;
   source_url?: string; score_date?: string; score_type?: "official" | "third_party" | "vendor_reported" | "estimated";
-  confidence: number;
+  confidence: number; configuration?: string;
+};
+export type CustomerEvaluationEvidence = {
+  model_id: string; sample_size: number; pass_rate: number; average_score: number; evaluated_at: string;
+};
+export type CrossCustomerAdoptionEvidence = {
+  model_id: string; independent_organizations: number; explicit_approvals: number; default_selections: number; observed_at: string;
 };
 export type CandidateModelRecommendation = {
   model_id: string; model_name: string; candidate_score: number; benchmark_evidence: ModelBenchmarkScore[];
-  confidence: number; rationale: string; caveats: string[];
+  customer_evaluation?: CustomerEvaluationEvidence;
+  adoption_evidence?: CrossCustomerAdoptionEvidence;
+  confidence: number; rationale: string; why_match: string; caveats: string[];
 };
 export type BenchmarkPriorOutput = {
   distinct_task: DistinctTask;

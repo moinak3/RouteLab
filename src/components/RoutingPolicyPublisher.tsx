@@ -132,7 +132,7 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
     {message && <p className={`policy-lifecycle-message ${state === "error" ? "error" : "good"}`}>{message}</p>}
     <div className="policy-lifecycle-state">
       <article><small>Latest published</small><b>{latest ? `Policy v${latest.version}` : "None yet"}</b><span>{latest ? `${latest.overrideCount} overrides · ${latest.signatureCount} signatures` : "Publish the saved draft to create v1."}</span></article>
-      <article><small>Deployed to sidecars</small><b>{active ? `Policy v${active.version}` : "No deployed policy"}</b><span>{active ? `${modelName(active.fallbackModelId)} fallback` : "Deploy a published version to make it active."}</span></article>
+      <article><small>Deployed to sidecars</small><b>{active ? `Policy v${active.version}` : "No deployed policy"}</b><span>{active ? `Default: ${modelName(active.defaultStrategyLabel)} · Emergency: ${modelName(active.emergencyFallbackModelId)}` : "Deploy a published version to make it active."}</span></article>
       <article><small>Runtime ownership</small><b>Customer hosted</b><span>Customer OpenRouter key · local policy enforcement</span></article>
     </div>
     {publishedVersions.length > 0 && <div className="policy-version-list">

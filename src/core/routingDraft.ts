@@ -26,8 +26,12 @@ export type DraftTaskOverride = {
 };
 
 export type DraftRoutingPolicy = {
-  fallbackModelId: string;
-  fallbackOpenRouterModelId?: string;
+  defaultStrategyType: "fixed_model" | "openrouter_auto";
+  defaultModelId: string;
+  defaultOpenRouterModelId?: string;
+  autoRouterCostTier: "low" | "medium" | "high" | "xhigh" | "max";
+  emergencyFallbackModelId: string;
+  emergencyFallbackOpenRouterModelId?: string;
   minimumPassRate: number;
   maximumLatencyIncreasePct: number;
   overrides: Record<string, DraftTaskOverride>;
@@ -45,7 +49,10 @@ export const ROUTING_DRAFT_STORAGE_KEY = "routelab-routing-policy-draft-v1";
 
 export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
   return {
-    fallbackModelId,
+    defaultStrategyType: "fixed_model",
+    defaultModelId: fallbackModelId,
+    autoRouterCostTier: "medium",
+    emergencyFallbackModelId: fallbackModelId,
     minimumPassRate: DEFAULT_ROUTE_GUARDRAILS.minimumPassRate,
     maximumLatencyIncreasePct: DEFAULT_ROUTE_GUARDRAILS.maximumLatencyIncreasePct,
     overrides: {},
@@ -58,11 +65,26 @@ export function loadDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPol
   const initial = createDraftRoutingPolicy(fallbackModelId);
   if (typeof window === "undefined") return initial;
   try {
-    const saved = JSON.parse(window.localStorage.getItem(ROUTING_DRAFT_STORAGE_KEY) ?? "null") as Partial<DraftRoutingPolicy> | null;
-    return saved ? { ...initial, ...saved, overrides: saved.overrides ?? {} } : initial;
+    const saved = JSON.parse(window.localStorage.getItem(ROUTING_DRAFT_STORAGE_KEY) ?? "null") as Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string } | null;
+    return saved ? normalizeDraftRoutingPolicy(saved, fallbackModelId) : initial;
   } catch {
     return initial;
   }
+}
+
+export function normalizeDraftRoutingPolicy(value: Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string }, fallbackModelId = ""): DraftRoutingPolicy {
+  const initial = createDraftRoutingPolicy(value.fallbackModelId || fallbackModelId);
+  return {
+    ...initial,
+    ...value,
+    defaultStrategyType: value.defaultStrategyType === "openrouter_auto" ? "openrouter_auto" : "fixed_model",
+    defaultModelId: value.defaultModelId || value.fallbackModelId || fallbackModelId,
+    defaultOpenRouterModelId: value.defaultOpenRouterModelId || value.fallbackOpenRouterModelId,
+    autoRouterCostTier: ["low", "medium", "high", "xhigh", "max"].includes(String(value.autoRouterCostTier)) ? value.autoRouterCostTier! : "medium",
+    emergencyFallbackModelId: value.emergencyFallbackModelId || value.fallbackModelId || fallbackModelId,
+    emergencyFallbackOpenRouterModelId: value.emergencyFallbackOpenRouterModelId || value.fallbackOpenRouterModelId,
+    overrides: value.overrides ?? {},
+  };
 }
 
 export function saveDraftRoutingPolicy(policy: DraftRoutingPolicy) {
@@ -98,8 +120,12 @@ function isDraftTaskOverride(value: unknown): value is DraftTaskOverride {
 export function isDraftRoutingPolicy(value: unknown): value is DraftRoutingPolicy {
   if (!value || typeof value !== "object") return false;
   const policy = value as Partial<DraftRoutingPolicy>;
-  if (typeof policy.fallbackModelId !== "string"
-    || (policy.fallbackOpenRouterModelId !== undefined && typeof policy.fallbackOpenRouterModelId !== "string")
+  if ((policy.defaultStrategyType !== "fixed_model" && policy.defaultStrategyType !== "openrouter_auto")
+    || typeof policy.defaultModelId !== "string"
+    || (policy.defaultOpenRouterModelId !== undefined && typeof policy.defaultOpenRouterModelId !== "string")
+    || !["low", "medium", "high", "xhigh", "max"].includes(String(policy.autoRouterCostTier))
+    || typeof policy.emergencyFallbackModelId !== "string"
+    || (policy.emergencyFallbackOpenRouterModelId !== undefined && typeof policy.emergencyFallbackOpenRouterModelId !== "string")
     || !isFiniteNumber(policy.minimumPassRate)
     || !isFiniteNumber(policy.maximumLatencyIncreasePct)
     || !isFiniteNumber(policy.version)

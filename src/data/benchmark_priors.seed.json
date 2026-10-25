@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-06-12",
+  "last_updated": "2026-10-25",
   "benchmark_families": [
     {
       "id": "swe_bench_verified",
@@ -21,12 +21,14 @@
     },
     {
       "id": "tau_bench",
-      "name": "τ-Bench / τ² / τ³-Bench",
-      "description": "Customer support, policy-following agents, and tool-using customer workflows.",
-      "best_for": ["customer support", "policy adherence", "tool-using support agents", "retail and banking support"],
-      "weak_for": ["repo-wide coding", "desktop control"],
-      "source_url": "https://github.com/sierra-research/tau-bench",
-      "freshness_date": "2026-06-12"
+      "name": "τ-bench 2.0",
+      "description": "Customer-service agents that must follow domain policies and use tools across multi-turn conversations.",
+      "best_for": ["customer support", "policy adherence", "tool-using support agents", "airline, retail, and telecom support"],
+      "weak_for": ["simple support summarization", "repo-wide coding", "desktop control"],
+      "source_url": "https://github.com/sierra-research/tau2-bench",
+      "freshness_date": "2026-10-25",
+      "benchmark_version": "τ-bench 2.0 text-v1",
+      "configuration": "Text benchmark; English airline, retail, and telecom domains; frozen 50-task sets; one trial per task"
     },
     {
       "id": "bfcl",
@@ -124,9 +126,9 @@
     { "model_id": "gpt-5.4", "model_name": "GPT-5.4", "benchmark_id": "swe_bench_verified", "rank": 3, "source_url": "https://www.swebench.com/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
     { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "terminal_bench", "rank": 1, "source_url": "https://www.tbench.ai/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
     { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "terminal_bench", "rank": 2, "source_url": "https://www.tbench.ai/", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
-    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "tau_bench", "rank": 1, "source_url": "https://github.com/sierra-research/tau-bench", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
-    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "tau_bench", "rank": 2, "source_url": "https://github.com/sierra-research/tau-bench", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
-    { "model_id": "gpt-5.4", "model_name": "GPT-5.4", "benchmark_id": "tau_bench", "rank": 3, "source_url": "https://github.com/sierra-research/tau-bench", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },
+    { "model_id": "claude-opus-4.8", "model_name": "Claude Opus 4.8", "benchmark_id": "tau_bench", "rank": 1, "source_url": "https://github.com/sierra-research/tau2-bench", "score_date": "2026-10-25", "score_type": "estimated", "confidence": 2, "configuration": "Directional RouteLab prior; verify against τ-bench 2.0 text-v1 results and this customer's own evals" },
+    { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "tau_bench", "rank": 2, "source_url": "https://github.com/sierra-research/tau2-bench", "score_date": "2026-10-25", "score_type": "estimated", "confidence": 2, "configuration": "Directional RouteLab prior; verify against τ-bench 2.0 text-v1 results and this customer's own evals" },
+    { "model_id": "gpt-5.4", "model_name": "GPT-5.4", "benchmark_id": "tau_bench", "rank": 3, "source_url": "https://github.com/sierra-research/tau2-bench", "score_date": "2026-10-25", "score_type": "estimated", "confidence": 2, "configuration": "Directional RouteLab prior; verify against τ-bench 2.0 text-v1 results and this customer's own evals" },
     { "model_id": "gpt-5.5-pro", "model_name": "GPT-5.5 Pro", "benchmark_id": "bfcl", "rank": 1, "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
     { "model_id": "claude-sonnet-4.8", "model_name": "Claude Sonnet 4.8", "benchmark_id": "bfcl", "rank": 2, "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 3 },
     { "model_id": "gemini-3-pro", "model_name": "Gemini 3 Pro", "benchmark_id": "bfcl", "rank": 3, "source_url": "https://gorilla.cs.berkeley.edu/leaderboard.html", "score_date": "2026-06-12", "score_type": "estimated", "confidence": 2 },

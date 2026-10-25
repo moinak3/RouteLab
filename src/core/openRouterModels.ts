@@ -24,6 +24,7 @@ export const openRouterFamilyLabels: Record<Model["family"], string> = {
   Mistral: "Mistral",
   DeepSeek: "DeepSeek",
   Local: "Local",
+  Router: "Routing strategies",
 };
 
 const numericPrice = (value: unknown) => {
