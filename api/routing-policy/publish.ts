@@ -1,9 +1,41 @@
 import { sendJson } from "../live/_shared.js";
 import { JEV_RISK_THRESHOLDS } from "../../src/core/jevSignatureGate.js";
+import { getModel } from "../../src/core/catalog.js";
 import { ROUTING_POLICY_SCHEMA_VERSION, isPublishedTaskSignature, validatePublishableDraft, type RoutingPolicyBundle } from "../../src/core/publishedRoutingPolicy.js";
 import { PolicySigningUnavailableError, signRoutingPolicy } from "./_signing.js";
 import { routingPolicyDatabaseUrl, routingPolicySigningConfig, routingPolicyWorkspaceId } from "./_config.js";
 import { getRoutingPolicyDraft, nextRoutingPolicyVersion, PolicyStoreUnavailableError, publishRoutingPolicyVersion } from "./_store.js";
+
+const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek)\/[a-z0-9][a-z0-9._:-]*$/i;
+
+const openRouterModelId = (modelId: string, configured?: string) => {
+  const explicit = String(configured ?? "").trim();
+  if (explicit) return dynamicOpenRouterModel.test(explicit) ? explicit : "";
+  const model = getModel(modelId);
+  const catalogTarget = String(model?.pricing_source_model_id ?? "").trim();
+  if (catalogTarget) return catalogTarget;
+  const dynamicTarget = modelId.startsWith("openrouter:") ? modelId.slice("openrouter:".length) : modelId;
+  return dynamicOpenRouterModel.test(dynamicTarget) ? dynamicTarget : "";
+};
+
+const openRouterProvider = (providerId?: string, providerName?: string) => {
+  const key = String(providerId ?? providerName ?? "").trim().toLowerCase();
+  if (!key || ["openrouter", "vercel-ai-gateway", "litellm-gateway"].includes(key)) return undefined;
+  const names: Record<string, string> = {
+    "openai-direct": "OpenAI",
+    "anthropic-direct": "Anthropic",
+    "google-ai-studio": "Google AI Studio",
+    "vertex-ai": "Google Vertex",
+    "mistral-direct": "Mistral",
+    "deepseek-direct": "DeepSeek",
+    "together-ai": "Together",
+    "fireworks-ai": "Fireworks",
+    "aws-bedrock": "Amazon Bedrock",
+    "azure-ai-foundry": "Azure",
+    deepinfra: "DeepInfra",
+  };
+  return names[key];
+};
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
@@ -19,6 +51,11 @@ export default async function handler(req: any, res: any) {
     }
     if (!signatures.every(isPublishedTaskSignature)) return sendJson(res, 400, { error: "The task signature catalog is invalid." });
     const errors = validatePublishableDraft(current.draft, signatures);
+    const fallbackOpenRouterModelId = openRouterModelId(current.draft.fallbackModelId, current.draft.fallbackOpenRouterModelId);
+    if (!fallbackOpenRouterModelId) errors.push("The fallback model does not have an OpenRouter runtime target.");
+    for (const override of Object.values(current.draft.overrides)) {
+      if (!openRouterModelId(override.modelId, override.openRouterModelId)) errors.push(`${override.taskName} does not have an OpenRouter runtime target.`);
+    }
     if (errors.length) return sendJson(res, 422, { error: "The routing policy is not publishable.", details: errors });
     const version = await nextRoutingPolicyVersion(databaseUrl, workspaceId);
     const issuedAt = new Date();
@@ -39,7 +76,7 @@ export default async function handler(req: any, res: any) {
         unknownSignatureId: "unknown",
         riskThresholds: JEV_RISK_THRESHOLDS,
       },
-      fallback: { modelId: current.draft.fallbackModelId },
+      fallback: { modelId: current.draft.fallbackModelId, openRouterModelId: fallbackOpenRouterModelId },
       guardrails: {
         minimumPassRate: current.draft.minimumPassRate,
         maximumLatencyIncreasePct: current.draft.maximumLatencyIncreasePct,
@@ -49,7 +86,9 @@ export default async function handler(req: any, res: any) {
       overrides: Object.values(current.draft.overrides).map((override) => ({
         taskId: override.taskId,
         modelId: override.modelId,
-        provider: override.provider,
+        openRouterModelId: openRouterModelId(override.modelId, override.openRouterModelId),
+        ...(override.provider ? { provider: override.provider } : {}),
+        ...(openRouterProvider(override.providerId, override.provider) ? { openRouterProvider: openRouterProvider(override.providerId, override.provider) } : {}),
         evidence: {
           passRate: override.passRate,
           costDeltaPct: override.costDeltaPct,

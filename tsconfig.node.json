@@ -9,5 +9,5 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true
   },
-  "include": ["vite.config.ts", "scripts", "src/core", "src/types.ts", "api/frontier-lab/_runner.ts", "api/jev/_runner.ts", "api/routing-policy/_store.ts"]
+  "include": ["vite.config.ts", "scripts", "src/core", "src/types.ts", "api/frontier-lab/_runner.ts", "api/jev/_runner.ts", "api/live/_shared.ts", "api/routing-policy/*.ts", "api/sidecar/*.ts", "api/support/*.ts"]
 }

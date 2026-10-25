@@ -15,7 +15,9 @@ export type DraftTaskOverride = {
   taskName: string;
   modelId: string;
   modelName: string;
+  openRouterModelId?: string;
   provider?: string;
+  providerId?: string;
   passRate: number;
   costDeltaPct: number;
   latencyDeltaPct: number;
@@ -25,6 +27,7 @@ export type DraftTaskOverride = {
 
 export type DraftRoutingPolicy = {
   fallbackModelId: string;
+  fallbackOpenRouterModelId?: string;
   minimumPassRate: number;
   maximumLatencyIncreasePct: number;
   overrides: Record<string, DraftTaskOverride>;
@@ -82,7 +85,9 @@ function isDraftTaskOverride(value: unknown): value is DraftTaskOverride {
     && typeof item.taskName === "string"
     && typeof item.modelId === "string"
     && typeof item.modelName === "string"
+    && (item.openRouterModelId === undefined || typeof item.openRouterModelId === "string")
     && (item.provider === undefined || typeof item.provider === "string")
+    && (item.providerId === undefined || typeof item.providerId === "string")
     && isFiniteNumber(item.passRate)
     && isFiniteNumber(item.costDeltaPct)
     && isFiniteNumber(item.latencyDeltaPct)
@@ -94,6 +99,7 @@ export function isDraftRoutingPolicy(value: unknown): value is DraftRoutingPolic
   if (!value || typeof value !== "object") return false;
   const policy = value as Partial<DraftRoutingPolicy>;
   if (typeof policy.fallbackModelId !== "string"
+    || (policy.fallbackOpenRouterModelId !== undefined && typeof policy.fallbackOpenRouterModelId !== "string")
     || !isFiniteNumber(policy.minimumPassRate)
     || !isFiniteNumber(policy.maximumLatencyIncreasePct)
     || !isFiniteNumber(policy.version)

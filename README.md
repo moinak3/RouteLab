@@ -49,11 +49,13 @@ These fields work in CSV, JSON, and JSONL. JSON can also contain nested `workflo
 - `src/core/simulations.ts`: cost-only, mock replay, and cascade simulation
 - `src/core/evaluators.ts`: exact match, JSON Schema, regex, and mock judge
 - `src/core/recommendations.ts`: risk-aware policy recommendations and exports
+- `sidecar/`: signed-policy consumer and OpenAI-compatible routing proxy for customer environments
+- `support-demo/`: standalone customer-support chat and live sidecar routing inspector
 - `src/App.tsx`: local React UI
 
 ## Privacy and external providers
 
-RouteLab runs locally, uses the deterministic MockProvider by default, and never calls an external model API. `ROUTELAB_ALLOW_EXTERNAL_MODELS=false` is the default in `.env.example`. External provider adapters are intentionally not enabled in this MVP.
+RouteLab runs locally and uses the deterministic MockProvider by default. Live simulation and the customer-hosted sidecar only call external providers when an OpenRouter key is explicitly configured. The sidecar sends classification and completion traffic directly from the customer's environment to OpenRouter; RouteLab Cloud only serves the signed policy bundle.
 
 ## Distinct Tasks and eval plans
 
@@ -71,6 +73,22 @@ The eval plan report also includes `benchmark_prior` for each Distinct Task. The
 
 The Recommendations page exports RouteLab JSON, LiteLLM-style YAML, and a TypeScript router stub.
 
+Routing Simulations can also publish and deploy an immutable signed policy for the Docker-ready customer sidecar. The sidecar classifies each incoming conversation into a published trace bucket using its messages, tools, tool calls, and requested output; then it applies the bucket override or the general fallback and proxies the request to OpenRouter. See [`sidecar/README.md`](sidecar/README.md).
+
+The standalone support console exercises that path end to end and shows each routing decision beside the customer conversation. After starting the sidecar, run it with:
+
+```bash
+ROUTELAB_SIDECAR_URL=http://127.0.0.1:8787 \
+ROUTELAB_SIDECAR_API_KEY=replace-with-exported-key \
+npm run support-demo
+```
+
+Open `http://127.0.0.1:8790`. The console server keeps the sidecar credential out of browser code. See [`support-demo/README.md`](support-demo/README.md).
+
+The production Vercel build also serves a stateless demonstration at `/support-console/` backed by authenticated `/api/sidecar/*` routes. Real customer deployments should use the Docker sidecar so model traffic and credentials remain in the customer's environment.
+
+Policy publishing requires `DATABASE_URL` plus an Ed25519 PKCS8 private key and SPKI public key, both base64 encoded, in `ROUTELAB_POLICY_SIGNING_PRIVATE_KEY` and `ROUTELAB_POLICY_SIGNING_PUBLIC_KEY`. Sidecars pin the exported public key and reject modified, unexpectedly signed, or expired bundles.
+
 ## Limitations
 
-The MVP keeps data in browser memory, uses deterministic Distinct Task inference for testability, and does not include authentication, live production routing, or external LLM replay.
+Uploaded trace data remains browser-local, model simulations default to deterministic fixtures, and the sidecar currently targets OpenRouter's Decisions and Chat Completions APIs. Enterprise identity, multi-tenant authorization, and direct non-OpenRouter runtime adapters are not included.

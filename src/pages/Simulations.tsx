@@ -275,10 +275,11 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const candidateName = getModel(candidate)?.display_name ?? candidate;
     const candidateFamily = getModel(candidate)?.family ?? candidateName;
     const providerName = strategy === "direct" ? liveDirect?.label ?? simulation.runs[0]?.provider : undefined;
+    const providerId = strategy === "direct" ? simulation.runs[0]?.provider_id : undefined;
     const candidateRouteName = providerName ? `${candidateName} via ${providerName}` : candidateName;
     const fallbackModel = activeModels.find(model => model.id === draftPolicy.fallbackModelId);
     const routeAssessments = new Map(distinctTaskImpact.map(row => [row.distinct_task_bucket_id, assessRouteCandidate({ passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count }, { minimumPassRate: draftPolicy.minimumPassRate, maximumLatencyIncreasePct: draftPolicy.maximumLatencyIncreasePct, minimumReplayCount: DEFAULT_ROUTE_GUARDRAILS.minimumReplayCount })]));
-    const setTaskOverride = (row: (typeof distinctTaskImpact)[number]) => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { overrides: { ...policy.overrides, [row.distinct_task_bucket_id]: { taskId: row.distinct_task_bucket_id, taskName: row.name, modelId: candidate, modelName: candidateName, provider: providerName, passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count, updatedAt: new Date().toISOString() } } }));
+    const setTaskOverride = (row: (typeof distinctTaskImpact)[number]) => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { overrides: { ...policy.overrides, [row.distinct_task_bucket_id]: { taskId: row.distinct_task_bucket_id, taskName: row.name, modelId: candidate, modelName: candidateName, openRouterModelId: getModel(candidate)?.pricing_source_model_id, provider: providerName, providerId, passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count, updatedAt: new Date().toISOString() } } }));
     const removeTaskOverride = (taskId: string) => setDraftPolicy(policy => { const overrides = { ...policy.overrides }; delete overrides[taskId]; return reviseDraftRoutingPolicy(policy, { overrides }); });
     const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Distinct Task" : `${distinctTaskBucketIds.length} selected Distinct Tasks`;
     const baselineJudges = scenarioTraces.map(trace => judgeByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
@@ -350,7 +351,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <section className="panel routing-policy-builder">
 <div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Set the fallback, then approve task-specific overrides</h2><p className="impact-explainer">This draft auto-saves. Unknown, low-confidence, and unapproved requests always use the general fallback.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
 <div className="routing-policy-controls">
-<label><small>General fallback model</small><select value={draftPolicy.fallbackModelId} onChange={event => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { fallbackModelId: event.target.value }))}><ModelOptions models={activeModels}/></select><em>Used for every request unless an approved task override matches.</em></label>
+<label><small>General fallback model</small><select value={draftPolicy.fallbackModelId} onChange={event => { const model = getModel(event.target.value); setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { fallbackModelId: event.target.value, fallbackOpenRouterModelId: model?.pricing_source_model_id })); }}><ModelOptions models={activeModels}/></select><em>Used for every request unless an approved task override matches.</em></label>
 <label><small>Minimum eval pass rate</small><div className="policy-threshold"><input type="number" min="0" max="100" step="1" value={Math.round(draftPolicy.minimumPassRate * 100)} onChange={event => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { minimumPassRate: Math.min(1, Math.max(0, Number(event.target.value) / 100)) }))}/><span>%</span></div><em>A candidate must meet this task-level quality bar.</em></label>
 <label><small>Maximum latency increase</small><div className="policy-threshold"><input type="number" min="0" max="500" step="5" value={draftPolicy.maximumLatencyIncreasePct} onChange={event => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { maximumLatencyIncreasePct: Math.max(0, Number(event.target.value)) }))}/><span>%</span></div><em>Slower candidates beyond this limit stay on fallback.</em></label>
 </div>
@@ -362,6 +363,8 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     label: bucket.bucket_name,
     description: `${bucket.task.task_type} in ${bucket.task.domain}; ${bucket.task.complexity} complexity; ${bucket.task.grounding_requirement}; ${bucket.task.output_format} output`,
     riskLevel: bucket.risk_level,
+    task: bucket.task,
+    examples: bucket.examples.map((example) => example.prompt_preview).filter(Boolean).slice(0, 3),
   }))}
   draftRevision={draftStatus.revision}
   draftSaved={draftStatus.state === "saved"}

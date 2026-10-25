@@ -1,17 +1,27 @@
 import type { DraftRoutingPolicy } from "./routingDraft";
-import type { Risk } from "../types";
+import type { DistinctTask, Risk } from "../types";
 
-export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v1" as const;
+export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v2" as const;
+export const LEGACY_ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v1" as const;
 
 export type PublishedTaskSignature = {
   id: string;
   label: string;
   description: string;
   riskLevel: Risk;
+  task?: DistinctTask;
+  examples?: string[];
+};
+
+export type PublishedModelTarget = {
+  modelId: string;
+  openRouterModelId?: string;
+  provider?: string;
+  openRouterProvider?: string;
 };
 
 export type RoutingPolicyBundle = {
-  schemaVersion: typeof ROUTING_POLICY_SCHEMA_VERSION;
+  schemaVersion: typeof ROUTING_POLICY_SCHEMA_VERSION | typeof LEGACY_ROUTING_POLICY_SCHEMA_VERSION;
   workspaceId: string;
   policyId: string;
   version: number;
@@ -25,7 +35,7 @@ export type RoutingPolicyBundle = {
     unknownSignatureId: "unknown";
     riskThresholds: Record<Risk, number>;
   };
-  fallback: { modelId: string };
+  fallback: PublishedModelTarget;
   guardrails: {
     minimumPassRate: number;
     maximumLatencyIncreasePct: number;
@@ -35,7 +45,9 @@ export type RoutingPolicyBundle = {
   overrides: Array<{
     taskId: string;
     modelId: string;
+    openRouterModelId?: string;
     provider?: string;
+    openRouterProvider?: string;
     evidence: {
       passRate: number;
       costDeltaPct: number;
@@ -76,10 +88,11 @@ export type PublishedPolicyHistory = {
 const finiteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 export function stableStringify(value: unknown): string {
+  if (value === undefined) return "null";
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
+  return `{${Object.keys(record).filter((key) => record[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
 }
 
 export function validatePublishableDraft(draft: DraftRoutingPolicy, signatures: PublishedTaskSignature[]) {
@@ -104,24 +117,40 @@ export function isPublishedTaskSignature(value: unknown): value is PublishedTask
   return typeof signature.id === "string"
     && typeof signature.label === "string"
     && typeof signature.description === "string"
+    && (signature.examples === undefined || Array.isArray(signature.examples) && signature.examples.every((example) => typeof example === "string"))
     && (signature.riskLevel === "low" || signature.riskLevel === "medium" || signature.riskLevel === "high");
+}
+
+function isPublishedModelTarget(value: unknown, requireRuntimeTarget: boolean): value is PublishedModelTarget {
+  if (!value || typeof value !== "object") return false;
+  const target = value as Partial<PublishedModelTarget>;
+  return typeof target.modelId === "string"
+    && (!requireRuntimeTarget || typeof target.openRouterModelId === "string" && Boolean(target.openRouterModelId.trim()))
+    && (target.openRouterModelId === undefined || typeof target.openRouterModelId === "string")
+    && (target.provider === undefined || typeof target.provider === "string")
+    && (target.openRouterProvider === undefined || typeof target.openRouterProvider === "string");
 }
 
 export function isRoutingPolicyBundle(value: unknown): value is RoutingPolicyBundle {
   if (!value || typeof value !== "object") return false;
   const bundle = value as Partial<RoutingPolicyBundle>;
-  return bundle.schemaVersion === ROUTING_POLICY_SCHEMA_VERSION
+  const supportedSchema = bundle.schemaVersion === ROUTING_POLICY_SCHEMA_VERSION || bundle.schemaVersion === LEGACY_ROUTING_POLICY_SCHEMA_VERSION;
+  const requireRuntimeTarget = bundle.schemaVersion === ROUTING_POLICY_SCHEMA_VERSION;
+  return supportedSchema
     && typeof bundle.workspaceId === "string"
     && typeof bundle.policyId === "string"
     && Number.isInteger(bundle.version)
     && typeof bundle.issuedAt === "string"
     && typeof bundle.expiresAt === "string"
-    && typeof bundle.fallback?.modelId === "string"
+    && isPublishedModelTarget(bundle.fallback, requireRuntimeTarget)
     && Array.isArray(bundle.signatures)
     && bundle.signatures.every(isPublishedTaskSignature)
     && Array.isArray(bundle.overrides)
     && bundle.overrides.every((override) => typeof override?.taskId === "string"
       && typeof override?.modelId === "string"
+      && (!requireRuntimeTarget || typeof override?.openRouterModelId === "string")
+      && (override?.openRouterModelId === undefined || typeof override.openRouterModelId === "string")
+      && (override?.openRouterProvider === undefined || typeof override.openRouterProvider === "string")
       && finiteNumber(override?.evidence?.passRate)
       && finiteNumber(override?.evidence?.costDeltaPct)
       && finiteNumber(override?.evidence?.latencyDeltaPct)

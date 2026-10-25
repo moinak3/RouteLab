@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080d0f" />
+    <title>RouteLab Support Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="RouteLab Support Console home">
+          <img src="/routelab-icon.svg" alt="" width="36" height="36" />
+          <span><strong>RouteLab</strong> Support Console</span>
+        </a>
+        <div class="connection" id="connection" data-state="checking" role="status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connection-label">Checking sidecar</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="chat-pane" aria-label="Customer support conversation">
+          <div class="conversation" id="conversation" aria-live="polite"></div>
+          <form class="composer" id="composer">
+            <label class="sr-only" for="prompt">Customer support message</label>
+            <textarea id="prompt" rows="2" placeholder="Ask support about an order, invoice, or plan..." required></textarea>
+            <button class="send-button" id="send-button" type="submit">
+              <span>Send</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-5-7-2Z"/><path d="m12 14 7-9"/></svg>
+            </button>
+          </form>
+        </section>
+
+        <aside class="trace-pane" aria-labelledby="trace-title">
+          <div class="trace-header">
+            <div>
+              <h1 id="trace-title">Routing trace</h1>
+              <p id="trace-subtitle">Waiting for the next support request</p>
+            </div>
+            <span class="trace-state" id="trace-state">Idle</span>
+          </div>
+          <ol class="trace-list" id="trace-list">
+            <li class="trace-step" data-stage="received">
+              <span class="step-index">1</span>
+              <div class="step-content">
+                <h2>Received by sidecar</h2>
+                <div class="empty-detail">No request received</div>
+              </div>
+            </li>
+            <li class="trace-step" data-stage="classified">
+              <span class="step-index">2</span>
+              <div class="step-content">
+                <h2>Classified</h2>
+                <div class="empty-detail">Bucket not assigned</div>
+              </div>
+            </li>
+            <li class="trace-step" data-stage="policy">
+              <span class="step-index">3</span>
+              <div class="step-content">
+                <h2>Policy lookup</h2>
+                <div class="empty-detail">Policy not evaluated</div>
+              </div>
+            </li>
+            <li class="trace-step" data-stage="openrouter">
+              <span class="step-index">4</span>
+              <div class="step-content">
+                <h2>OpenRouter request</h2>
+                <div class="empty-detail">Model not selected</div>
+              </div>
+            </li>
+            <li class="trace-step" data-stage="response">
+              <span class="step-index">5</span>
+              <div class="step-content">
+                <h2>Response</h2>
+                <div class="empty-detail">No upstream response</div>
+              </div>
+            </li>
+          </ol>
+        </aside>
+      </main>
+    </div>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

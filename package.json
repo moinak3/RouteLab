@@ -9,6 +9,8 @@
     "test": "vitest run",
     "eval": "npm run test && npm run build",
     "verify:typography": "node scripts/verify-typography.mjs",
+    "sidecar": "node sidecar/src/server.mjs",
+    "support-demo": "node support-demo/server.mjs",
     "eval:golden": "vitest run tests/golden.test.ts",
     "eval:distinct-tasks": "node --import tsx scripts/eval-distinct-tasks.ts",
     "seed": "node --import tsx scripts/export-seed.ts"

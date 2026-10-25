@@ -1,12 +1,18 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { getModel } from "./src/core/catalog";
 import { latestOpenRouterModels } from "./src/core/openRouterModels";
 import { runFrontierProvider } from "./api/frontier-lab/_runner";
 import { runJevSignatureGate } from "./api/jev/_runner";
 import { getRoutingPolicyDraft, PolicyStoreConflictError, PolicyStoreUnavailableError, saveRoutingPolicyDraft } from "./api/routing-policy/_store";
 import { isDraftRoutingPolicy } from "./src/core/routingDraft";
+import publishRoutingPolicy from "./api/routing-policy/publish";
+import activateRoutingPolicy from "./api/routing-policy/activate";
+import routingPolicyBundle from "./api/routing-policy/bundle";
+import routingPolicyVersions from "./api/routing-policy/versions";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -21,6 +27,15 @@ const sendJson = (res: any, status: number, payload: unknown) => {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
+};
+
+const runApiHandler = async (handler: (req: any, res: any) => unknown, req: any, res: any) => {
+  const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+  req.query = Object.fromEntries(url.searchParams.entries());
+  if (["POST", "PUT", "PATCH"].includes(String(req.method))) req.body = await readJsonBody(req);
+  res.status = (status: number) => { res.statusCode = status; return res; };
+  res.send = (payload: unknown) => { res.end(payload); return res; };
+  return handler(req, res);
 };
 
 let loadedEnv: Record<string, string> = {};
@@ -50,8 +65,21 @@ const toMessages = (trace: any) => Array.isArray(trace.messages) && trace.messag
 
 export default defineConfig(({ mode }) => {
   loadedEnv = loadEnv(mode, process.cwd(), "");
+  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL"]
+    .forEach((key) => { if (!process.env[key] && loadedEnv[key]) process.env[key] = loadedEnv[key]; });
   return {
   plugins: [react(), {
+    name: "routelab-support-console-assets",
+    generateBundle() {
+      for (const fileName of ["index.html", "styles.css", "app.js"]) {
+        this.emitFile({
+          type: "asset",
+          fileName: `support-console/${fileName}`,
+          source: readFileSync(resolve(process.cwd(), "support-demo/public", fileName)),
+        });
+      }
+    },
+  }, {
     name: "routelab-live-direct-routing",
     configureServer(server) {
       server.middlewares.use("/api/openrouter/models", async (req, res) => {
@@ -166,6 +194,10 @@ export default defineConfig(({ mode }) => {
           return sendJson(res, 500, { error: error instanceof Error ? error.message : "Routing policy storage failed." });
         }
       });
+      server.middlewares.use("/api/routing-policy/publish", (req, res) => runApiHandler(publishRoutingPolicy, req, res));
+      server.middlewares.use("/api/routing-policy/activate", (req, res) => runApiHandler(activateRoutingPolicy, req, res));
+      server.middlewares.use("/api/routing-policy/bundle", (req, res) => runApiHandler(routingPolicyBundle, req, res));
+      server.middlewares.use("/api/routing-policy/versions", (req, res) => runApiHandler(routingPolicyVersions, req, res));
     },
   }],
   test: { environment: "node" },
