@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDistinctTaskBuckets } from "../core/distinctTasks";
 import {
   compareLLMGrouping,
@@ -15,7 +15,13 @@ import {
 } from "../core/llmGroupingPersistence";
 import type { Trace } from "../types";
 
-type Props = { traces: Trace[]; serverGatewayKey?: boolean };
+type Props = {
+  traces: Trace[];
+  serverGatewayKey?: boolean;
+  embedded?: boolean;
+  runToken?: number;
+  onRunningChange?: (running: boolean) => void;
+};
 type View = "groups" | "compare";
 
 const stageOrder: LLMGroupingStage[] = ["extraction", "discovery", "consolidation", "assignment"];
@@ -39,7 +45,7 @@ function Distribution({ values, label }: { values: number[]; label: string }) {
   </section>;
 }
 
-export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
+export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, runToken = 0, onRunningChange }: Props) {
   const [run, setRun] = useState<LLMGroupingRun | null>(null);
   const [view, setView] = useState<View>("groups");
   const [loading, setLoading] = useState(true);
@@ -53,6 +59,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
   const [llmFilter, setLlmFilter] = useState("all");
   const [ambiguousOnly, setAmbiguousOnly] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const handledRunToken = useRef(0);
 
   const existingBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
   const comparison = useMemo(() => run ? compareLLMGrouping(existingBuckets, run) : null, [existingBuckets, run]);
@@ -83,10 +90,11 @@ export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  async function startRun() {
+  const startRun = useCallback(async () => {
     const controller = new AbortController();
     abortRef.current = controller;
     setRunning(true);
+    onRunningChange?.(true);
     setError(null);
     setProgress({ stage: "extraction", completed: 0, total: traces.length, message: "Preparing the trace snapshot" });
     try {
@@ -100,8 +108,15 @@ export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setRunning(false);
+      onRunningChange?.(false);
     }
-  }
+  }, [onRunningChange, traces]);
+
+  useEffect(() => {
+    if (!embedded || !runToken || handledRunToken.current === runToken) return;
+    handledRunToken.current = runToken;
+    void startRun();
+  }, [embedded, runToken, startRun]);
 
   const filteredRows = comparison?.rows.filter((row) => {
     if (existingFilter !== "all" && row.existingBucketId !== existingFilter) return false;
@@ -111,7 +126,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
   }) ?? [];
 
   return <div className="llm-grouping-page">
-    <section className="llm-grouping-intro">
+    {!embedded && <section className="llm-grouping-intro">
       <div>
         <p className="eyebrow">Independent experiment</p>
         <h2>Task Signatures (LLM Grouped)</h2>
@@ -123,7 +138,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
           ? <button type="button" className="danger" onClick={() => abortRef.current?.abort()}>Cancel run</button>
           : <button type="button" className="primary" disabled={!serverGatewayKey || !traces.length} onClick={() => void startRun()}>{run ? "Rerun experiment" : "Run LLM grouping"}</button>}
       </div>
-    </section>
+    </section>}
 
     <section className="llm-method-strip">
       <div><b>Input population</b><span>{traces.length.toLocaleString()} traces · snapshot {currentSnapshot.hash}</span></div>
@@ -133,7 +148,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey }: Props) {
     </section>
 
     {running && progress && <section className="llm-progress" aria-live="polite">
-      <div className="llm-progress-head"><b>{progress.message}</b><span>{progress.completed.toLocaleString()} / {progress.total.toLocaleString()}</span></div>
+      <div className="llm-progress-head"><b>{progress.message}</b><div><span>{progress.completed.toLocaleString()} / {progress.total.toLocaleString()}</span>{embedded&&<button type="button" className="danger" onClick={() => abortRef.current?.abort()}>Cancel generation</button>}</div></div>
       <div className="llm-progress-track"><i style={{ width: `${Math.min(100, progress.total ? progress.completed / progress.total * 100 : 0)}%` }} /></div>
       <ol>{stageOrder.map((stage) => <li className={stage === progress.stage ? "active" : stageOrder.indexOf(stage) < stageOrder.indexOf(progress.stage) ? "done" : ""} key={stage}>{stageLabel[stage]}</li>)}</ol>
     </section>}

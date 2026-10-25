@@ -1,0 +1,19 @@
+.task-signatures-page{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:860px}
+.task-signature-config{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;padding:24px 26px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(120deg,rgba(154,108,255,.1),rgba(88,240,132,.055))}
+.task-signature-config-head{display:flex;justify-content:space-between;align-items:flex-start;gap:28px}
+.task-signature-config-head h2{margin:6px 0 8px;color:#fff;font-size:22px;letter-spacing:0}
+.task-signature-config-head p:last-child{max-width:760px;margin:0;color:#aebfb7;line-height:1.5}
+.task-signature-generate{display:grid;justify-items:end;gap:8px;flex:0 0 auto}
+.task-signature-generate span{color:#82978d;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.task-signature-generate button{min-width:190px;min-height:42px}
+.task-signature-generate button:disabled{cursor:not-allowed;opacity:.46;box-shadow:none}
+.task-signature-methods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:4px;border:1px solid var(--line);border-radius:10px;background:rgba(3,8,11,.36)}
+.task-signature-methods button{display:grid;grid-template-columns:30px 1fr;gap:11px;align-items:center;padding:14px;text-align:left;background:transparent;box-shadow:none}
+.task-signature-methods button>span{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--line-strong);border-radius:6px;color:#8ea198;font-size:12px}
+.task-signature-methods button>div{display:grid;min-width:0;gap:4px}.task-signature-methods b{color:#dce9e2;font-size:13px;white-space:normal}.task-signature-methods small{color:#7f9389;font-size:12px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.task-signature-methods button.active{border-color:rgba(88,240,132,.42);background:rgba(88,240,132,.09)}
+.task-signature-methods button.active>span{border-color:rgba(88,240,132,.4);background:rgba(88,240,132,.14);color:var(--green)}.task-signature-methods button.active b{color:#fff}
+.task-signature-method-status{display:flex;gap:10px;align-items:center;padding-top:2px;color:#83978d;font-size:12px}.task-signature-method-status b{color:#cbd9d2}.task-signature-method-status span{padding-left:10px;border-left:1px solid var(--line)}
+.task-signature-empty{display:grid;place-items:center;align-content:center;gap:7px;min-height:280px;padding:32px;border:1px dashed var(--line-strong);border-radius:10px;background:rgba(255,255,255,.018);text-align:center}.task-signature-empty b{color:#e5f0ea}.task-signature-empty span{color:#82968c;font-size:12px}
+.task-signatures-page>.panel{margin-bottom:0}
+@media(max-width:1000px){.task-signatures-page{min-width:760px}.task-signature-config-head{display:grid}.task-signature-generate{grid-template-columns:1fr auto;align-items:center;justify-items:start}.task-signature-method-status{align-items:flex-start;flex-direction:column}.task-signature-method-status span{padding:0;border:0}}

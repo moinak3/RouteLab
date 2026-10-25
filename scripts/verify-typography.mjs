@@ -10,7 +10,6 @@ const destinations = [
   { name: "Overview", top: "Overview" },
   { name: "Traces", top: "Workloads", child: "Traces" },
   { name: "Task Signatures", top: "Workloads", child: "Task Signatures" },
-  { name: "Task Signatures (LLM Grouped)", top: "Workloads", child: "Task Signatures (LLM Grouped)" },
   { name: "Eval Library", top: "Quality", child: "Eval Library" },
   { name: "Human Calibration", top: "Quality", child: "Human Calibration" },
   { name: "Review Queue", top: "Quality", child: "Review Queue" },

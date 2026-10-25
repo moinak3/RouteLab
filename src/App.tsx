@@ -9,20 +9,19 @@ import { recommendPolicy } from "./core/recommendations";
 import { mergeRuntimeTraces } from "./core/runtimeTraces";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
-import { DistinctTasks } from "./pages/DistinctTasks";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
 import { FrontierModelLab } from "./pages/FrontierModelLab";
 import { GoldenDataset } from "./pages/GoldenDataset";
 import { Home } from "./pages/Home";
-import { LLMGroupedTasks } from "./pages/LLMGroupedTasks";
 import { ModelCatalog } from "./pages/ModelCatalog";
 import { Overview } from "./pages/Overview";
 import { Recommendations } from "./pages/Recommendations";
 import { ReviewQueue } from "./pages/ReviewQueue";
 import { Simulations } from "./pages/Simulations";
 import { Traces } from "./pages/Traces";
+import { TaskSignatures } from "./pages/TaskSignatures";
 import type { FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace, TraceJudgeResult } from "./types";
 import type { Page, ReviewQueueFilter } from "./types/ui";
 
@@ -41,7 +40,7 @@ type NavDestination = {
 };
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
-  { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks", "LLM Grouped Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }, { label: "Task Signatures (LLM Grouped)", page: "LLM Grouped Tasks" }] },
+  { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Signatures", page: "Distinct Tasks" }] },
   { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue", "Classifier Validation"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Classifier Validation", page: "Classifier Validation" }, { label: "Review Queue", page: "Review Queue" }] },
   { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
 ];
@@ -326,8 +325,7 @@ export default function App() {
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} />}
-      {page === "Distinct Tasks" && <DistinctTasks traces={traces} traceJudgeResults={traceJudgeResults} />}
-      {page === "LLM Grouped Tasks" && <LLMGroupedTasks traces={traces} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
+      {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); setPage("Review Queue"); }} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}

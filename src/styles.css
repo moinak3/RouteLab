@@ -3,6 +3,7 @@
 @import "./styles/traces.css";
 @import "./styles/distinct-tasks.css";
 @import "./styles/llm-grouping.css";
+@import "./styles/task-signatures.css";
 @import "./styles/evals.css";
 @import "./styles/golden-dataset.css";
 @import "./styles/review-queue.css";

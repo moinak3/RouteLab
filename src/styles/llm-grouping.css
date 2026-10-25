@@ -1,4 +1,4 @@
-.llm-grouping-page{display:grid;gap:16px;min-width:860px}
+.llm-grouping-page{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:860px}
 .llm-grouping-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:28px;padding:24px 26px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(120deg,rgba(154,108,255,.11),rgba(88,240,132,.06))}
 .llm-grouping-intro h2,.llm-result-header h2{margin:6px 0 8px;color:#fff;font-size:22px;letter-spacing:0}
 .llm-grouping-intro p:last-child{max-width:840px;margin:0;color:#aebfb7;line-height:1.55}
@@ -14,7 +14,7 @@
 .llm-method-strip b{color:#e7f1ec;font-size:12px}
 .llm-method-strip span{color:#859990;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 .llm-progress{display:grid;gap:10px;padding:16px 18px;border:1px solid rgba(88,240,132,.22);border-radius:10px;background:rgba(88,240,132,.055)}
-.llm-progress-head{display:flex;justify-content:space-between;gap:16px;color:#dfffe7;font-size:12px}.llm-progress-head span{color:#95aa9f}
+.llm-progress-head{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#dfffe7;font-size:12px}.llm-progress-head>div{display:flex;align-items:center;gap:9px}.llm-progress-head span{color:#95aa9f}.llm-progress-head button{padding:5px 8px;border-color:rgba(255,125,98,.38);background:rgba(255,125,98,.08);color:#ffab98}
 .llm-progress-track{height:5px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}.llm-progress-track i{display:block;height:100%;background:var(--green);transition:width .2s ease}
 .llm-progress ol{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0;padding:0;list-style:none;color:#677b72;font-size:12px}.llm-progress li.active{color:#fff}.llm-progress li.done{color:var(--green)}
 .llm-alert{position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:12px}.llm-alert span{color:#afc0b7}.llm-alert button{border:0;background:none;padding:2px 6px;font-size:18px}.llm-alert.error{border-color:rgba(255,125,98,.3);background:rgba(255,125,98,.08)}.llm-alert.error b{color:#ffab98}.llm-alert.warning{border-color:rgba(247,198,77,.3);background:rgba(247,198,77,.07)}.llm-alert.warning b{color:#f3d87c}.llm-alert.neutral b{color:#d8e7df}
