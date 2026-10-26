@@ -1498,6 +1498,24 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
 .trace-id-action code{
   white-space:nowrap;
 }
+.trace-date-time{
+  min-width:168px;
+  font-variant-numeric:tabular-nums;
+}
+.trace-date-time time{
+  display:grid;
+  gap:3px;
+  line-height:1.25;
+  white-space:nowrap;
+}
+.trace-date-time b{
+  font-size:13px;
+  font-weight:600;
+}
+.trace-date-time small{
+  color:var(--muted);
+  font-size:12px;
+}
 .runtime-trace-source{
   display:inline-flex;
   padding:3px 6px;

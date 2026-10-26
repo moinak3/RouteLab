@@ -10,4 +10,4 @@ export type SortDirection = "asc" | "desc";
 
 export type DistinctTaskSortKey = "bucket_name" | DistinctTaskField | "trace_count" | "total_cost_usd" | "avg_confidence" | "eval_plan";
 
-export type TraceSortKey = "trace" | "model" | "prompt" | "response" | "judge" | "tokens" | "latency" | "cost" | "status";
+export type TraceSortKey = "timestamp" | "trace" | "model" | "prompt" | "response" | "judge" | "tokens" | "latency" | "cost" | "status";
