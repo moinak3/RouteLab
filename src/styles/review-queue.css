@@ -13,6 +13,9 @@
 .review-shortfall,.review-method-note{color:#afc0b8;line-height:1.45}
 .review-shortfall{color:#f4d9aa}
 .review-page .review-shell{width:100%;max-width:760px}
+.review-page .review-top{display:grid;grid-template-columns:minmax(210px,1fr) auto auto;gap:12px}
+.review-page .review-filter-actions{flex-wrap:nowrap;gap:6px}
+.review-page .review-filter-actions button{white-space:nowrap}
 .review-why{border-color:rgba(88,240,132,.35)!important;background:rgba(88,240,132,.075)!important}
 .review-why>b{display:block;margin-bottom:6px;color:#b7ff6d}
 .review-user-feedback{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -30,4 +33,6 @@
   .review-method-head h2{font-size:18px}
   .review-lanes{grid-template-columns:1fr}
   .review-lane{padding:12px}
+  .review-page .review-top{grid-template-columns:1fr;align-items:start}
+  .review-page .review-filter-actions{justify-content:flex-start;flex-wrap:wrap}
 }

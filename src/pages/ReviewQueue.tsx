@@ -6,6 +6,7 @@ import { money, pct, preview } from "../lib/format";
 import { distinctTaskFieldColumns, distinctTaskValue } from "../components/DistinctTaskDisplay";
 import { traceUserFeedback, traceUserFeedbackLabel } from "../core/traceFeedback";
 import { isUnknownClassifierTrace } from "../core/runtimeTraces";
+import { reviewChoicesForVerdict } from "../core/reviewAdjudication";
 
 const MAX_JUDGE_FILTER_ITEMS = 120;
 const laneLabels: Record<ReviewLane, string> = {
@@ -95,17 +96,7 @@ export function ReviewQueue({
     setDecisions((previous) => ({ ...previous, [current.trace.id]: decision }));
     setIndex((previous) => Math.min(previous + 1, reviewItems.length - 1));
   };
-  const choices: Array<[ReviewDecision, string, string]> = current?.judge ? [
-    ["approve", "Overrule judge", "Response is actually fine"],
-    ["reject", "Confirm failure", "Judge is right"],
-    ["escalate", "Escalate to expert", "Needs domain review"],
-    ["skip", "Skip", "Not enough context"],
-  ] : [
-    ["approve", "Mark satisfactory", "No issue found"],
-    ["reject", "Confirm issue", "Response needs correction"],
-    ["escalate", "Escalate to expert", "Needs domain review"],
-    ["skip", "Skip", "Not enough context"],
-  ];
+  const choices = reviewChoicesForVerdict(current?.judge?.passed);
   const title = filter === "all" ? "Review sampling" : filter === "passing" ? "Passing prompts" : filter === "unknown_classifier" ? "Unknown classifier" : "Needs review prompts";
   const laneOrder: ReviewLane[] = ["representative", "unusual", "uncovered"];
 
