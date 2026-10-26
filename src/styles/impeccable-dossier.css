@@ -197,21 +197,35 @@ body:before{
 .home-driver-row,.home-problem-list{border-block:1px solid var(--dossier-blue)}
 .home-driver-row article+article,.home-problem-list article+article{border-left-color:var(--dossier-rule)}
 .home-driver-row span,.home-feature-copy>span,.home-workflow-steps>li>span{color:var(--dossier-red);font-weight:600}
-.home-driver-row h3,.home-feature-copy h3,.home-problem-list h3,.home-workflow-steps h3,.home-example-intro h3,.home-stack-table b,.home-fit-layout h3{color:var(--dossier-ink)}
-.home-driver-row p,.home-feature-copy p,.home-problem-list p,.home-workflow-steps p,.home-example-intro p,.home-example-calls p,.home-stack-table p{color:#566172}
-.home-conversation-example{
-  border:1px solid var(--dossier-blue);
-  border-radius:0;
-  background:rgba(251,248,240,.66);
-  box-shadow:8px 8px 0 rgba(33,77,134,.1);
-}
-.home-example-intro small,.home-example-calls small{color:#6b7481}
-.home-example-calls article{border-bottom-color:var(--dossier-rule-soft)}
-.home-example-calls article>span{color:var(--dossier-red)}
-.home-example-calls h4{color:var(--dossier-ink)}
+.home-driver-row h3,.home-feature-copy h3,.home-problem-list h3,.home-workflow-steps h3,.home-stack-table b,.home-fit-layout h3{color:var(--dossier-ink)}
+.home-driver-row p,.home-feature-copy p,.home-problem-list p,.home-workflow-steps p,.home-stack-table p{color:#566172}
 .home-problem-note,.home-stack-note{border-left-color:var(--dossier-red);color:#5f697a}
 .home-workflow-steps{border-top-color:var(--dossier-blue)}
 .home-workflow-steps li{border-bottom-color:var(--dossier-rule)}
+.home-workflow-illustration{
+  border:1px solid var(--dossier-blue);
+  border-radius:0;
+  background:rgba(251,248,240,.72);
+  box-shadow:10px 10px 0 rgba(33,77,134,.1);
+}
+.home-flow-heading{border-bottom-color:var(--dossier-blue);background:rgba(33,77,134,.055)}
+.home-flow-heading span,.home-flow-stage{color:var(--dossier-red);font-weight:600}
+.home-flow-heading b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:21px;font-weight:600}
+.home-flow-heading small{color:#697384;font-family:var(--font-mono)}
+.home-flow-node h3{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:23px;font-weight:600}
+.home-flow-node ul li{border-color:var(--dossier-rule);color:#536075;background:rgba(255,255,255,.38)}
+.home-flow-traces:before,.home-flow-traces:after{border-color:var(--dossier-rule);background:var(--dossier-sheet);box-shadow:3px 3px 0 rgba(33,77,134,.1)}
+.home-flow-traces i{background:var(--dossier-blue)}
+.home-flow-arrow{color:#697384}.home-flow-arrow svg path{stroke:var(--dossier-red)}
+.home-flow-cloud{border-color:var(--dossier-blue);background:rgba(33,77,134,.045)}
+.home-flow-cloud header{border-bottom-color:var(--dossier-rule)}.home-flow-cloud header img{border-radius:2px}.home-flow-cloud header span{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:18px;font-weight:600}.home-flow-cloud header small{color:#687386;font-family:var(--font-mono)}
+.home-flow-cloud li{border-bottom-color:var(--dossier-rule-soft)}.home-flow-cloud li>span{color:var(--dossier-red)}.home-flow-cloud li b{color:var(--dossier-ink)}.home-flow-cloud li small{color:#687386}
+.home-flow-policy{border-color:#4c8f5d;background:#e7f2e5}.home-flow-policy span{color:#2f6640}.home-flow-policy b{color:#173923}
+.home-runtime-request,.home-runtime-decision{border-color:var(--dossier-rule);background:rgba(255,255,255,.42)}.home-runtime-request span,.home-runtime-decision span{color:#667183;font-family:var(--font-mono)}.home-runtime-request b,.home-runtime-decision b{color:var(--dossier-ink)}
+.home-flow-runtime li{color:#536075}.home-flow-runtime li span{border-color:var(--dossier-blue);color:var(--dossier-blue)}
+.home-runtime-decision{border-color:#4c8f5d;background:#e7f2e5}
+.home-flow-review{border-top-color:var(--dossier-red);background:rgba(209,76,49,.05)}.home-flow-review span{color:var(--dossier-red)}.home-flow-review b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:16px;font-weight:600}.home-flow-review li{border-color:rgba(168,59,40,.38);color:#783729;background:rgba(255,255,255,.38)}.home-flow-review p{color:#626c7b}
+.home-workflow-illustration figcaption{border-top-color:var(--dossier-rule);color:#667183;font-family:var(--font-mono)}
 .home-boundaries{
   border:1px solid var(--dossier-red);
   border-radius:0;
@@ -357,7 +371,7 @@ body:before{
 .shell>main .projection :is(small,span){color:#d7e2ef}.shell>main .projection strong{color:var(--dossier-green)}
 .shell>main .prompt-cache-marker code{border:1px solid var(--dossier-rule);background:var(--dossier-ink);color:#fff}
 .home-problem-list article>span{color:var(--dossier-red)}
-.home-example-intro small,.home-example-calls small,.home-docket-signoff small,.home-waitlist-form>small{color:#586579}
+.home-docket-signoff small,.home-waitlist-form>small{color:#586579}
 .shell>main .judge-score.unknown{background:#ece9df;color:#526075}
 .shell>main .judge-score.pass{background:#e5f2e5;color:#216437}
 .shell>main .judge-score.fail{background:#f4dfda;color:#9e3929}

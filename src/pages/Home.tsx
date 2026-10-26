@@ -1,11 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-const supportDecisions = [
-  { step: "01", title: "Interpret the request", detail: "Identify the customer intent, entities, and constraints.", need: "Fast language understanding and structured extraction" },
-  { step: "02", title: "Assess policy eligibility", detail: "Apply retrieved policy evidence to the specific account context.", need: "Grounded reasoning with consistent policy adherence" },
-  { step: "03", title: "Draft the response", detail: "Explain the decision clearly in the right customer-facing tone.", need: "Reliable generation with style and latency constraints" },
-];
-
 const developerProblems = [
   { number: "01", title: "Know what work appears", text: "Production traces contain recurring tasks, edge cases, and unfamiliar requests. Teams need a reviewable view of that work before they can route it responsibly." },
   { number: "02", title: "Choose against your requirements", text: "A public benchmark can suggest what to test. Application-specific examples and quality requirements are what establish whether a model is suitable for a task." },
@@ -99,6 +93,70 @@ const allocationComparisonRows = [
   },
 ];
 
+function FlowArrow({ label }: { label: string }) {
+  return <div className="home-flow-arrow" aria-hidden="true">
+    <span>{label}</span>
+    <svg viewBox="0 0 88 18" role="img">
+      <path d="M1 9h78" />
+      <path d="m72 2 8 7-8 7" />
+    </svg>
+  </div>;
+}
+
+function RouteLabWorkflowIllustration() {
+  return <figure className="home-workflow-illustration" id="how-it-works" aria-labelledby="workflow-illustration-title">
+    <div className="home-flow-heading">
+      <div>
+        <span>RouteLab control loop</span>
+        <b id="workflow-illustration-title">Evidence in. An inspected policy out.</b>
+      </div>
+      <small>Offline control plane + customer-hosted runtime</small>
+    </div>
+
+    <div className="home-flow-canvas">
+      <section className="home-flow-node home-flow-evidence">
+        <span className="home-flow-stage">Observe</span>
+        <div className="home-flow-traces" aria-hidden="true"><i /><i /><i /><i /></div>
+        <h3>Production evidence</h3>
+        <ul><li>Traces</li><li>Evaluations</li><li>Traffic and cost</li></ul>
+      </section>
+
+      <FlowArrow label="Analyze offline" />
+
+      <section className="home-flow-node home-flow-cloud">
+        <header><img src="/routelab-icon.svg" alt="" /><div><span>RouteLab Cloud</span><small>Control plane</small></div></header>
+        <ol>
+          <li><span>01</span><div><b>Group recurring tasks</b><small>Define comparable work and unknowns</small></div></li>
+          <li><span>02</span><div><b>Test candidate models</b><small>Apply task-specific quality requirements</small></div></li>
+          <li><span>03</span><div><b>Approve model choices</b><small>Keep a default and add proven overrides</small></div></li>
+        </ol>
+        <div className="home-flow-policy"><span>Approved policy</span><b>Signed and versioned</b></div>
+      </section>
+
+      <FlowArrow label="Publish policy" />
+
+      <section className="home-flow-node home-flow-runtime">
+        <span className="home-flow-stage">Apply</span>
+        <h3>Customer-hosted runtime</h3>
+        <div className="home-runtime-request"><span>Current request</span><b>Prompt + tools + metadata</b></div>
+        <ol>
+          <li><span>1</span>Classify the task group</li>
+          <li><span>2</span>Apply the local policy</li>
+          <li><span>3</span>Send the model decision to OpenRouter</li>
+        </ol>
+        <div className="home-runtime-decision"><span>Model decision</span><b>Approved route or general default</b></div>
+      </section>
+    </div>
+
+    <div className="home-flow-review">
+      <div><span>Weekly review loop</span><b>Review what the policy does not yet know.</b></div>
+      <ul><li>Representative</li><li>Unusual</li><li>Uncovered</li></ul>
+      <p>Human decisions update the next task-group catalog, eval version, and routing policy.</p>
+    </div>
+    <figcaption>RouteLab learns and validates policy offline. The local runtime applies the approved policy per request without putting RouteLab Cloud in the inference path.</figcaption>
+  </figure>;
+}
+
 export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted: (password: string) => boolean; promptForPassword?: boolean }) {
   const [isPasswordOpen, setIsPasswordOpen] = useState(promptForPassword);
   const [password, setPassword] = useState("");
@@ -186,6 +244,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           <b>RouteLab does not replace your eval platform or gateway.</b>
           <span>It translates your existing traces and eval results into a model allocation policy your team can inspect, deploy, and maintain.</span>
         </div>
+        <RouteLabWorkflowIllustration />
         <div className="home-allocation-ledger" aria-label="RouteLab routing policy behavior">
           <div className="home-ledger-head"><b>Routing policy behavior</b><span>What the runtime does with each request</span><small>Conservative by default</small></div>
           <div className="home-ledger-row home-ledger-columns"><span>Request state</span><span>Evidence required</span><span>Decision</span><span>Runtime behavior</span></div>
@@ -239,10 +298,6 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           <article><span>Driver 01</span><h3>More varied work per agent</h3><p>Classification, document interpretation, policy assessment, and difficult analysis can sit behind one conversation.</p></article>
           <article><span>Driver 02</span><h3>More capability choices</h3><p>Success, consistency, latency, retries, and cost all change with the model and the job it is asked to perform.</p></article>
         </div>
-        <div className="home-conversation-example">
-          <div className="home-example-intro"><small>Illustrative support experience</small><h3>One customer conversation. Several routing decisions.</h3><p>No model winner is assumed. Each call has a different capability profile to validate.</p></div>
-          <div className="home-example-calls">{supportDecisions.map((decision) => <article key={decision.step}><span>{decision.step}</span><div><h4>{decision.title}</h4><p>{decision.detail}</p><small>{decision.need}</small></div></article>)}</div>
-        </div>
       </section>
 
       <section className="home-section home-problem" id="problem">
@@ -251,7 +306,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <p className="home-problem-note">Unfamiliar requests deserve explicit uncertainty and review. RouteLab does not assume every application starts with one expensive model or that every small chatbot benefits from task-specific routing.</p>
       </section>
 
-      <section className="home-section home-workflow" id="how-it-works">
+      <section className="home-section home-workflow">
         <div className="home-section-head"><div><p className="eyebrow">How RouteLab works</p><h2>From production evidence to a maintained routing policy.</h2></div><p>A compact workflow for discovering work, evaluating candidates, approving choices, and reviewing what the current policy does not cover.</p></div>
         <ol className="home-workflow-steps">{workflowSteps.map((step) => <li key={step.step}><span>{step.step}</span><div><h3>{step.title}</h3><p>{step.text}</p></div></li>)}</ol>
         <aside className="home-boundaries" aria-label="Workflow boundaries"><h3>Important boundaries</h3><ul>{workflowBoundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}</ul></aside>
