@@ -48,6 +48,57 @@ const comingNext = [
   "A more complete Cloud telemetry loop and versioned catalog lifecycle for customer-hosted runtimes",
 ];
 
+const allocationComparisonRows = [
+  {
+    step: "Understand production behavior",
+    today: "Traces reveal failures, latency, cost, tool calls, and common workflows.",
+    routeLab: "RouteLab organizes that traffic into task groups that can receive different model-allocation decisions.",
+    outcome: "We can see the distinct kinds of work our agent is actually doing.",
+  },
+  {
+    step: "Measure quality",
+    today: "Evals score quality, policy compliance, grounding, tool use, and other application requirements.",
+    routeLab: "RouteLab connects the relevant evals and quality requirements to each task group.",
+    outcome: "We know what good enough means for each kind of task.",
+  },
+  {
+    step: "Investigate failures",
+    today: "Teams identify where the current model fails and improve prompts, tools, context, or evals.",
+    routeLab: "RouteLab also tests whether another model or routing strategy performs better for that task.",
+    outcome: "We can tell whether this needs a better harness or a different model.",
+  },
+  {
+    step: "Compare models",
+    today: "Teams run experiments and compare model-level results across datasets.",
+    routeLab: "RouteLab compares candidates within each production task group across quality, reliability, latency, and cost.",
+    outcome: "We no longer need to choose one model for the entire application.",
+  },
+  {
+    step: "Make an allocation decision",
+    today: "Results inform engineering discussions, spreadsheets, or manually maintained routing rules.",
+    routeLab: "Passing results become explicit task-to-model assignments with supporting evidence and approval.",
+    outcome: "We know exactly why this task is moving to a different model.",
+  },
+  {
+    step: "Handle uncovered traffic",
+    today: "New or unusual traces appear in monitoring and review workflows.",
+    routeLab: "Unknown and low-confidence requests remain on the general default model and are prioritized for review.",
+    outcome: "If RouteLab is uncertain, it keeps the conservative route.",
+  },
+  {
+    step: "Deploy the decision",
+    today: "Engineers implement model decisions through application code or gateway configuration.",
+    routeLab: "RouteLab publishes a versioned policy containing the default model, approved overrides, thresholds, and fallbacks.",
+    outcome: "We can ship the allocation without rebuilding the decision logic ourselves.",
+  },
+  {
+    step: "Keep allocation current",
+    today: "Teams rerun analyses when they notice drift or revisit their model strategy.",
+    routeLab: "RouteLab identifies which task groups need reassessment as traffic, evals, models, and prices change.",
+    outcome: "We know what needs to be retested instead of repeating the entire analysis.",
+  },
+];
+
 export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted: (password: string) => boolean; promptForPassword?: boolean }) {
   const [isPasswordOpen, setIsPasswordOpen] = useState(promptForPassword);
   const [password, setPassword] = useState("");
@@ -131,12 +182,54 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           </dl>
           <div className="home-docket-signoff"><span>Prepared for</span><b>Platform review</b><small>Decision remains inspectable</small></div>
         </aside>
+        <div className="home-hero-positioning">
+          <b>RouteLab does not replace your eval platform or gateway.</b>
+          <span>It translates your existing traces and eval results into a model allocation policy your team can inspect, deploy, and maintain.</span>
+        </div>
         <div className="home-allocation-ledger" aria-label="RouteLab routing policy behavior">
           <div className="home-ledger-head"><b>Routing policy behavior</b><span>What the runtime does with each request</span><small>Conservative by default</small></div>
           <div className="home-ledger-row home-ledger-columns"><span>Request state</span><span>Evidence required</span><span>Decision</span><span>Runtime behavior</span></div>
           <div className="home-ledger-row"><b>Known task group</b><span>Candidate clears quality, latency, and cost requirements</span><strong>Approved override</strong><em>Route to selected model</em></div>
           <div className="home-ledger-row"><b>Unknown or low confidence</b><span>No task-specific evidence available</span><strong>General default</strong><em>Keep the conservative route</em></div>
           <div className="home-ledger-row"><b>Applicable provider failure</b><span>Emergency behavior configured and verified</span><strong>Emergency model</strong><em>Use the separate failure route</em></div>
+        </div>
+      </section>
+
+      <section className="home-section home-allocation-comparison" id="before-after" aria-labelledby="before-after-title">
+        <div className="home-comparison-intro">
+          <div>
+            <p className="eyebrow">From measurement to allocation</p>
+            <h2 id="before-after-title">From measuring model performance to acting on it.</h2>
+          </div>
+          <p>Keep the observability, evaluation, and gateway systems you already use. RouteLab adds the workflow for making, deploying, and maintaining task-specific model decisions.</p>
+        </div>
+        <div className="home-comparison-frame">
+          <div className="home-comparison-caption">
+            <b>Where RouteLab adds the decision layer</b>
+            <span>Illustrative team outcomes</span>
+          </div>
+          <div className="home-comparison-scroll">
+            <table className="home-comparison-table">
+              <thead>
+                <tr>
+                  <th scope="col">Step</th>
+                  <th scope="col">With observability and evals today</th>
+                  <th scope="col">With RouteLab added</th>
+                  <th scope="col">What the team can now say</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allocationComparisonRows.map((row) => (
+                  <tr key={row.step}>
+                    <th scope="row">{row.step}</th>
+                    <td data-label="With observability and evals today">{row.today}</td>
+                    <td data-label="With RouteLab added">{row.routeLab}</td>
+                    <td data-label="What the team can now say"><blockquote>“{row.outcome}”</blockquote></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 

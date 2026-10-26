@@ -31,6 +31,8 @@
 .home-button-secondary{display:inline-flex;align-items:center;justify-content:center;padding:0 17px;border:1px solid rgba(202,221,211,.24);border-radius:8px;background:rgba(255,255,255,.035);color:#e4eee9;font-size:13px;font-weight:700;text-decoration:none}
 .home-button-secondary:hover{border-color:rgba(88,240,132,.4);background:rgba(88,240,132,.07)}
 .home-hero-boundary{max-width:650px;margin:22px 0 0;color:#758980;font-size:13px;line-height:1.5}
+.home-hero-positioning{grid-column:1/-1;display:grid;grid-template-columns:minmax(260px,.75fr) minmax(0,1.25fr);gap:32px;align-items:center;padding:18px 20px;border-block:1px solid rgba(88,240,132,.26);background:rgba(88,240,132,.045)}
+.home-hero-positioning b{color:#eef8f2;font-size:16px;line-height:1.35}.home-hero-positioning span{color:#aebfb6;font-size:13px;line-height:1.55}
 .home-hero-system{padding:18px;border:1px solid rgba(88,240,132,.2);border-radius:12px;background:rgba(10,18,23,.88);box-shadow:0 30px 80px rgba(0,0,0,.34)}
 .home-system-head,.home-system-output{display:flex;align-items:center;justify-content:space-between;gap:16px;color:#8fa39a;font-size:12px;font-weight:700;text-transform:uppercase}
 .home-system-head small{color:#58f084}
@@ -43,6 +45,24 @@
 .home-hero-system li div{display:grid;gap:3px}.home-hero-system li b{font-size:14px}.home-hero-system li small{color:#879a91;font-size:12px;line-height:1.35}
 .home-system-output{margin-top:10px;padding:14px 16px;border:1px solid rgba(88,240,132,.25);border-radius:8px;background:rgba(88,240,132,.07)}
 .home-system-output b{color:#baf9ca;font-size:13px}
+.home-allocation-comparison{padding-top:82px}
+.home-comparison-intro{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:64px;align-items:end;margin-bottom:34px}
+.home-comparison-intro h2{max-width:760px;margin:0;color:#fff;font-size:40px;line-height:1.08;letter-spacing:0}
+.home-comparison-intro>p{margin:0;color:var(--home-copy);font-size:16px;line-height:1.65}
+.home-comparison-frame{overflow:hidden;border:1px solid var(--home-line);border-radius:10px;background:var(--home-surface)}
+.home-comparison-caption{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 20px;border-bottom:1px solid var(--home-line)}
+.home-comparison-caption b{font-size:16px}.home-comparison-caption span{color:#7df49e;font-size:12px;font-weight:700;text-transform:uppercase}
+.home-comparison-scroll{overflow-x:auto}
+.home-comparison-table{width:100%;min-width:980px;border-collapse:collapse;table-layout:fixed}
+.home-comparison-table th,.home-comparison-table td{padding:18px 20px;border-right:1px solid var(--home-line);border-bottom:1px solid var(--home-line);vertical-align:top;white-space:normal}
+.home-comparison-table tr>*:last-child{border-right:0}.home-comparison-table tbody tr:last-child>*{border-bottom:0}
+.home-comparison-table thead th{color:#8fa39a;font-size:12px;font-weight:700;line-height:1.35;text-transform:uppercase}
+.home-comparison-table thead th:first-child{width:18%}.home-comparison-table thead th:nth-child(2){width:25%}.home-comparison-table thead th:nth-child(3){width:30%}.home-comparison-table thead th:last-child{width:27%}
+.home-comparison-table tbody th{color:#eef8f2;font-size:14px;line-height:1.45;text-align:left}
+.home-comparison-table td{color:var(--home-copy);font-size:13px;line-height:1.55}
+.home-comparison-table td:nth-child(3){background:rgba(88,240,132,.045);color:#c8d8cf}
+.home-comparison-table td:last-child{background:rgba(137,102,211,.08)}
+.home-comparison-table blockquote{margin:0;color:#d7cdef;font-size:14px;font-weight:600;line-height:1.5}
 .home-section{padding:96px 0;border-top:1px solid rgba(202,221,211,.12)}
 .home-section-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,500px);gap:64px;align-items:end;margin-bottom:42px}
 .home-section-head h2,.home-coming-next h2,.home-final h2{margin:0;color:#fff;font-size:40px;line-height:1.08;letter-spacing:0}
@@ -110,13 +130,14 @@
 .home-password-error{margin:0;color:#ff9b85;font-size:13px;font-weight:650}
 .home-password-close{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:34px;height:34px;min-height:34px!important;padding:0;border:1px solid rgba(255,255,255,.12);border-radius:50%;background:rgba(255,255,255,.04);color:#d8e7df;font-size:18px}
 @media(max-width:1000px){
-  .home-nav{align-items:flex-start}.home-nav-links{max-width:600px;flex-wrap:wrap}.home-hero{grid-template-columns:1fr;gap:46px;min-height:0}.home-hero-copy{max-width:850px}.home-hero-system{width:min(680px,100%)}
-  .home-section-head{grid-template-columns:1fr;gap:18px}.home-conversation-example,.home-product-feature,.home-product-feature.reverse,.home-stack-table article,.home-coming-next,.home-waitlist{grid-template-columns:1fr}
+  .home-nav{align-items:flex-start}.home-nav-links{max-width:600px;flex-wrap:wrap}.home-hero{grid-template-columns:1fr;gap:46px;min-height:0}.home-hero-copy{max-width:850px}.home-hero-system{width:min(680px,100%)}.home-hero-positioning{grid-template-columns:1fr;gap:8px}
+  .home-section-head,.home-comparison-intro{grid-template-columns:1fr;gap:18px}.home-conversation-example,.home-product-feature,.home-product-feature.reverse,.home-stack-table article,.home-coming-next,.home-waitlist{grid-template-columns:1fr}
   .home-product-feature.reverse .home-feature-copy,.home-product-feature.reverse .home-preview-wide{grid-column:auto;grid-row:auto}.home-feature-copy{position:static}.home-product-feature.reverse .home-feature-copy{order:0}.home-product-feature.reverse .home-preview-wide{order:1}.home-boundaries{grid-template-columns:1fr}
 }
 @media(max-width:700px){
   .home-page{padding:18px 16px 36px}.home-nav{gap:14px;margin-bottom:48px}.home-brand{gap:8px}.home-brand img{width:32px;height:32px}.home-nav-links{gap:8px}.home-nav-links a{display:none}.home-nav-links a.home-nav-waitlist{display:inline-flex;align-items:center}.home-page .home-nav button{padding:0 12px}.home-hero{padding-bottom:72px}.home-hero-copy h1{font-size:42px;line-height:1.02}
-  .home-cta-row{align-items:stretch;flex-direction:column}.home-cta-row :is(button,a){width:100%}.home-section{padding:68px 0}.home-section-head h2,.home-coming-next h2,.home-final h2{font-size:31px}
+  .home-cta-row{align-items:stretch;flex-direction:column}.home-cta-row :is(button,a){width:100%}.home-section{padding:68px 0}.home-section-head h2,.home-coming-next h2,.home-final h2,.home-comparison-intro h2{font-size:31px}
+  .home-comparison-caption{align-items:flex-start;flex-direction:column;padding:16px}.home-comparison-table{min-width:0}.home-comparison-table thead{display:none}.home-comparison-table tbody,.home-comparison-table tr,.home-comparison-table th,.home-comparison-table td{display:block;width:100%}.home-comparison-table tr{padding:22px 18px;border-bottom:1px solid var(--home-line)}.home-comparison-table tbody tr:last-child{border-bottom:0}.home-comparison-table th,.home-comparison-table td{padding:0;border:0;background:transparent!important}.home-comparison-table tbody th{margin-bottom:16px;font-size:16px}.home-comparison-table td{margin-top:14px;padding-top:14px;border-top:1px solid var(--home-line)}.home-comparison-table td:before{content:attr(data-label);display:block;margin-bottom:6px;color:#7f948a;font-size:12px;font-weight:700;text-transform:uppercase}.home-comparison-table blockquote{font-size:14px}
   .home-driver-row,.home-problem-list{grid-template-columns:1fr}.home-driver-row article,.home-problem-list article{padding:24px 0}.home-driver-row article+article,.home-problem-list article+article{padding-left:0;border-left:0;border-top:1px solid var(--home-line)}
   .home-conversation-example{padding:22px}.home-workflow-steps li{grid-template-columns:44px 1fr;gap:12px}.home-boundaries{padding:22px}.home-boundaries ul{grid-template-columns:1fr}.home-product-feature{gap:26px;padding:38px 0}.home-preview-pair{gap:14px}.home-product figure img{border-radius:6px}
   .home-stack-table article{gap:12px}.home-fit-layout,.home-fit-layout ul{grid-template-columns:1fr}.home-coming-next{gap:24px;padding:28px 24px}.home-waitlist{gap:32px}.home-waitlist-copy h2{font-size:31px}.home-waitlist-form{grid-template-columns:1fr;padding:22px}.home-waitlist-use-case{grid-column:auto}.home-waitlist-form button{width:100%;justify-self:stretch}.home-final{align-items:flex-start;flex-direction:column;padding:34px 26px}.home-final button{width:100%}.home-footer{align-items:flex-start;flex-direction:column}
