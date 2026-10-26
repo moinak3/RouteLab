@@ -589,6 +589,42 @@ body:before{
 .shell>main .drawer-layer{background:rgba(17,27,51,.4)}
 .shell>main .trace-drawer,.trace-drawer{background:var(--dossier-paper);color:var(--dossier-ink);box-shadow:-12px 0 0 rgba(17,27,51,.2)}
 .drawer-head{background:var(--dossier-ink);color:#fff}.drawer-head h2{color:#fff}.drawer-section,.drawer-facts div{border-color:var(--dossier-rule);border-radius:1px;background:var(--dossier-sheet)}
+.shell>main .task-detail-layer{background:rgba(17,27,51,.4)}
+.shell>main .task-detail{
+  display:block;
+  border-left:1px solid var(--dossier-rule);
+  background:var(--dossier-paper);
+  color:var(--dossier-ink);
+  box-shadow:-12px 0 0 rgba(17,27,51,.2);
+}
+.shell>main .task-detail-head{border-bottom:1px solid #34425c;background:var(--dossier-ink);color:#fff}
+.shell>main .task-detail-head :is(.eyebrow,h2){color:#fff}
+.shell>main .task-detail-head span{color:#c5d0df}
+.shell>main .task-detail-head button{border-color:#70809a;background:#24334e;color:#fff}
+.shell>main .task-detail-head button:hover{border-color:#fff;background:#31415e;color:#fff}
+.shell>main .task-detail-body>section{border-color:var(--dossier-rule);border-radius:1px;background:var(--dossier-sheet);color:var(--dossier-ink)}
+.shell>main .task-detail-body :is(h3,h4,b){color:var(--dossier-ink)}
+.shell>main .task-detail-body :is(.task-summary small,.task-metrics small,.evidence-list span,.task-example small,.eval-group span,.eval-plan>p){color:#526075}
+.shell>main .task-detail-body :is(.task-summary div,.task-metrics div,.evidence-list div,.task-example){border:1px solid var(--dossier-rule-soft);background:#f7f4ec}
+.shell>main .task-detail-body .task-example b{display:block;max-width:100%;overflow-wrap:anywhere}
+.shell>main .task-detail-body .eval-plan-meta span{border:1px solid var(--dossier-rule-soft);background:#f2eee4;color:#344259}
+.shell>main .task-detail-body .eval-group h4{color:#44536a}
+.shell>main .task-detail-body .eval-group div{border-color:var(--dossier-rule-soft)}
+.shell>main .task-detail-body .recommendation-boundary{border-left-color:#4c8f5d;background:#e7f2e5;color:#31543b}
+.shell>main .task-detail-body .candidate-card{border-color:#a8c9ae;border-radius:1px;background:#f3f7ef;color:var(--dossier-ink)}
+.shell>main .task-detail-body .candidate-title>span{background:#dcebdc;color:#216437}
+.shell>main .task-detail-body .candidate-card strong{color:#216437}
+.shell>main .task-detail-body .candidate-card :is(p,small){color:#45546a}
+.shell>main .task-detail-body .candidate-source-grid>section{border-color:var(--dossier-rule);border-radius:1px;background:#fffdf8}
+.shell>main .task-detail-body .candidate-source-grid>section>small{color:#526075;font-weight:600}
+.shell>main .task-detail-body .candidate-source-grid>section>div{border-color:var(--dossier-rule-soft)}
+.shell>main .task-detail-body .candidate-source-grid :is(span,em,a){font-size:12px}
+.shell>main .task-detail-body .candidate-source-grid :is(span,em){color:#526075}
+.shell>main .task-detail-body .candidate-source-grid a{color:var(--dossier-blue)}
+.shell>main .task-detail-body .candidate-limit{border-color:var(--dossier-rule-soft)}
+.shell>main .task-detail-body .readiness-rule{border-color:#31415e;background:var(--dossier-ink)}
+.shell>main .task-detail-body .readiness-rule small{color:#c5d0df}
+.shell>main .task-detail-body .readiness-rule code{color:#9deb80}
 .shell>main .eval-modal .modal-head h2,
 .shell>main .eval-modal .eval-version-list article strong,
 .shell>main .eval-modal .eval-version-list article>div>span{color:#fff}
