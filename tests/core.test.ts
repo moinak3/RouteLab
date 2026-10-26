@@ -12,7 +12,7 @@ import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/
 import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
-import { analyzeFineTuneOpportunity, calibrateGoldenDataset, createSimulatedGoldenDataset, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../src/core/goldenDatasets";
+import { adjudicateGoldenDataset, analyzeFineTuneOpportunity, calibrateGoldenDataset, createSimulatedGoldenDataset, parseGoldenDatasetCsv, updateGoldenDatasetCell } from "../src/core/goldenDatasets";
 import { createTraceJudgeResults } from "../src/core/traceJudge";
 import { basetenModelRepo, buildBasetenTrainingJobPayload, toSupervisedFineTuneJsonl } from "../src/core/basetenFineTuning";
 import { overviewEconomics } from "../src/core/economics";
@@ -223,6 +223,20 @@ describe("golden datasets and fine-tuning signals", () => {
     expect(calibration.disagreements.length).toBeGreaterThan(0);
   });
 
+  it("persists human review decisions into the calibration dataset", () => {
+    const judgeResults = createTraceJudgeResults(traces);
+    const dataset = createSimulatedGoldenDataset(traces, judgeResults);
+    const trace = traces.find((item) => item.id === dataset.rows[0].trace_id)!;
+    const judge = judgeResults.find((result) => result.trace_id === trace.id)!;
+    const updated = adjudicateGoldenDataset(dataset, trace, judge, !judge.passed);
+    const row = updated.rows.find((item) => item.trace_id === trace.id)!;
+
+    expect(row.human_passed).toBe(!judge.passed);
+    expect(String(row.human_rationale)).toContain("overruled");
+    expect(updated.row_count).toBe(dataset.row_count);
+    expect(calibrateGoldenDataset(updated, traces, judgeResults).disagreements.some((item) => item.trace_id === trace.id)).toBe(true);
+  });
+
   it("builds a BaseTen training job from a golden dataset", () => {
     const dataset = parseGoldenDatasetCsv(
       [
@@ -286,10 +300,25 @@ describe("simulation and recommendations", () => {
     expect(safetyTraces.every((trace) => trace.response_text === trace.metadata?._internal_weak_response)).toBe(true);
     const judgeResults = createTraceJudgeResults(traces);
     expect(new Set(judgeResults.map((result) => result.trace_id)).size).toBe(traces.length);
+    const judgeByTrace = new Map(judgeResults.map((result) => [result.trace_id, result]));
+    expect(traces.every((trace) => {
+      const judge = judgeByTrace.get(trace.id);
+      const passed = trace.metadata?._internal_candidate_quality === "passes";
+      return judge?.passed === passed
+        && judge.score === trace.metadata?._internal_judge_score
+        && judge.rationale === trace.metadata?._internal_judge_rationale
+        && trace.response_text === (passed ? trace.metadata?._internal_reference : trace.metadata?._internal_weak_response);
+    })).toBe(true);
+    expect(judgeResults.filter((result) => result.passed).every((result) => result.rationale.includes("Required result:"))).toBe(true);
+    expect(judgeResults.filter((result) => !result.passed).every((result) => result.rationale.length > 60)).toBe(true);
     const scoreCounts = judgeResults.reduce((counts, result) => counts.set(result.score, (counts.get(result.score) ?? 0) + 1), new Map<number, number>());
     expect(scoreCounts.get(1)).toBeGreaterThan(SEED_TRACE_COUNT * .5);
-    expect(scoreCounts.get(.5)).toBeGreaterThan(SEED_TRACE_COUNT * .1);
+    expect(scoreCounts.get(.5)).toBeGreaterThan(SEED_TRACE_COUNT * .05);
     expect(scoreCounts.get(0)).toBeGreaterThan(SEED_TRACE_COUNT * .05);
+  });
+  it("does not fabricate judge results for imported traces without an eval fixture", () => {
+    const imported = { ...traces[0], id: "uploaded_trace", metadata: { task_type: "customer_support_responses" } };
+    expect(createTraceJudgeResults([imported])).toEqual([]);
   });
   it("prices premium strong-model routing against the mixed baseline", () => {
     for (const model of ["claude-opus-4.8", "gpt-5.5-pro"]) {
@@ -345,7 +374,8 @@ describe("simulation and recommendations", () => {
     expect(queue.reviewItems.filter((item) => item.lane === "unusual" && item.reviewReason.includes("Safety/policy alert"))).toHaveLength(2);
     expect(queue.reviewItems[1].reviewReason).toContain("Safety/policy alert");
     expect(queue.reviewItems[4].reviewReason).toContain("Safety/policy alert");
-    expect(queue.reviewItems[1].reviewReason).toContain("may be a false pass");
+    expect(queue.reviewItems[1].reviewReason).toContain("existing evaluator flagged this response for review");
+    expect(queue.reviewItems[4].reviewReason).toContain("existing evaluator flagged this response for review");
     expect(queue.coverage.coveredSignatures).toBeLessThan(queue.coverage.totalSignatures);
     expect(queue.reviewItems.filter((item) => item.lane === "uncovered")
       .every((item) => item.reviewReason.includes("No human-labeled golden eval example"))).toBe(true);

@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 const appUrl = process.env.ROUTELAB_URL ?? "http://127.0.0.1:5173/";
 const previewPassword = process.env.ROUTELAB_PREVIEW_PASSWORD ?? "Mochinder";
+const requestedCapture = process.env.ROUTELAB_SCREENSHOT;
 const target = await fetch(`http://127.0.0.1:9222/json/new?${encodeURIComponent(appUrl)}`, { method: "PUT" }).then((response) => response.json());
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 let id = 0;
@@ -94,22 +95,30 @@ await evaluate(`(() => {
 await clickByText("button", "Unlock RouteLab");
 await wait(700);
 
-await navigate("/workloads/task-groups");
-await clickByText("button", "Generate Task Groups");
-await waitFor(".task-table-panel");
-await capture("task-groups", ".task-signatures-page", 800);
+if (!requestedCapture || requestedCapture === "task-groups" || requestedCapture === "compare-methods") {
+  await navigate("/workloads/task-groups");
+  await clickByText("button", "Generate Task Groups");
+  await waitFor(".task-table-panel");
+  if (!requestedCapture || requestedCapture === "task-groups") await capture("task-groups", ".task-signatures-page", 800);
 
-await clickByText('button[role="radio"]', "LLM grouped");
-await waitFor('.llm-view-switch button[role="tab"]');
-await clickByText('.llm-view-switch button[role="tab"]', "Compare methods");
-await waitFor(".llm-comparison");
-await capture("compare-methods", ".llm-comparison", 820);
+  if (!requestedCapture || requestedCapture === "compare-methods") {
+    await clickByText('button[role="radio"]', "LLM grouped");
+    await waitFor('.llm-view-switch button[role="tab"]');
+    await clickByText('.llm-view-switch button[role="tab"]', "Compare methods");
+    await waitFor(".llm-comparison");
+    await capture("compare-methods", ".llm-comparison", 820);
+  }
+}
 
-await navigate("/routing-simulations");
-await capture("routing-simulations-current", ".scenario-results", 360);
-await capture("policy-history", ".policy-publish-workflow", 620);
+if (!requestedCapture || requestedCapture === "routing-simulations-current" || requestedCapture === "policy-history") {
+  await navigate("/routing-simulations");
+  if (!requestedCapture || requestedCapture === "routing-simulations-current") await capture("routing-simulations-current", ".scenario-results", 360);
+  if (!requestedCapture || requestedCapture === "policy-history") await capture("policy-history", ".policy-publish-workflow", 620);
+}
 
-await navigate("/quality/review-queue");
-await capture("review-queue", ".review-page", 820);
+if (!requestedCapture || requestedCapture === "review-queue") {
+  await navigate("/quality/review-queue");
+  await capture("review-queue", ".review-shell", 1_180);
+}
 
 socket.close();

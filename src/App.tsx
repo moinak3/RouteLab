@@ -3,7 +3,7 @@ import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
-import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
+import { adjudicateGoldenDataset, createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
 import { applyJevSignatureDecisions, classifyTraceSignaturesWithJev } from "./core/jevSignatureGate";
 import { recommendPolicy } from "./core/recommendations";
@@ -231,6 +231,15 @@ export default function App() {
     setGoldenDatasets((items) => items.map((item) => item.id === dataset.id ? dataset : item));
   }
 
+  function adjudicateReview(trace: Trace, judge: TraceJudgeResult | undefined, humanPassed: boolean) {
+    setGoldenDatasets((items) => {
+      const target = items[0] ?? createSimulatedGoldenDataset([], []);
+      const updated = adjudicateGoldenDataset(target, trace, judge, humanPassed);
+      return items.length ? items.map((item, index) => index === 0 ? updated : item) : [updated];
+    });
+    setNotice("Human judgment saved · calibration metrics updated");
+  }
+
   function deleteGoldenDataset(id: string) {
     setGoldenDatasets((items) => items.filter((item) => item.id !== id));
     setFineTuneJobs((items) => items.filter((job) => job.dataset_id !== id));
@@ -344,7 +353,7 @@ export default function App() {
       {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); navigateTo("Review Queue"); }} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
-      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
+      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} onAdjudicate={adjudicateReview} />}
       {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}
       {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}

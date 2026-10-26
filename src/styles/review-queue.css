@@ -12,10 +12,18 @@
 .review-lane p{margin:0;color:#c7d8d0;font-size:13px;line-height:1.45}
 .review-shortfall,.review-method-note{color:#afc0b8;line-height:1.45}
 .review-shortfall{color:#f4d9aa}
-.review-page .review-shell{width:100%;max-width:760px}
+.review-page .review-shell{width:100%;max-width:980px}
 .review-page .review-top{display:grid;grid-template-columns:minmax(210px,1fr) auto auto;gap:12px}
 .review-page .review-filter-actions{flex-wrap:nowrap;gap:6px}
 .review-page .review-filter-actions button{white-space:nowrap}
+.review-score>div{display:grid;gap:6px}
+.review-score>div>span{color:#b8c7c0;font-size:12px;font-weight:600;text-transform:capitalize}
+.review-judge-result p{display:grid;gap:8px}
+.review-judge-result p>b{color:#f7fbf9!important}
+.review-judge-result p>span{width:max-content;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:#c5d3cd!important;font-size:12px;font-weight:600}
+.review-judge-result.pass{border-color:rgba(67,152,94,.55)!important}
+.review-judge-result.fail{border-color:rgba(178,90,73,.65)!important}
+.review-decision{border:1px solid rgba(88,240,132,.28)}
 .review-why{border-color:rgba(88,240,132,.35)!important;background:rgba(88,240,132,.075)!important}
 .review-why>b{display:block;margin-bottom:6px;color:#b7ff6d}
 .review-user-feedback{display:flex;align-items:center;gap:8px;flex-wrap:wrap}

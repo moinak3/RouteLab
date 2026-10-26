@@ -41,6 +41,41 @@ export function updateGoldenDatasetCell(dataset: GoldenDataset, rowIndex: number
   return { ...dataset, rows, row_count: rows.length, columns: Array.from(new Set([...dataset.columns, column])) };
 }
 
+export function adjudicateGoldenDataset(
+  dataset: GoldenDataset,
+  trace: Trace,
+  judge: TraceJudgeResult | undefined,
+  humanPassed: boolean,
+): GoldenDataset {
+  const existingIndex = dataset.rows.findIndex((row) => String(row.trace_id ?? row.id ?? "") === trace.id);
+  const humanScore = humanPassed ? 1 : judge?.passed === false ? judge.score : .5;
+  const humanSeverity = humanPassed ? null : judge?.severity ?? "major";
+  const agreement = judge ? judge.passed === humanPassed : undefined;
+  const humanRationale = judge
+    ? agreement
+      ? `Human reviewer confirmed the automated ${humanPassed ? "pass" : "failure"}.`
+      : `Human reviewer overruled the automated ${judge.passed ? "pass" : "failure"} and marked the response ${humanPassed ? "acceptable" : "incorrect or incomplete"}.`
+    : `Human reviewer marked the response ${humanPassed ? "acceptable" : "incorrect or incomplete"}.`;
+  const row: GoldenDatasetRow = {
+    ...(existingIndex >= 0 ? dataset.rows[existingIndex] : {}),
+    trace_id: trace.id,
+    task_type: String(trace.metadata?.task_type ?? ""),
+    model: trace.model,
+    prompt: trace.prompt_text,
+    agent_answer: trace.response_text ?? "",
+    human_answer: String(trace.metadata?._internal_reference ?? ""),
+    human_passed: humanPassed,
+    human_score: humanScore,
+    human_severity: humanSeverity,
+    human_rationale: humanRationale,
+  };
+  const rows = existingIndex >= 0
+    ? dataset.rows.map((existing, index) => index === existingIndex ? row : existing)
+    : [...dataset.rows, row];
+  const columns = Array.from(new Set([...dataset.columns, ...Object.keys(row)]));
+  return { ...dataset, rows, row_count: rows.length, columns };
+}
+
 const simulatedGoldenColumns = ["trace_id", "task_type", "model", "prompt", "agent_answer", "human_answer", "human_passed", "human_score", "human_severity", "human_rationale"];
 const simulatedGoldenTaskTypes = ["customer_support_responses", "rag_grounded_answers", "policy_compliance_reasoning", "document_review_legal_analysis"];
 

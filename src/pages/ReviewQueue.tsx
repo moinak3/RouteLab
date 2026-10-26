@@ -66,6 +66,7 @@ export function ReviewQueue({
   goldenDatasets,
   filter,
   onFilterChange,
+  onAdjudicate,
 }: {
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
@@ -73,6 +74,7 @@ export function ReviewQueue({
   goldenDatasets: GoldenDataset[];
   filter: ReviewQueueFilter;
   onFilterChange: (filter: ReviewQueueFilter) => void;
+  onAdjudicate: (trace: Trace, judge: TraceJudgeResult | undefined, humanPassed: boolean) => void;
 }) {
   const [index, setIndex] = useState(0);
   const [decisions, setDecisions] = useState<Record<string, ReviewDecision>>({});
@@ -93,10 +95,17 @@ export function ReviewQueue({
     : [];
   const applyDecision = (decision: ReviewDecision) => {
     if (!current) return;
+    if (decision === "approve" || decision === "reject") {
+      onAdjudicate(current.trace, current.judge, decision === "approve");
+    }
     setDecisions((previous) => ({ ...previous, [current.trace.id]: decision }));
     setIndex((previous) => Math.min(previous + 1, reviewItems.length - 1));
   };
   const choices = reviewChoicesForVerdict(current?.judge?.passed);
+  const automatedVerdict = current?.judge ? current.judge.passed ? "Pass" : "Needs review" : "Not scored";
+  const decisionLabel = current && decisions[current.trace.id]
+    ? choices.find(([value]) => value === decisions[current.trace.id])?.[1]
+    : undefined;
   const title = filter === "all" ? "Review sampling" : filter === "passing" ? "Passing prompts" : filter === "unknown_classifier" ? "Unknown classifier" : "Needs review prompts";
   const laneOrder: ReviewLane[] = ["representative", "unusual", "uncovered"];
 
@@ -140,7 +149,7 @@ export function ReviewQueue({
         : filter === "unknown_classifier" ? "No unknown sidecar classifications have been recorded." : "No scored traces match this judge filter."}</p></div> : <>
         <article className="review-card">
           <div className="review-score">
-            <div><small>{current.judge ? "Judge score" : "Evaluation status"}</small><b>{current.judge ? pct(current.judge.score * 100) : "Not scored"}</b></div>
+            <div><small>Automated verdict</small><b>{automatedVerdict}</b>{current.judge && <span>{pct(current.judge.score * 100)} score{current.judge.severity ? ` · ${current.judge.severity} severity` : ""}</span>}</div>
             <span className={"risk " + (current.bucket?.risk_level ?? "medium")}>{current.bucket?.risk_level ?? "unknown"} risk</span>
           </div>
           <section className="review-why">
@@ -161,10 +170,10 @@ export function ReviewQueue({
           <section><small>Classification / Task Group</small><p>{current.bucket ? current.bucket.bucket_name : "No task group assigned"}</p>
             {current.bucket && <div className="review-tags">{distinctTaskFieldColumns.map(({ field }) => <span key={field}>{distinctTaskValue(field, current.bucket!.task[field])}</span>)}</div>}
           </section>
-          <section><small>LLM-as-judge result</small><p>{current.judge
-            ? <><b>{current.judge.evaluator_type.replaceAll("_", " ")}</b> scored this {pct(current.judge.score * 100)}. {current.judge.rationale}</>
+          <section className={`review-judge-result ${current.judge ? current.judge.passed ? "pass" : "fail" : "unscored"}`}><small>Judge rationale</small><p>{current.judge
+            ? <><b>{current.judge.evaluator_type.replaceAll("_", " ")}</b><span>{automatedVerdict} · {pct(current.judge.score * 100)}</span>{current.judge.rationale}</>
             : "No full rubric result is available for this trace yet."}</p></section>
-          {decisions[current.trace.id] && <div className="review-decision">Marked: <b>{decisions[current.trace.id]}</b></div>}
+          {decisionLabel && <div className="review-decision">Human decision saved: <b>{decisionLabel}</b>. Calibration metrics have been updated.</div>}
           <div className="review-actions" aria-label="Review choices">{choices.map(([value, label, hint]) =>
             <button type="button" className={"review-choice " + value} onClick={() => applyDecision(value)} key={value}><b>{label}</b><span>{hint}</span></button>)}</div>
         </article>
