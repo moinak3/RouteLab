@@ -1498,6 +1498,18 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
 .trace-id-action code{
   white-space:nowrap;
 }
+.runtime-trace-source{
+  display:inline-flex;
+  padding:3px 6px;
+  border:1px solid rgba(34,130,76,.38);
+  border-radius:999px;
+  background:rgba(34,130,76,.1);
+  color:#22623d;
+  font-family:var(--font-sans);
+  font-size:12px;
+  font-weight:600;
+  line-height:1.2;
+}
 .judge-snapshot{
   display:flex;
   align-items:center;

@@ -103,6 +103,8 @@ export function runtimeTraceFromResult({
   const classifierStatus = normalizedDecision?.status ?? "error";
   const unknownClassifier = classifierStatus === "unknown" || normalizedDecision?.signature_id === "unknown";
   const toolExecutions = Array.isArray(payload?.toolExecutions) ? payload.toolExecutions : [];
+  const conversationId = request?.session_id ? String(request.session_id) : undefined;
+  const conversationTurn = messages.filter((message) => message.role === "user").length;
   return {
     id: `runtime_${Date.now()}_${randomUUID()}`,
     timestamp: new Date().toISOString(),
@@ -117,7 +119,7 @@ export function runtimeTraceFromResult({
     latency_ms: Number(payload?.timing?.totalMs ?? decision?.latencyMs ?? 0),
     cost_usd: Number(usage.cost ?? 0),
     status: payload?.ok === false ? "error" : "success",
-    workflow_id: request?.session_id ? String(request.session_id) : undefined,
+    workflow_id: conversationId,
     workflow_role: "final_answer",
     source,
     spans: toolExecutions.map((execution: any, index: number) => ({
@@ -131,6 +133,8 @@ export function runtimeTraceFromResult({
     error_type: payload?.ok === false ? "upstream_error" : undefined,
     metadata: {
       runtime_source: source,
+      conversation_id: conversationId,
+      conversation_turn: conversationTurn,
       policy_id: route?.policyId,
       policy_version: route?.policyVersion,
       route_source: route?.source,

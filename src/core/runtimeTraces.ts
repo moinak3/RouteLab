@@ -7,6 +7,12 @@ export function isUnknownClassifierTrace(trace: Trace) {
     || trace.metadata?.unknown_classifier === true;
 }
 
+export function runtimeTraceSourceLabel(trace: Trace) {
+  if (trace.source === "routelab_support" || trace.metadata?.runtime_source === "routelab_support") return "Support Console";
+  if (trace.source === "routelab_sidecar" || trace.metadata?.runtime_source === "routelab_sidecar") return "RouteLab Sidecar";
+  return null;
+}
+
 export function mergeRuntimeTraces(current: Trace[], incoming: Trace[]) {
   const validIncoming = incoming.filter((trace) => trace
     && typeof trace.id === "string"

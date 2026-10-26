@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
@@ -90,6 +90,13 @@ export default function App() {
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
   const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
 
+  const refreshRuntimeTraces = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch("/api/runtime-traces?limit=500", { cache: "no-store", signal });
+    const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
+    if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
+    if (payload.traces.length) setTraces(current => mergeRuntimeTraces(current, payload.traces!));
+  }, []);
+
   function navigateTo(nextPage: Page, options?: { replace?: boolean }) {
     const nextPath = pathForPage(nextPage);
     const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -141,19 +148,30 @@ export default function App() {
 
   useEffect(() => {
     if (page !== "Overview" && page !== "Traces" && page !== "Review Queue") return;
-    let cancelled = false;
-    fetch("/api/runtime-traces?limit=500", { cache: "no-store" })
-      .then(async response => {
-        const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
-        if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
-        return payload.traces;
-      })
-      .then(runtimeTraces => {
-        if (!cancelled && runtimeTraces.length) setTraces(current => mergeRuntimeTraces(current, runtimeTraces));
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [page]);
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || controller.signal.aborted) return;
+      refreshing = true;
+      try { await refreshRuntimeTraces(controller.signal); }
+      catch { /* Runtime trace storage is optional in local-only mode. */ }
+      finally { refreshing = false; }
+    };
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("routelab-runtime-traces");
+    if (channel) channel.onmessage = (event) => { if (event.data?.type === "trace_saved") void refresh(); };
+    void refresh();
+    const timer = window.setInterval(refreshWhenVisible, 10_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      channel?.close();
+    };
+  }, [page, refreshRuntimeTraces]);
 
   useEffect(() => {
     let cancelled = false;

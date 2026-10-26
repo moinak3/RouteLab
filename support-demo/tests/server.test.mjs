@@ -103,7 +103,7 @@ describe("RouteLab Support Console server", () => {
     const chat = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [{ role: "user", content: "Find invoice 123." }], tools: [{ type: "function", function: { name: "lookup_invoice" } }] }),
+      body: JSON.stringify({ session_id: "support_session_test", messages: [{ role: "user", content: "Find invoice 123." }], tools: [{ type: "function", function: { name: "lookup_invoice" } }] }),
     });
     expect(chat.status).toBe(200);
     expect(await chat.json()).toMatchObject({
@@ -115,6 +115,7 @@ describe("RouteLab Support Console server", () => {
     });
     expect(receivedAuthorization).toBe("Bearer support-demo-secret");
     expect(receivedRequests).toHaveLength(2);
+    expect(receivedRequests.every((request) => request.session_id === "support_session_test")).toBe(true);
     expect(receivedRequests[0].messages[0].content).toBe("Find invoice 123.");
     expect(JSON.parse(receivedRequests[1].messages.at(-1).content)).toMatchObject({ invoice_id: "123", status: "available" });
   });

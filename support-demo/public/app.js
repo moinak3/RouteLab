@@ -7,6 +7,18 @@ const connectionLabel = document.querySelector("#connection-label");
 const traceSubtitle = document.querySelector("#trace-subtitle");
 const traceState = document.querySelector("#trace-state");
 const apiBase = window.location.pathname.startsWith("/support-console") ? "/api/support" : "/api";
+const supportSessionId = (() => {
+  const key = "routelab-support-session-id";
+  try {
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+    const created = `support_${window.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
+    window.sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return `support_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+})();
 
 const supportTools = [
   { type: "function", function: { name: "get_order_status", description: "Look up order status and shipping details.", parameters: { type: "object", properties: { order_id: { type: "string" } }, required: ["order_id"] } } },
@@ -224,6 +236,14 @@ function assistantContent(payload) {
   return payload?.openRouterResponse?.error?.message || "OpenRouter returned no assistant message.";
 }
 
+function announceSavedTrace() {
+  try {
+    const channel = new BroadcastChannel("routelab-runtime-traces");
+    channel.postMessage({ type: "trace_saved", sessionId: supportSessionId, savedAt: Date.now() });
+    channel.close();
+  } catch {}
+}
+
 async function sendMessage(value) {
   messages.push({ role: "user", content: value, createdAt: new Date() });
   messages.push({ role: "assistant", content: "", createdAt: new Date(), pending: true });
@@ -241,13 +261,14 @@ async function sendMessage(value) {
     const response = await fetch(`${apiBase}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: requestMessages, tools: supportTools, temperature: .2, max_tokens: 500, stream: false }),
+      body: JSON.stringify({ session_id: supportSessionId, messages: requestMessages, tools: supportTools, temperature: .2, max_tokens: 500, stream: false }),
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload?.error?.message || `Request failed with HTTP ${response.status}.`);
     messages.pop();
     messages.push({ role: "assistant", content: assistantContent(payload), createdAt: new Date() });
     renderTrace(payload);
+    announceSavedTrace();
   } catch (error) {
     messages.pop();
     messages.push({ role: "assistant", content: `I couldn't complete that request: ${error instanceof Error ? error.message : "Unknown error"}`, createdAt: new Date() });

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { runtimeTraceFromResult } from "../api/sidecar/_traceStore";
-import { isUnknownClassifierTrace, mergeRuntimeTraces } from "../src/core/runtimeTraces";
+import { isUnknownClassifierTrace, mergeRuntimeTraces, runtimeTraceSourceLabel } from "../src/core/runtimeTraces";
 import type { Trace } from "../src/types";
 
 describe("runtime trace ingestion", () => {
   it("normalizes an unknown sidecar decision into a reviewable trace", () => {
     const trace = runtimeTraceFromResult({
-      request: { messages: [{ role: "user", content: "A completely new workflow" }], tools: [] },
+      request: { session_id: "support_session_1", messages: [{ role: "user", content: "A completely new workflow" }], tools: [] },
       payload: {
         ok: true,
         openRouterRequest: { model: "openai/gpt-5.5-pro" },
@@ -21,6 +21,10 @@ describe("runtime trace ingestion", () => {
     expect(trace.prompt_text).toBe("A completely new workflow");
     expect(trace.response_text).toBe("Can you provide more detail?");
     expect(trace.source).toBe("routelab_support");
+    expect(trace.workflow_id).toBe("support_session_1");
+    expect(trace.metadata?.conversation_id).toBe("support_session_1");
+    expect(trace.metadata?.conversation_turn).toBe(1);
+    expect(runtimeTraceSourceLabel(trace)).toBe("Support Console");
     expect(trace.metadata?.unknown_classifier).toBe(true);
     expect(isUnknownClassifierTrace(trace)).toBe(true);
   });

@@ -5,6 +5,7 @@ import { compareText, stripJudgeMarker } from "../lib/format";
 import { traceJudgeResultsByTraceId } from "../core/traceJudge";
 import { TraceDrawer } from "../components/TraceDrawer";
 import { TraceTable } from "../components/TraceTable";
+import { runtimeTraceSourceLabel } from "../core/runtimeTraces";
 
 type ImportResult = { imported: number; errors: string[] };
 
@@ -17,7 +18,7 @@ export function Traces({ traces, traceJudgeResults, onImport }: {
   const [modelFilter,setModelFilter]=useState("all");
   const [judgeScoreFilter,setJudgeScoreFilter]=useState("all");
   const [workflowFilter,setWorkflowFilter]=useState("all");
-  const [sort,setSort]=useState<{key:TraceSortKey;direction:SortDirection}>({key:"trace",direction:"asc"});
+  const [sort,setSort]=useState<{key:TraceSortKey;direction:SortDirection}>({key:"trace",direction:"desc"});
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [importing,setImporting]=useState(false);
   const [importResult,setImportResult]=useState<{message:string;errors:string[]}|null>(null);
@@ -29,7 +30,7 @@ export function Traces({ traces, traceJudgeResults, onImport }: {
     const globalNeedle=query.trim().toLowerCase();
     return traces.filter(trace=>{
       const judge=judgeByTraceId.get(trace.id);
-      const globalMatch=!globalNeedle||`${trace.id} ${trace.model} ${trace.prompt_text} ${stripJudgeMarker(trace.response_text) ?? ""} ${judge?.rationale ?? ""} ${judge?.score ?? ""} ${trace.status} ${trace.provider ?? ""}`.toLowerCase().includes(globalNeedle);
+      const globalMatch=!globalNeedle||`${trace.id} ${trace.model} ${trace.prompt_text} ${stripJudgeMarker(trace.response_text) ?? ""} ${judge?.rationale ?? ""} ${judge?.score ?? ""} ${trace.status} ${trace.provider ?? ""} ${trace.source ?? ""} ${runtimeTraceSourceLabel(trace) ?? ""}`.toLowerCase().includes(globalNeedle);
       const modelMatch=modelFilter==="all"||trace.model===modelFilter;
       const judgeMatch=judgeScoreFilter==="all"||judge?.score===Number(judgeScoreFilter);
       const workflowMatch=workflowFilter==="all"||trace.workflow_id===workflowFilter;
