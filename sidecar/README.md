@@ -30,6 +30,7 @@ docker compose -f routelab-sidecar.compose.yaml up --build
 
 - `POST /v1/route`: classify and return the routing decision without generating a completion.
 - `POST /v1/chat/completions`: OpenAI-compatible chat endpoint that classifies and proxies the request to the selected OpenRouter model. Streaming is passed through.
+- `POST /v1/inspect/chat/completions`: non-streaming diagnostic endpoint. Its first response includes a short-lived signed `continuationToken`; send that back as `routelab_continuation` for tool-result continuations so the original classification and route are reused without another classifier call.
 - `GET /health`: process liveness.
 - `GET /ready`: verified-policy readiness and active version.
 
@@ -48,6 +49,7 @@ Clients authenticate to `/v1/route` and `/v1/chat/completions` with `Authorizati
 | `ROUTELAB_DECISION_MODE` | No | `enforce` (default) replaces the requested model; `shadow` preserves a supplied model while still returning routing headers. |
 | `ROUTELAB_POLICY_POLL_MS` | No | Active-policy refresh interval; default `30000`. |
 | `ROUTELAB_MAX_BODY_BYTES` | No | Maximum request body size; default `2000000`. |
+| `ROUTELAB_CONTINUATION_TTL_MS` | No | Lifetime of signed tool-continuation route context; default `300000` (five minutes). |
 | `PORT` | No | HTTP port; default `8787`. |
 
 The process fails startup if it cannot load and verify a policy. During later polling failures it continues using the last verified, unexpired bundle. Once that bundle expires, readiness and routing fail closed.

@@ -148,6 +148,8 @@ export function runtimeTraceFromResult({
       available_tools: Array.isArray(request?.tools) ? request.tools.map((tool: any) => String(tool?.function?.name ?? tool?.name ?? "unknown_tool")) : [],
       executed_tools: toolExecutions.map((execution: any) => String(execution?.name ?? "unknown_tool")),
       routing_passes: Array.isArray(payload?.routingPasses) ? payload.routingPasses.length : 1,
+      classifier_invocations: Number(payload?.classifierInvocations ?? 1),
+      classification_reused: Boolean(payload?.classificationReused),
     },
     signature_decision: normalizedDecision,
   };

@@ -11,6 +11,8 @@ describe("runtime trace ingestion", () => {
         ok: true,
         openRouterRequest: { model: "openai/gpt-5.5-pro" },
         openRouterResponse: { choices: [{ message: { content: "Can you provide more detail?" } }], usage: { prompt_tokens: 20, completion_tokens: 8, total_tokens: 28, cost: .001 } },
+        classifierInvocations: 1,
+        classificationReused: true,
         timing: { totalMs: 420 },
       },
       decision: { signatureId: "unknown", signatureLabel: "Unknown or new trace bucket", confidence: .31, probabilities: { unknown: .31 }, threshold: 1, status: "unknown", latencyMs: 55, reason: "No published trace bucket matched reliably." },
@@ -26,6 +28,8 @@ describe("runtime trace ingestion", () => {
     expect(trace.metadata?.conversation_turn).toBe(1);
     expect(runtimeTraceSourceLabel(trace)).toBe("Support Console");
     expect(trace.metadata?.unknown_classifier).toBe(true);
+    expect(trace.metadata?.classifier_invocations).toBe(1);
+    expect(trace.metadata?.classification_reused).toBe(true);
     expect(isUnknownClassifierTrace(trace)).toBe(true);
   });
 

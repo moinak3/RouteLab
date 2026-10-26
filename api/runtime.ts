@@ -58,14 +58,17 @@ async function supportCompletion(request: any) {
     name: toolExecutions[index].name,
     content: JSON.stringify(toolExecutions[index].result),
   }));
-  const second = await runInspectedCompletion({
-    ...request,
-    messages: [
-      ...(Array.isArray(request.messages) ? request.messages : []),
-      { role: "assistant", content: message.content ?? null, tool_calls: toolCalls },
-      ...toolMessages,
-    ],
-  });
+  const second = await runInspectedCompletion(
+    {
+      ...request,
+      messages: [
+        ...(Array.isArray(request.messages) ? request.messages : []),
+        { role: "assistant", content: message.content ?? null, tool_calls: toolCalls },
+        ...toolMessages,
+      ],
+    },
+    { ...first.payload?.route, decision: first.payload?.decision },
+  );
   return {
     ...second,
     traceDecision: first.payload?.decision,
@@ -73,9 +76,11 @@ async function supportCompletion(request: any) {
     payload: {
       ...second.payload,
       toolExecutions,
+      classifierInvocations: 1,
+      classificationReused: true,
       routingPasses: [
-        { decision: first.payload.decision, route: first.payload.route, openRouterRequest: first.payload.openRouterRequest, upstream: first.payload.upstream, timing: first.payload.timing },
-        { decision: second.payload?.decision, route: second.payload?.route, openRouterRequest: second.payload?.openRouterRequest, upstream: second.payload?.upstream, timing: second.payload?.timing },
+        { decision: first.payload.decision, route: first.payload.route, openRouterRequest: first.payload.openRouterRequest, upstream: first.payload.upstream, timing: first.payload.timing, classificationReused: false },
+        { decision: second.payload?.decision, route: second.payload?.route, openRouterRequest: second.payload?.openRouterRequest, upstream: second.payload?.upstream, timing: second.payload?.timing, classificationReused: true },
       ],
       timing: {
         ...second.payload?.timing,

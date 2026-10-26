@@ -60,18 +60,22 @@ describe("RouteLab Support Console server", () => {
         const receivedRequest = await readBody(req);
         receivedRequests.push(receivedRequest);
         const toolResult = receivedRequest.messages.find((message) => message.role === "tool");
+        const classificationReused = Boolean(receivedRequest.routelab_continuation);
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({
           ok: true,
           received: { messageCount: receivedRequest.messages.length, latestUserPrompt: receivedRequest.messages.at(-1).content, tools: [] },
           decision: { signatureId: "billing", signatureLabel: "Billing", confidence: .94, probabilities: { billing: .94 }, threshold: .86, status: "matched", latencyMs: 18 },
           route: { source: "task_override", taskBucketId: "billing", modelId: "deepseek-r1", openRouterModelId: "deepseek/deepseek-r1", policyVersion: 4, reason: "Matched Billing." },
+          continuationToken: "signed-route-context",
+          classifierInvocations: classificationReused ? 0 : 1,
+          classificationReused,
           openRouterRequest: { model: "deepseek/deepseek-r1", provider: { order: ["DeepInfra"] }, messageCount: receivedRequest.messages.length, tools: [], stream: false },
           openRouterResponse: toolResult
             ? { id: "chat_demo_final", model: "google/gemini-3-flash", choices: [{ message: { role: "assistant", content: "I found your invoice." } }], usage: { total_tokens: 38 } }
             : { id: "chat_demo_tool", model: "google/gemini-3-flash", choices: [{ message: { role: "assistant", content: null, tool_calls: [{ id: "call_invoice", type: "function", function: { name: "lookup_invoice", arguments: "{\"invoice_id\":\"123\"}" } }] } }], usage: { total_tokens: 20 } },
           upstream: { status: 200, requestId: "req_demo", selectedModel: "google/gemini-3-flash" },
-          timing: { classificationMs: 18, totalMs: 210 },
+          timing: { classificationMs: classificationReused ? 0 : 18, totalMs: 210 },
         }));
       }
       res.writeHead(404).end();
@@ -108,8 +112,13 @@ describe("RouteLab Support Console server", () => {
     expect(chat.status).toBe(200);
     expect(await chat.json()).toMatchObject({
       route: { taskBucketId: "billing" },
+      classifierInvocations: 1,
+      classificationReused: true,
       toolExecutions: [{ name: "lookup_invoice", arguments: { invoice_id: "123" }, result: { status: "available" } }],
-      routingPasses: [{ route: { taskBucketId: "billing" } }, { route: { taskBucketId: "billing" } }],
+      routingPasses: [
+        { route: { taskBucketId: "billing" }, classificationReused: false },
+        { route: { taskBucketId: "billing" }, classificationReused: true },
+      ],
       openRouterResponse: { model: "google/gemini-3-flash", choices: [{ message: { content: "I found your invoice." } }] },
       upstream: { selectedModel: "google/gemini-3-flash" },
     });
@@ -117,6 +126,8 @@ describe("RouteLab Support Console server", () => {
     expect(receivedRequests).toHaveLength(2);
     expect(receivedRequests.every((request) => request.session_id === "support_session_test")).toBe(true);
     expect(receivedRequests[0].messages[0].content).toBe("Find invoice 123.");
+    expect(receivedRequests[0].routelab_continuation).toBeUndefined();
+    expect(receivedRequests[1].routelab_continuation).toBe("signed-route-context");
     expect(JSON.parse(receivedRequests[1].messages.at(-1).content)).toMatchObject({ invoice_id: "123", status: "available" });
   });
 });

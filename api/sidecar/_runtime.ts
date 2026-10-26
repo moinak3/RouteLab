@@ -61,10 +61,11 @@ export async function runRoute(request: any) {
   return routeConversation({ request, bundle, apiKey: openRouterApiKey() });
 }
 
-export async function runInspectedCompletion(request: any) {
+export async function runInspectedCompletion(request: any, reusedRoute?: any) {
   const apiKey = openRouterApiKey();
   if (!apiKey) throw statusError("ROUTELAB_OPENROUTER_API_KEY is not configured.", 503);
-  const route = await runRoute(request);
+  const route = reusedRoute ?? await runRoute(request);
+  const classificationReused = Boolean(reusedRoute);
   const started = Date.now();
   const routedRequest = routedChatRequest({ ...request, stream: false }, route, decisionMode());
   const upstream = await fetch(openRouterChatUrl(), {
@@ -105,6 +106,8 @@ export async function runInspectedCompletion(request: any) {
       },
       decision,
       route: selectedRoute,
+      classifierInvocations: classificationReused ? 0 : 1,
+      classificationReused,
       openRouterRequest: {
         model: routedRequest.model,
         provider: routedRequest.provider ?? null,
@@ -119,8 +122,8 @@ export async function runInspectedCompletion(request: any) {
         selectedModel,
       },
       timing: {
-        classificationMs: decision.latencyMs,
-        totalMs: Date.now() - started + Number(decision.latencyMs ?? 0),
+        classificationMs: classificationReused ? 0 : decision.latencyMs,
+        totalMs: Date.now() - started + (classificationReused ? 0 : Number(decision.latencyMs ?? 0)),
       },
     },
   };

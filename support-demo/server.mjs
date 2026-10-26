@@ -46,11 +46,15 @@ async function fetchSidecar(path, options = {}) {
   });
 }
 
-async function inspectedCompletion(request) {
+async function inspectedCompletion(request, continuationToken = "") {
   const response = await fetchSidecar("/v1/inspect/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${sidecarApiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...request, stream: false }),
+    body: JSON.stringify({
+      ...request,
+      stream: false,
+      ...(continuationToken ? { routelab_continuation: continuationToken } : {}),
+    }),
   });
   const payload = await response.json().catch(() => ({ error: { message: `Sidecar returned HTTP ${response.status} without JSON.` } }));
   return { status: response.status, payload };
@@ -96,20 +100,24 @@ async function supportCompletion(request) {
     name: toolExecutions[index].name,
     content: JSON.stringify(toolExecutions[index].result),
   }));
-  const second = await inspectedCompletion({
-    ...request,
-    messages: [
-      ...(Array.isArray(request.messages) ? request.messages : []),
-      { role: "assistant", content: message.content ?? null, tool_calls: toolCalls },
-      ...toolMessages,
-    ],
-  });
+  const second = await inspectedCompletion(
+    {
+      ...request,
+      messages: [
+        ...(Array.isArray(request.messages) ? request.messages : []),
+        { role: "assistant", content: message.content ?? null, tool_calls: toolCalls },
+        ...toolMessages,
+      ],
+    },
+    first.payload?.continuationToken,
+  );
   const firstPass = {
     decision: first.payload.decision,
     route: first.payload.route,
     openRouterRequest: first.payload.openRouterRequest,
     upstream: first.payload.upstream,
     timing: first.payload.timing,
+    classificationReused: false,
   };
   const secondPass = {
     decision: second.payload?.decision,
@@ -117,12 +125,15 @@ async function supportCompletion(request) {
     openRouterRequest: second.payload?.openRouterRequest,
     upstream: second.payload?.upstream,
     timing: second.payload?.timing,
+    classificationReused: true,
   };
   return {
     status: second.status,
     payload: {
       ...second.payload,
       toolExecutions,
+      classifierInvocations: 1,
+      classificationReused: true,
       routingPasses: [firstPass, secondPass],
       timing: {
         ...second.payload?.timing,
