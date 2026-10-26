@@ -443,6 +443,41 @@ body:before{
 .shell>main .review-card .review-choice:hover,
 .shell>main .review-card .review-choice:focus-visible{filter:brightness(1.14);color:#fff}
 
+/* The LLM grouping workspace intentionally stays dark; reset paper-theme text colors inside it. */
+.shell>main .llm-method-strip,
+.shell>main .llm-group-list,
+.shell>main .llm-group-detail,
+.shell>main .llm-metrics>div{
+  border-color:#46514f;
+  background:#20262a;
+  color:#eef5f1;
+}
+.shell>main .llm-method-strip b,
+.shell>main .llm-group-list button.active :is(b,strong),
+.shell>main .llm-group-detail :is(h3,h4,b,strong),
+.shell>main .llm-metrics b{color:#f7fbf9}
+.shell>main .llm-method-strip span,
+.shell>main .llm-group-detail :is(p,span,small),
+.shell>main .llm-metrics :is(span,small){color:#b8c7c0}
+.shell>main .llm-group-detail .eyebrow{color:#aebfb7}
+.shell>main .llm-group-detail code{color:#a9d7ff}
+.shell>main .llm-group-detail :is(.llm-definition-grid section,.llm-tags span,.llm-trace-links button){border-color:#4b5754;background:#28302f;color:#e5efea}
+.shell>main .llm-group-detail .llm-definition-grid section:first-child h4{color:#8cf4a9}
+.shell>main .llm-group-detail .llm-definition-grid section:last-child h4{color:#ffad9b}
+.shell>main .llm-group-detail .llm-attribute-section span{color:#aebfb7}
+.shell>main .llm-group-detail .llm-attribute-section p{color:#e1ebe6}
+.shell>main .llm-group-detail .llm-text-link b{color:#eef5f1}
+.shell>main .llm-group-detail .llm-text-link span{color:#b8c7c0}
+.shell>main .llm-view-switch button.active{
+  border-color:#4c8f5d;
+  background:#dff0da;
+  color:#173923;
+}
+.shell>main .llm-view-switch button.active:hover{background:#d3eacb;color:#102b18}
+.shell>main .llm-group-list button.active{border-color:#62d975;background:#294737}
+.shell>main .llm-group-list button.active small{color:#c3d4cc}
+.shell>main .llm-group-list button.active strong{background:#3a5748;color:#fff}
+
 /* Dark interactive surfaces remain dark, with an explicit light foreground. */
 .shell>main .model-picker-menu,
 .shell>main .scope-menu,
