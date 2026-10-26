@@ -79,10 +79,23 @@ export function adjudicateGoldenDataset(
 const simulatedGoldenColumns = ["trace_id", "task_type", "model", "prompt", "agent_answer", "human_answer", "human_passed", "human_score", "human_severity", "human_rationale"];
 const simulatedGoldenTaskTypes = ["customer_support_responses", "rag_grounded_answers", "policy_compliance_reasoning", "document_review_legal_analysis"];
 
-const humanOverride = (judge: TraceJudgeResult, index: number) => {
-  if (index % 13 === 0) return { passed: !judge.passed, score: judge.passed ? .5 : 1, severity: judge.passed ? "major" : "" };
-  if (index % 17 === 0) return { passed: false, score: .5, severity: "major" };
-  return { passed: judge.passed, score: judge.score, severity: judge.severity ?? "" };
+const normalizedAnswer = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+const readSeedHumanLabel = (trace: Trace, judge: TraceJudgeResult | undefined) => {
+  const passedValue = trace.metadata?._internal_human_passed;
+  const scoreValue = Number(trace.metadata?._internal_human_score);
+  const severityValue = String(trace.metadata?._internal_human_severity ?? "");
+  const rationaleValue = String(trace.metadata?._internal_human_rationale ?? "");
+  return {
+    passed: typeof passedValue === "boolean" ? passedValue : judge?.passed ?? true,
+    score: Number.isFinite(scoreValue) ? scoreValue : judge?.score ?? 1,
+    severity: severityValue === "minor" || severityValue === "major" || severityValue === "critical"
+      ? severityValue
+      : "",
+    rationale: rationaleValue || (judge?.passed
+      ? "Human reviewer confirmed that the response satisfies the expected outcome."
+      : "Human reviewer identified a material error in the response."),
+  };
 };
 
 export function createSimulatedGoldenDataset(traces: Trace[], judgeResults: TraceJudgeResult[], now = new Date("2026-06-24T00:00:00.000Z")): GoldenDataset {
@@ -90,22 +103,26 @@ export function createSimulatedGoldenDataset(traces: Trace[], judgeResults: Trac
   const selected = simulatedGoldenTaskTypes.flatMap((taskType) =>
     traces.filter((trace) => trace.metadata?.task_type === taskType).slice(0, 8),
   );
-  const rows = selected.map((trace, index): GoldenDatasetRow => {
+  const rows = selected.map((trace): GoldenDatasetRow => {
     const judge = judgeByTraceId.get(trace.id);
-    const human = judge ? humanOverride(judge, index) : { passed: true, score: 1, severity: "" };
+    const human = readSeedHumanLabel(trace, judge);
+    const agentAnswer = trace.response_text ?? "";
+    const humanAnswer = String(trace.metadata?._internal_reference ?? trace.response_text ?? "");
+    const answersMatch = normalizedAnswer(agentAnswer) === normalizedAnswer(humanAnswer);
+    const humanPassed = answersMatch ? true : human.passed;
     return {
       trace_id: trace.id,
       task_type: String(trace.metadata?.task_type ?? ""),
       model: trace.model,
       prompt: trace.prompt_text,
-      agent_answer: trace.response_text ?? "",
-      human_answer: String(trace.metadata?._internal_reference ?? trace.response_text ?? ""),
-      human_passed: human.passed,
-      human_score: human.score,
-      human_severity: human.severity,
-      human_rationale: human.passed
-        ? "Human reviewer marked this answer acceptable against the expected support outcome."
-        : "Human reviewer marked this answer insufficient because it misses a required fact, policy constraint, or safe escalation.",
+      agent_answer: agentAnswer,
+      human_answer: humanAnswer,
+      human_passed: humanPassed,
+      human_score: humanPassed ? 1 : human.score,
+      human_severity: humanPassed ? "" : human.severity,
+      human_rationale: answersMatch
+        ? "Human reviewer confirmed that the candidate response matches the reference answer."
+        : human.rationale,
     };
   });
   return {
@@ -167,9 +184,17 @@ export function calibrateGoldenDataset(dataset: GoldenDataset | undefined, trace
     const humanScore = readNumber(row, ["human_score", "score", "expected_score"]);
     const humanPassed = readBoolean(row, ["human_passed", "passed", "expected_passed", "label"]);
     const humanSeverity = readSeverity(row);
+    const humanRationale = readString(row, ["human_rationale", "reviewer_rationale", "label_reason"]);
     const humanAnswer = readString(row, ["human_answer", "reference_answer", "gold_answer"]);
     const agentAnswer = readString(row, ["agent_answer", "response", "actual_answer"]) || trace?.response_text || "";
-    const agreement = humanPassed === undefined || judge === undefined ? undefined : humanPassed === judge.passed;
+    const contradictoryFailure = humanPassed === false
+      && Boolean(agentAnswer)
+      && Boolean(humanAnswer)
+      && normalizedAnswer(agentAnswer) === normalizedAnswer(humanAnswer);
+    const dataIssue = contradictoryFailure
+      ? "Human label says fail, but the candidate response and human reference are identical. This row is excluded from calibration until corrected."
+      : undefined;
+    const agreement = dataIssue || humanPassed === undefined || judge === undefined ? undefined : humanPassed === judge.passed;
     return {
       trace_id: traceId,
       prompt: readString(row, ["prompt", "prompt_text"]) || trace?.prompt_text || "",
@@ -178,27 +203,31 @@ export function calibrateGoldenDataset(dataset: GoldenDataset | undefined, trace
       human_passed: humanPassed,
       human_score: humanScore,
       human_severity: humanSeverity,
+      human_rationale: humanRationale,
       judge_passed: judge?.passed,
       judge_score: judge?.score,
       judge_severity: judge?.severity,
       judge_rationale: judge?.rationale,
       agreement,
-      score_delta: humanScore === undefined || judge === undefined ? undefined : judge.score - humanScore,
+      score_delta: dataIssue || humanScore === undefined || judge === undefined ? undefined : judge.score - humanScore,
+      data_issue: dataIssue,
     };
   }).filter((row): row is GoldenDatasetCalibrationRow => row !== null);
 
-  const comparable = rows.filter((row) => row.human_passed !== undefined && row.judge_passed !== undefined);
-  const scoreComparable = rows.filter((row) => row.score_delta !== undefined);
-  const severityComparable = rows.filter((row) => row.human_severity && row.judge_severity);
+  const validRows = rows.filter((row) => !row.data_issue);
+  const comparable = validRows.filter((row) => row.human_passed !== undefined && row.judge_passed !== undefined);
+  const scoreComparable = validRows.filter((row) => row.score_delta !== undefined);
+  const severityComparable = validRows.filter((row) => row.human_severity && row.judge_severity);
   const disagreements = comparable.filter((row) => row.agreement === false);
   return {
     matched_rows: rows.length,
-    coverage_pct: pct(rows.filter((row) => row.judge_passed !== undefined).length, dataset?.row_count ?? 0),
+    coverage_pct: pct(validRows.filter((row) => row.judge_passed !== undefined).length, dataset?.row_count ?? 0),
     agreement_rate: pct(comparable.filter((row) => row.agreement).length, comparable.length),
     false_pass_rate: pct(comparable.filter((row) => row.human_passed === false && row.judge_passed === true).length, comparable.length),
     false_fail_rate: pct(comparable.filter((row) => row.human_passed === true && row.judge_passed === false).length, comparable.length),
     avg_score_delta: scoreComparable.length ? scoreComparable.reduce((sum, row) => sum + Math.abs(row.score_delta ?? 0), 0) / scoreComparable.length : 0,
     severity_agreement_rate: pct(severityComparable.filter((row) => row.human_severity === row.judge_severity).length, severityComparable.length),
+    invalid_rows: rows.length - validRows.length,
     disagreements,
     rows,
   };

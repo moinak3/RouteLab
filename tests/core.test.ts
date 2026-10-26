@@ -187,7 +187,7 @@ describe("golden datasets and fine-tuning signals", () => {
 
   it("calibrates golden human labels against LLM-as-judge results", () => {
     const judgeResults = createTraceJudgeResults(traces);
-    const first = traces[0];
+    const first = traces.find((trace) => trace.metadata?._internal_human_passed === false && trace.metadata?._internal_judge_passed === true)!;
     const failed = judgeResults.find((result) => !result.passed)!;
     const failedTrace = traces.find((trace) => trace.id === failed.trace_id)!;
     const escapeCsv = (value: unknown) => {
@@ -220,7 +220,27 @@ describe("golden datasets and fine-tuning signals", () => {
     expect(dataset.columns).toContain("trace_id");
     expect(dataset.columns).toContain("human_passed");
     expect(calibration.coverage_pct).toBe(100);
-    expect(calibration.disagreements.length).toBeGreaterThan(0);
+    expect(calibration.agreement_rate).toBe(87.5);
+    expect(calibration.false_pass_rate).toBe(12.5);
+    expect(calibration.disagreements).toHaveLength(4);
+    expect(calibration.invalid_rows).toBe(0);
+    expect(dataset.rows.filter((row) => row.human_passed === false && row.agent_answer === row.human_answer)).toHaveLength(0);
+    expect(calibration.disagreements.every((row) => row.agent_answer !== row.human_answer && Boolean(row.human_rationale))).toBe(true);
+  });
+
+  it("excludes contradictory golden labels from calibration", () => {
+    const trace = traces.find((item) => item.response_text === item.metadata?._internal_reference)!;
+    const judgeResults = createTraceJudgeResults(traces);
+    const dataset = parseGoldenDatasetCsv([
+      "trace_id,agent_answer,human_answer,human_passed,human_score,human_severity",
+      [trace.id, trace.response_text, trace.response_text, false, .5, "major"].join(","),
+    ].join("\n"), "contradictory.csv");
+    const calibration = calibrateGoldenDataset(dataset, traces, judgeResults);
+
+    expect(calibration.invalid_rows).toBe(1);
+    expect(calibration.coverage_pct).toBe(0);
+    expect(calibration.disagreements).toHaveLength(0);
+    expect(calibration.rows[0].data_issue).toContain("identical");
   });
 
   it("persists human review decisions into the calibration dataset", () => {
@@ -303,13 +323,20 @@ describe("simulation and recommendations", () => {
     const judgeByTrace = new Map(judgeResults.map((result) => [result.trace_id, result]));
     expect(traces.every((trace) => {
       const judge = judgeByTrace.get(trace.id);
-      const passed = trace.metadata?._internal_candidate_quality === "passes";
-      return judge?.passed === passed
-        && judge.score === trace.metadata?._internal_judge_score
-        && judge.rationale === trace.metadata?._internal_judge_rationale
-        && trace.response_text === (passed ? trace.metadata?._internal_reference : trace.metadata?._internal_weak_response);
+      const humanPassed = trace.metadata?._internal_candidate_quality === "passes";
+      return Boolean(judge)
+        && judge!.passed === trace.metadata?._internal_judge_passed
+        && judge!.score === trace.metadata?._internal_judge_score
+        && judge!.rationale === trace.metadata?._internal_judge_rationale
+        && trace.response_text === (humanPassed ? trace.metadata?._internal_reference : trace.metadata?._internal_weak_response);
     })).toBe(true);
-    expect(judgeResults.filter((result) => result.passed).every((result) => result.rationale.includes("Required result:"))).toBe(true);
+    const calibrationBlindspots = traces.filter((trace) => trace.metadata?._internal_human_passed === false && trace.metadata?._internal_judge_passed === true);
+    expect(calibrationBlindspots).toHaveLength(4);
+    expect(calibrationBlindspots.every((trace) => trace.response_text !== trace.metadata?._internal_reference)).toBe(true);
+    expect(judgeResults.filter((result) => result.passed && traces.find((trace) => trace.id === result.trace_id)?.metadata?._internal_human_passed === true)
+      .every((result) => result.rationale.includes("Required result:"))).toBe(true);
+    expect(judgeResults.filter((result) => result.passed && traces.find((trace) => trace.id === result.trace_id)?.metadata?._internal_human_passed === false)
+      .every((result) => result.rationale.length > 60)).toBe(true);
     expect(judgeResults.filter((result) => !result.passed).every((result) => result.rationale.length > 60)).toBe(true);
     const scoreCounts = judgeResults.reduce((counts, result) => counts.set(result.score, (counts.get(result.score) ?? 0) + 1), new Map<number, number>());
     expect(scoreCounts.get(1)).toBeGreaterThan(SEED_TRACE_COUNT * .5);

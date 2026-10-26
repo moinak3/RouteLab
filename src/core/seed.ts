@@ -313,18 +313,35 @@ function passRationale(group: SeedGroup, reference: string) {
   return `${group.label}: the response matches the required outcome without unsupported claims. Required result: ${reference}`;
 }
 
+const calibrationBlindspots: Record<string, string> = {
+  trace_refund_and_billing_dispute_resolution_001:
+    "The reply gives the customer an immediate, concrete resolution and clearly communicates the refund outcome.",
+  trace_rag_grounded_policy_answers_006:
+    "The reply directly answers whether SSO enforcement can be delayed and gives a clear policy outcome.",
+  trace_policy_compliance_review_002:
+    "The reply gives a direct compliance determination and explains the condition under which sharing is acceptable.",
+  trace_legal_and_dpa_document_review_003:
+    "The review gives a direct conclusion about whether the excerpt creates support escalation duties.",
+};
+
 export function createSeedTraces(): Trace[] {
   return groups.flatMap((group, groupIndex) => Array.from({ length: SEED_TRACES_PER_GROUP }, (_, index) => {
     const example = group.examples[index % group.examples.length];
     const id = `trace_${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${String(index + 1).padStart(3, "0")}`;
     const prompt = personalize(example.prompt, index);
     const reference = example.response;
-    const candidatePasses = index / SEED_TRACES_PER_GROUP < group.easyRate;
-    const candidateResponse = candidatePasses ? reference : example.weak_response;
+    const judgePasses = index / SEED_TRACES_PER_GROUP < group.easyRate;
+    const blindspotRationale = calibrationBlindspots[id];
+    const humanPasses = judgePasses && !blindspotRationale;
+    const candidateResponse = humanPasses ? reference : example.weak_response;
     if (!candidateResponse) throw new Error(`Missing weak response fixture for ${group.label}: ${example.prompt}`);
-    const criticalFailure = !candidatePasses && (group.key === "policy_compliance_reasoning" || group.key === "document_review_legal_analysis");
-    const judgeScore = candidatePasses ? 1 : criticalFailure ? 0 : .5;
-    const judgeRationale = candidatePasses ? passRationale(group, reference) : failureRationale(example.prompt);
+    const humanCriticalFailure = !humanPasses && (group.key === "policy_compliance_reasoning" || group.key === "document_review_legal_analysis");
+    const judgeCriticalFailure = !judgePasses && humanCriticalFailure;
+    const judgeScore = judgePasses ? 1 : judgeCriticalFailure ? 0 : .5;
+    const judgeRationale = blindspotRationale ?? (judgePasses ? passRationale(group, reference) : failureRationale(example.prompt));
+    const humanRationale = humanPasses
+      ? `Human reviewer confirmed that the response satisfies the required outcome: ${reference}`
+      : failureRationale(example.prompt);
     const safetySignal = sampleSafetySignals[id];
     const modelId = group.currentModels[index % group.currentModels.length];
     const model = getModel(modelId)!;
@@ -366,11 +383,15 @@ export function createSeedTraces(): Trace[] {
       error_type: failed ? "timeout" : undefined,
       metadata: {
         _internal_reference: reference,
-        _internal_candidate_quality: candidatePasses ? "passes" : "fails",
+        _internal_candidate_quality: humanPasses ? "passes" : "fails",
         _internal_weak_response: example.weak_response,
-        _internal_judge_passed: candidatePasses,
+        _internal_human_passed: humanPasses,
+        _internal_human_score: humanPasses ? 1 : humanCriticalFailure ? 0 : .5,
+        _internal_human_severity: humanPasses ? "" : humanCriticalFailure ? "critical" : "major",
+        _internal_human_rationale: humanRationale,
+        _internal_judge_passed: judgePasses,
         _internal_judge_score: judgeScore,
-        _internal_judge_severity: candidatePasses ? "" : criticalFailure ? "critical" : "major",
+        _internal_judge_severity: judgePasses ? "" : judgeCriticalFailure ? "critical" : "major",
         _internal_judge_rationale: judgeRationale,
         user_id: `user_${accounts[index % accounts.length].toLowerCase()}_${String(index + 1).padStart(3, "0")}`,
         ...(sampleUserFeedback[id] ? { user_feedback: sampleUserFeedback[id] } : {}),

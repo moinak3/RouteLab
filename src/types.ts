@@ -207,13 +207,13 @@ export type GoldenDataset = {
 };
 export type GoldenDatasetCalibrationRow = {
   trace_id: string; prompt: string; agent_answer: string; human_answer: string;
-  human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical";
+  human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical"; human_rationale?: string;
   judge_passed?: boolean; judge_score?: number; judge_severity?: "minor" | "major" | "critical"; judge_rationale?: string;
-  agreement?: boolean; score_delta?: number;
+  agreement?: boolean; score_delta?: number; data_issue?: string;
 };
 export type GoldenDatasetCalibration = {
   matched_rows: number; coverage_pct: number; agreement_rate: number; false_pass_rate: number;
-  false_fail_rate: number; avg_score_delta: number; severity_agreement_rate: number; disagreements: GoldenDatasetCalibrationRow[];
+  false_fail_rate: number; avg_score_delta: number; severity_agreement_rate: number; invalid_rows: number; disagreements: GoldenDatasetCalibrationRow[];
   rows: GoldenDatasetCalibrationRow[];
 };
 export type FineTuneJob = {
