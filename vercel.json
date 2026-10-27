@@ -10,6 +10,7 @@
     { "source": "/api/llm-grouping/latest", "destination": "/api/runtime?action=llm-grouping-latest" },
     { "source": "/api/llm-grouping/run", "destination": "/api/runtime?action=llm-grouping-run" },
     { "source": "/api/waitlist", "destination": "/api/runtime?action=waitlist" },
+    { "source": "/api/reviews", "destination": "/api/runtime?action=reviews" },
     { "source": "/overview", "destination": "/index.html" },
     { "source": "/workloads/traces", "destination": "/index.html" },
     { "source": "/workloads/task-groups", "destination": "/index.html" },

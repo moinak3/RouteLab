@@ -1,8 +1,19 @@
 import { neon } from "@neondatabase/serverless";
-import type { GoldenDatasetRow } from "../../src/types.js";
-import type { PersistedReview } from "../../src/core/reviewPersistence.js";
+import type { GoldenDatasetRow } from "../types.js";
+import type { ReviewDecision } from "../types/ui.js";
+import type { ReviewLane } from "../core/reviewQueue.js";
 
 export class ReviewStoreUnavailableError extends Error {}
+
+export type StoredReview = {
+  traceId: string;
+  lane: ReviewLane;
+  decision: ReviewDecision;
+  correctAnswer: string | null;
+  rationale: string | null;
+  reviewedAt: string;
+  goldenRow: GoldenDatasetRow | null;
+};
 
 let initializedForUrl = "";
 let initialization: Promise<unknown> | null = null;
@@ -42,15 +53,15 @@ function store(databaseUrl: string) {
 
 type ReviewRow = {
   trace_id: string;
-  lane: PersistedReview["lane"];
-  decision: PersistedReview["decision"];
+  lane: ReviewLane;
+  decision: ReviewDecision;
   correct_answer: string | null;
   rationale: string | null;
   reviewed_at: string | Date;
   golden_row: GoldenDatasetRow | null;
 };
 
-const reviewEnvelope = (row: ReviewRow): PersistedReview => ({
+const reviewEnvelope = (row: ReviewRow): StoredReview => ({
   traceId: String(row.trace_id),
   lane: row.lane,
   decision: row.decision,
@@ -106,8 +117,8 @@ export async function saveReviewResult({
   databaseUrl: string;
   workspaceId: string;
   traceId: string;
-  lane: PersistedReview["lane"];
-  decision: PersistedReview["decision"];
+  lane: ReviewLane;
+  decision: ReviewDecision;
   correctAnswer: string | null;
   rationale: string | null;
   trace: unknown;

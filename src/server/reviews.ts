@@ -1,16 +1,23 @@
-import type { GoldenDatasetRow, Trace, TraceJudgeResult } from "../src/types.js";
-import type { ReviewDecision } from "../src/types/ui.js";
-import type { ReviewLane } from "../src/core/reviewQueue.js";
-import { DEFAULT_WEEKLY_REVIEW_BUDGET, normalizedReviewBudget } from "../src/core/reviewPersistence.js";
-import { sendJson } from "./live/_shared.js";
-import { getReviewWorkflow, ReviewStoreUnavailableError, saveReviewResult, saveWeeklyReviewBudget } from "./reviews/_store.js";
+import type { GoldenDatasetRow, Trace, TraceJudgeResult } from "../types.js";
+import type { ReviewDecision } from "../types/ui.js";
+import type { ReviewLane } from "../core/reviewQueue.js";
+import {
+  getReviewWorkflow,
+  ReviewStoreUnavailableError,
+  saveReviewResult,
+  saveWeeklyReviewBudget,
+} from "./reviewStore.js";
 
-const workspaceId = () => String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
-const databaseUrl = () => String(process.env.DATABASE_URL ?? "").trim();
+const DEFAULT_WEEKLY_REVIEW_BUDGET = 60;
+const MIN_WEEKLY_REVIEW_BUDGET = 3;
+const MAX_WEEKLY_REVIEW_BUDGET = 300;
 const lanes: ReviewLane[] = ["representative", "unusual", "uncovered"];
 const decisions: ReviewDecision[] = ["correct", "incorrect", "escalate", "skip"];
 
+const workspaceId = () => String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
+const databaseUrl = () => String(process.env.DATABASE_URL ?? "").trim();
 const isObject = (value: unknown): value is Record<string, any> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const normalizedReviewBudget = (value: number) => Math.min(MAX_WEEKLY_REVIEW_BUDGET, Math.max(MIN_WEEKLY_REVIEW_BUDGET, Math.round(Number.isFinite(value) ? value : DEFAULT_WEEKLY_REVIEW_BUDGET)));
 
 function goldenRowForReview(trace: Trace, judge: TraceJudgeResult | undefined, lane: ReviewLane, decision: ReviewDecision, correctAnswer: string | null, rationale: string | null): GoldenDatasetRow | null {
   if (decision !== "correct" && decision !== "incorrect") return null;
@@ -34,7 +41,9 @@ function goldenRowForReview(trace: Trace, judge: TraceJudgeResult | undefined, l
   };
 }
 
-export default async function handler(req: any, res: any) {
+const sendJson = (res: any, status: number, payload: unknown) => res.status(status).json(payload);
+
+export default async function reviewHandler(req: any, res: any) {
   try {
     if (req.method === "GET") {
       res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
