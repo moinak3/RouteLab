@@ -4,20 +4,20 @@ import { reviewChoicesForVerdict } from "../src/core/reviewAdjudication";
 describe("review adjudication choices", () => {
   it("lets a reviewer correct a passing judge verdict", () => {
     const choices = reviewChoicesForVerdict(true);
-    expect(choices[0]).toEqual(["reject", "Mark response incorrect", "Response is incorrect / partially incorrect"]);
-    expect(choices[1]).toEqual(["approve", "Confirm pass", "Judge is right"]);
+    expect(choices[0]).toEqual(["incorrect", "Mark response incorrect", "Add the corrected answer to the golden dataset"]);
+    expect(choices[1]).toEqual(["correct", "Confirm pass", "The response is correct"]);
   });
 
   it("lets a reviewer overrule or confirm a failing judge verdict", () => {
     const choices = reviewChoicesForVerdict(false);
-    expect(choices[0]).toEqual(["approve", "Overrule judge", "Response is actually fine"]);
-    expect(choices[1]).toEqual(["reject", "Confirm failure", "Judge is right"]);
+    expect(choices[0]).toEqual(["correct", "Overrule judge", "The response is actually correct"]);
+    expect(choices[1]).toEqual(["incorrect", "Confirm failure", "Add the corrected answer to the golden dataset"]);
   });
 
   it("uses neutral choices when no judge verdict exists", () => {
     const choices = reviewChoicesForVerdict(undefined);
-    expect(choices[0]).toEqual(["approve", "Mark satisfactory", "No issue found"]);
-    expect(choices[1]).toEqual(["reject", "Confirm issue", "Response needs correction"]);
+    expect(choices[0]).toEqual(["correct", "Mark satisfactory", "No issue found"]);
+    expect(choices[1]).toEqual(["incorrect", "Mark incorrect", "Add the corrected answer to the golden dataset"]);
   });
 
   it("always preserves expert escalation and skip paths", () => {

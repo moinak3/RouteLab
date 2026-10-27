@@ -3,11 +3,24 @@ import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
-import { adjudicateGoldenDataset, createSimulatedGoldenDataset } from "./core/goldenDatasets";
+import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
 import { applyJevSignatureDecisions, classifyTraceSignaturesWithJev } from "./core/jevSignatureGate";
 import { recommendPolicy } from "./core/recommendations";
 import { mergeRuntimeTraces } from "./core/runtimeTraces";
+import {
+  DEFAULT_WEEKLY_REVIEW_BUDGET,
+  fetchReviewWorkflow,
+  HUMAN_REVIEW_DATASET_ID,
+  persistReview,
+  persistWeeklyReviewBudget,
+  reviewLaneFromSearch,
+  reviewLaneHref,
+  reviewsAsGoldenDataset,
+  type PersistedReview,
+  type ReviewWorkflowState,
+  type SaveReviewInput,
+} from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
@@ -74,7 +87,11 @@ export default function App() {
   const [familyApiKeys, setFamilyApiKeys] = useState<Partial<Record<Model["family"], string>>>({});
   const [gatewayApiKeys, setGatewayApiKeys] = useState<Partial<Record<GatewayProvider, string>>>({});
   const [serverGatewayKeys, setServerGatewayKeys] = useState<Partial<Record<GatewayProvider, boolean>>>({});
-  const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>("all");
+  const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>(() => reviewLaneFromSearch(window.location.search));
+  const [weeklyReviewBudget, setWeeklyReviewBudget] = useState(DEFAULT_WEEKLY_REVIEW_BUDGET);
+  const [persistedReviews, setPersistedReviews] = useState<PersistedReview[]>([]);
+  const [reviewPersistenceState, setReviewPersistenceState] = useState<"loading" | "ready" | "saving" | "unavailable">("loading");
+  const [reviewPersistenceError, setReviewPersistenceError] = useState<string | null>(null);
   const [goldenDatasets, setGoldenDatasets] = useState<GoldenDatasetType[]>(initialGoldenDatasets);
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
   const [notice, setNotice] = useState<string | null>("Example dataset loaded locally");
@@ -106,6 +123,14 @@ export default function App() {
     setPage(nextPage);
   }
 
+  function navigateToReviewLane(lane: ReviewQueueFilter, options?: { replace?: boolean }) {
+    const nextPath = reviewLaneHref(lane);
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    if (currentPath !== nextPath) window.history[options?.replace ? "replaceState" : "pushState"]({ page: "Review Queue", lane }, "", nextPath);
+    setReviewQueueFilter(lane);
+    setPage("Review Queue");
+  }
+
   function handlePageLink(nextPage: Page) {
     return (event: ReactMouseEvent<HTMLAnchorElement>) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -115,10 +140,42 @@ export default function App() {
   }
 
   useEffect(() => {
-    const handlePopState = () => setPage(pageForPath(window.location.pathname) ?? "Home");
+    const handlePopState = () => {
+      const nextPage = pageForPath(window.location.pathname) ?? "Home";
+      if (nextPage === "Review Queue") setReviewQueueFilter(reviewLaneFromSearch(window.location.search));
+      setPage(nextPage);
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  const applyReviewWorkflow = useCallback((workflow: ReviewWorkflowState) => {
+    setWeeklyReviewBudget(workflow.weeklyBudget);
+    setPersistedReviews(workflow.reviews);
+    const humanDataset = reviewsAsGoldenDataset(workflow.reviews);
+    setGoldenDatasets((items) => {
+      const withoutHumanReviews = items.filter((item) => item.id !== HUMAN_REVIEW_DATASET_ID);
+      return humanDataset ? [humanDataset, ...withoutHumanReviews] : withoutHumanReviews;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!previewUnlocked) return;
+    const controller = new AbortController();
+    setReviewPersistenceState("loading");
+    fetchReviewWorkflow(controller.signal)
+      .then((workflow) => {
+        applyReviewWorkflow(workflow);
+        setReviewPersistenceError(null);
+        setReviewPersistenceState("ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+        setReviewPersistenceState("unavailable");
+      });
+    return () => controller.abort();
+  }, [previewUnlocked, applyReviewWorkflow]);
 
   useEffect(() => {
     if (!notice) return;
@@ -234,7 +291,8 @@ export default function App() {
         // Session storage can be unavailable in privacy-restricted browsers.
       }
       setPreviewUnlocked(true);
-      navigateTo(page === "Home" ? "Overview" : page, { replace: page !== "Home" });
+      if (page === "Review Queue") navigateToReviewLane(reviewLaneFromSearch(window.location.search), { replace: true });
+      else navigateTo(page === "Home" ? "Overview" : page, { replace: page !== "Home" });
       return true;
     }
     return false;
@@ -249,13 +307,41 @@ export default function App() {
     setGoldenDatasets((items) => items.map((item) => item.id === dataset.id ? dataset : item));
   }
 
-  function adjudicateReview(trace: Trace, judge: TraceJudgeResult | undefined, humanPassed: boolean) {
-    setGoldenDatasets((items) => {
-      const target = items[0] ?? createSimulatedGoldenDataset([], []);
-      const updated = adjudicateGoldenDataset(target, trace, judge, humanPassed);
-      return items.length ? items.map((item, index) => index === 0 ? updated : item) : [updated];
-    });
-    setNotice("Human judgment saved · calibration metrics updated");
+  async function saveWeeklyReviewBudget(weeklyBudget: number) {
+    setReviewPersistenceState("saving");
+    setReviewPersistenceError(null);
+    try {
+      const workflow = await persistWeeklyReviewBudget(weeklyBudget);
+      applyReviewWorkflow(workflow);
+      setReviewPersistenceState("ready");
+      setNotice(`Weekly review budget saved · ${workflow.weeklyBudget.toLocaleString()} conversations`);
+    } catch (error) {
+      setReviewPersistenceState("unavailable");
+      setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+      throw error;
+    }
+  }
+
+  async function saveHumanReview(input: SaveReviewInput) {
+    setReviewPersistenceState("saving");
+    setReviewPersistenceError(null);
+    try {
+      const { review } = await persistReview(input);
+      const reviews = [review, ...persistedReviews.filter((item) => item.traceId !== review.traceId)];
+      setPersistedReviews(reviews);
+      const humanDataset = reviewsAsGoldenDataset(reviews);
+      setGoldenDatasets((items) => {
+        const withoutHumanReviews = items.filter((item) => item.id !== HUMAN_REVIEW_DATASET_ID);
+        return humanDataset ? [humanDataset, ...withoutHumanReviews] : withoutHumanReviews;
+      });
+      setReviewPersistenceState("ready");
+      setNotice(review.goldenRow ? "Human review saved · golden dataset updated" : "Human review saved");
+      return review;
+    } catch (error) {
+      setReviewPersistenceState("unavailable");
+      setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+      throw error;
+    }
   }
 
   function deleteGoldenDataset(id: string) {
@@ -366,12 +452,12 @@ export default function App() {
       <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
-      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={(filter)=>{setReviewQueueFilter(filter);navigateTo("Review Queue")}} />}
+      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} />}
       {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
-      {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); navigateTo("Review Queue"); }} />}
+      {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
-      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} onAdjudicate={adjudicateReview} />}
+      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
       {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}
       {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}

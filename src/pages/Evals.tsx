@@ -274,15 +274,15 @@ export function Evals({
           <b>{pct(averageScore * 100)}</b>
           <span>across scored traces</span>
         </article>
-        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("passing")}>
+        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("representative")}>
           <small>Passing</small>
           <b>{passing.toLocaleString()}</b>
-          <span>met threshold · open queue</span>
+          <span>met threshold · review a representative sample</span>
         </button>
-        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("needs_review")}>
+        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("unusual")}>
           <small>Needs review</small>
           <b>{failing.toLocaleString()}</b>
-          <span>below threshold · open queue</span>
+          <span>below threshold · review unusual cases</span>
         </button>
         <article className="panel eval-summary-card">
           <small>Trace coverage</small>

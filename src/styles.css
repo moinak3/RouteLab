@@ -1179,8 +1179,8 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
 	  font-size:12px;
 	  font-weight:600;
 	}
-	.review-choice.approve{border-color:rgba(88,240,132,.35);background:rgba(88,240,132,.12)}
-	.review-choice.reject{border-color:rgba(255,125,98,.38);background:rgba(255,125,98,.12)}
+	.review-choice.correct{border-color:rgba(88,240,132,.35);background:rgba(88,240,132,.12)}
+	.review-choice.incorrect{border-color:rgba(255,125,98,.38);background:rgba(255,125,98,.12)}
 	.review-choice.escalate{border-color:rgba(247,198,77,.38);background:rgba(247,198,77,.11)}
 	.review-choice.skip{border-color:rgba(154,108,255,.32);background:rgba(154,108,255,.11)}
 	.review-nav{

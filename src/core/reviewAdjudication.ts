@@ -1,4 +1,4 @@
-export type ReviewAdjudicationDecision = "approve" | "reject" | "escalate" | "skip";
+export type ReviewAdjudicationDecision = "correct" | "incorrect" | "escalate" | "skip";
 export type ReviewChoice = readonly [ReviewAdjudicationDecision, string, string];
 
 const escalationChoices: ReviewChoice[] = [
@@ -9,23 +9,23 @@ const escalationChoices: ReviewChoice[] = [
 export function reviewChoicesForVerdict(passed?: boolean): ReviewChoice[] {
   if (passed === true) {
     return [
-      ["reject", "Mark response incorrect", "Response is incorrect / partially incorrect"],
-      ["approve", "Confirm pass", "Judge is right"],
+      ["incorrect", "Mark response incorrect", "Add the corrected answer to the golden dataset"],
+      ["correct", "Confirm pass", "The response is correct"],
       ...escalationChoices,
     ];
   }
 
   if (passed === false) {
     return [
-      ["approve", "Overrule judge", "Response is actually fine"],
-      ["reject", "Confirm failure", "Judge is right"],
+      ["correct", "Overrule judge", "The response is actually correct"],
+      ["incorrect", "Confirm failure", "Add the corrected answer to the golden dataset"],
       ...escalationChoices,
     ];
   }
 
   return [
-    ["approve", "Mark satisfactory", "No issue found"],
-    ["reject", "Confirm issue", "Response needs correction"],
+    ["correct", "Mark satisfactory", "No issue found"],
+    ["incorrect", "Mark incorrect", "Add the corrected answer to the golden dataset"],
     ...escalationChoices,
   ];
 }

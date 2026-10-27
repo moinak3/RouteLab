@@ -411,7 +411,21 @@ body:before{
 .shell>main .classifier-validation-page :is(p,span,small){color:#526075}
 .shell>main .classifier-confusion td.correct{color:#216437}
 .shell>main .classifier-confusion td.error{color:#9e3929}
-.shell>main .review-filter-actions button.active{border-color:#4c8f5d;background:#e5f2e5;color:#173923}
+.shell>main .review-budget h2,
+.shell>main .review-method-head h2{color:var(--dossier-ink)}
+.shell>main .review-budget p,
+.shell>main .review-method-note{color:var(--dossier-muted)}
+.shell>main .review-budget form>small{color:#476653}
+.shell>main .review-tabs a{border-color:var(--dossier-rule);border-radius:2px;background:rgba(251,248,240,.65);color:var(--dossier-ink)}
+.shell>main .review-tabs a small{color:var(--dossier-muted)}
+.shell>main .review-tabs a.active{border-color:#4c8f5d;background:#e5f2e5;color:#173923}
+.shell>main .review-method-head>span{color:#2f6640}
+.shell>main .review-lane{border-color:var(--dossier-rule);border-radius:2px;background:rgba(255,255,255,.4)}
+.shell>main .review-lane>span,
+.shell>main .review-lane>b small,
+.shell>main .review-lane p{color:var(--dossier-muted)}
+.shell>main .review-lane>b{color:var(--dossier-blue)}
+.shell>main .review-error{border-color:#b25a49;background:#f4dfda;color:#7b2d22}
 
 /* The review workspace stays dark so long-form traces remain visually contained. */
 .shell>main .review-card{
@@ -436,12 +450,16 @@ body:before{
 .shell>main .review-card .review-choice span{color:#b8c7c0!important}
 .shell>main .review-card .review-user-feedback.thumbs_down b{color:#ffbcaa!important}
 .shell>main .review-card .review-user-feedback.thumbs_up b{color:#bdf58a!important}
-.shell>main .review-card .review-choice.approve{border-color:#43985e;background:#173f2b!important}
-.shell>main .review-card .review-choice.reject{border-color:#b25a49;background:#422826!important}
+.shell>main .review-card .review-choice.correct{border-color:#43985e;background:#173f2b!important}
+.shell>main .review-card .review-choice.incorrect{border-color:#b25a49;background:#422826!important}
 .shell>main .review-card .review-choice.escalate{border-color:#aa8130;background:#403722!important}
 .shell>main .review-card .review-choice.skip{border-color:#7565a4;background:#2d2845!important}
 .shell>main .review-card .review-choice:hover,
 .shell>main .review-card .review-choice:focus-visible{filter:brightness(1.14);color:#fff}
+.shell>main .review-card .review-correction{border-color:#b25a49;background:#342523}
+.shell>main .review-card .review-correction :is(h3,label){color:#f7fbf9!important}
+.shell>main .review-card .review-correction :is(input,textarea){border-color:#6d7773;background:#f8f6ee;color:var(--dossier-ink)!important}
+.shell>main .review-card .review-correction button{border-color:#6d7773;background:#26312f;color:#eef5f1}
 
 /* The LLM grouping workspace intentionally stays dark; reset paper-theme text colors inside it. */
 .shell>main .llm-method-strip,
@@ -647,5 +665,7 @@ body:before{
   .home-page{padding-inline:16px}.home-nav{min-height:64px}.home-hero{padding-top:36px}.home-hero-copy h1{font-size:48px;line-height:.96}
   .home-section-head,.home-comparison-intro{grid-template-columns:1fr;gap:20px}.home-section-head>*{min-width:0}.home-section-head h2,.home-coming-next h2,.home-final h2,.home-comparison-intro h2{font-size:36px}
   .home-why-now-card{margin-right:10px}.home-section{padding-block:64px}.home-waitlist-copy h2{font-size:36px}
-  .shell>main{padding:20px 16px 48px}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .shell>aside{display:none}
+  .shell>main{grid-column:1;min-width:0;width:100%;padding:20px 16px 48px;overflow-x:hidden}
 }
