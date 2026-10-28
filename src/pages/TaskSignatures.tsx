@@ -1,23 +1,28 @@
 import { useState } from "react";
-import type { Trace, TraceJudgeResult } from "../types";
+import { createDistinctTaskBuckets } from "../core/distinctTasks";
+import type { DistinctTaskBucket, Trace, TraceJudgeResult } from "../types";
 import { DistinctTasks } from "./DistinctTasks";
 import { LLMGroupedTasks } from "./LLMGroupedTasks";
 
 type GroupingMethod = "rules" | "llm";
 
-export function TaskSignatures({ traces, traceJudgeResults, serverGatewayKey }: {
+export function TaskSignatures({ traces, traceJudgeResults, serverGatewayKey, onTaskGroupsChange }: {
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
   serverGatewayKey?: boolean;
+  onTaskGroupsChange?: (groups: DistinctTaskBucket[]) => void;
 }) {
-  const [method, setMethod] = useState<GroupingMethod>("rules");
+  const [method, setMethod] = useState<GroupingMethod>("llm");
   const [rulesRunToken, setRulesRunToken] = useState(0);
   const [llmRunToken, setLlmRunToken] = useState(0);
   const [llmRunning, setLlmRunning] = useState(false);
   const canGenerate = traces.length > 0 && !llmRunning && (method === "rules" || serverGatewayKey === true);
 
   function generate() {
-    if (method === "rules") setRulesRunToken((value) => value + 1);
+    if (method === "rules") {
+      onTaskGroupsChange?.(createDistinctTaskBuckets(traces));
+      setRulesRunToken((value) => value + 1);
+    }
     else setLlmRunToken((value) => value + 1);
   }
 
@@ -47,6 +52,6 @@ export function TaskSignatures({ traces, traceJudgeResults, serverGatewayKey }: 
     {method === "rules" ? rulesRunToken > 0
       ? <DistinctTasks key={rulesRunToken} traces={traces} traceJudgeResults={traceJudgeResults} embedded />
       : <section className="task-signature-empty"><b>No RouteLab rule groups generated yet</b><span>Choose Generate Task Groups to classify the current trace snapshot.</span></section>
-      : <LLMGroupedTasks traces={traces} serverGatewayKey={serverGatewayKey} embedded runToken={llmRunToken} onRunningChange={setLlmRunning} />}
+      : <LLMGroupedTasks traces={traces} serverGatewayKey={serverGatewayKey} embedded runToken={llmRunToken} onRunningChange={setLlmRunning} onTaskGroupsChange={onTaskGroupsChange} />}
   </div>;
 }

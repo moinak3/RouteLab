@@ -1,4 +1,4 @@
-import type { GoldenDataset, Trace, TraceJudgeResult } from "../types";
+import type { DistinctTaskBucket, GoldenDataset, Trace, TraceJudgeResult } from "../types";
 
 export type WorkspaceId = "personal" | "demo";
 
@@ -6,12 +6,21 @@ export type WorkspaceData = {
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
   goldenDatasets: GoldenDataset[];
+  taskGroups: DistinctTaskBucket[];
 };
 
 const ACTIVE_WORKSPACE_KEY = "routelab-active-workspace-v1";
 const PERSONAL_WORKSPACE_KEY = "routelab-personal-workspace-v1";
 
-export const emptyPersonalWorkspace = (): WorkspaceData => ({ traces: [], traceJudgeResults: [], goldenDatasets: [] });
+export const emptyPersonalWorkspace = (): WorkspaceData => ({ traces: [], traceJudgeResults: [], goldenDatasets: [], taskGroups: [] });
+
+export function replaceWorkspaceTraces(workspace: WorkspaceData, traces: Trace[]): WorkspaceData {
+  return { ...workspace, traces, traceJudgeResults: [], taskGroups: [] };
+}
+
+export function clearWorkspaceTraces(workspace: WorkspaceData): WorkspaceData {
+  return replaceWorkspaceTraces(workspace, []);
+}
 
 export function loadActiveWorkspace(): WorkspaceId {
   try {
@@ -38,6 +47,7 @@ export function loadPersonalWorkspace(): WorkspaceData {
       traces: Array.isArray(parsed.traces) ? parsed.traces : [],
       traceJudgeResults: Array.isArray(parsed.traceJudgeResults) ? parsed.traceJudgeResults : [],
       goldenDatasets: Array.isArray(parsed.goldenDatasets) ? parsed.goldenDatasets : [],
+      taskGroups: Array.isArray(parsed.taskGroups) ? parsed.taskGroups : [],
     };
   } catch {
     return emptyPersonalWorkspace();

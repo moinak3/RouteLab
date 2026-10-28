@@ -10,11 +10,15 @@
 }
 .trace-source-bar>div:first-child{display:grid;gap:4px;margin-right:auto}
 .trace-source-bar>div:first-child b{color:#eef7f2;font-size:14px}
+.trace-source-bar>div:first-child small{max-width:340px;color:#91a39b;font-size:12px;line-height:1.45}
 .trace-source-actions{display:flex;align-items:center;gap:8px}
 .trace-source-actions input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;clip-path:inset(50%)}
 .trace-source-actions button{min-height:38px;white-space:nowrap}
 .trace-source-actions button:disabled{cursor:not-allowed;opacity:.48;box-shadow:none}
 .trace-source-actions button span{color:#91a39b;font-weight:500}
+.trace-source-actions .trace-clear-button{border-color:#744a4a;color:#f0b2b2;background:rgba(98,37,37,.18)}
+.trace-source-actions .trace-clear-confirm{border-color:#c95b5b;color:#fff;background:#8f3535}
+.trace-source-actions .trace-clear-cancel{border-color:var(--line);color:#c5d2cc;background:transparent}
 .trace-import-result{display:grid;gap:3px;max-width:420px;padding-left:16px;border-left:1px solid var(--line);color:#a9bdb3;font-size:12px}
 .trace-import-result b{color:var(--green)}
 .trace-import-result span{color:#94a79d}

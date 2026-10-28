@@ -1,4 +1,5 @@
 import type { DistinctTaskBucket, Trace } from "../types.js";
+import { createDistinctTaskBuckets } from "./distinctTasks.js";
 
 export const LLM_GROUPING_SCHEMA_VERSION = "routelab.llm-grouping.v1" as const;
 export const LLM_GROUPING_PROMPT_VERSION = "independent-task-discovery-v1";
@@ -86,6 +87,49 @@ export type LLMGroupingRun = {
     total: number;
   };
 };
+
+const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+
+export function createTaskBucketsFromLLMGrouping(traces: Trace[], run: LLMGroupingRun): DistinctTaskBucket[] {
+  const traceById = new Map(traces.map((trace) => [trace.id, trace]));
+  return run.groups.flatMap((group) => {
+    const assignments = run.assignments.filter((assignment) => assignment.status === "assigned" && assignment.groupId === group.id);
+    const groupedTraces = assignments.flatMap((assignment) => {
+      const trace = traceById.get(assignment.traceId);
+      return trace ? [trace] : [];
+    });
+    if (!groupedTraces.length) return [];
+
+    // Legacy task attributes support downstream analysis, but the LLM run defines the group boundary.
+    const inferred = createDistinctTaskBuckets(groupedTraces);
+    const representative = [...inferred].sort((left, right) => right.trace_count - left.trace_count)[0];
+    const totalCost = groupedTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
+    const latencies = groupedTraces.flatMap((trace) => trace.latency_ms === undefined ? [] : [trace.latency_ms]);
+    return [{
+      bucket_id: group.id,
+      bucket_name: group.name,
+      task: representative.task,
+      traces: groupedTraces.map((trace) => trace.id),
+      trace_count: groupedTraces.length,
+      total_cost_usd: totalCost,
+      avg_cost_usd: totalCost / groupedTraces.length,
+      total_tokens: groupedTraces.reduce((sum, trace) => sum + trace.total_tokens, 0),
+      avg_input_tokens: average(groupedTraces.map((trace) => trace.input_tokens)),
+      avg_output_tokens: average(groupedTraces.map((trace) => trace.output_tokens)),
+      avg_latency_ms: average(latencies),
+      avg_confidence: average(assignments.map((assignment) => assignment.confidence)),
+      low_confidence_count: assignments.filter((assignment) => assignment.confidence < .86).length,
+      risk_level: representative.risk_level,
+      customer_facing: inferred.some((bucket) => bucket.customer_facing),
+      evidence: representative.evidence,
+      examples: groupedTraces.slice(0, 3).map((trace) => ({
+        trace_id: trace.id,
+        prompt_preview: trace.prompt_text.slice(0, 140),
+        response_preview: (trace.response_text ?? "").slice(0, 140),
+      })),
+    }];
+  }).sort((left, right) => right.trace_count - left.trace_count);
+}
 
 export type LLMGroupingComparisonCell = {
   existingBucketId: string;

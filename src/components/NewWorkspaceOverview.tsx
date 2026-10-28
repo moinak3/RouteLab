@@ -28,8 +28,8 @@ export function NewWorkspaceOverview({ onImport, onNavigate, onUseDemo }: {
   };
 
   const steps = [
-    ["01", "Add production traces", "Upload CSV or JSONL now. Observability connectors can be added when you are ready."],
-    ["02", "Review proposed task groups", "RouteLab groups requests by the outcome they are trying to achieve."],
+    ["01", "Add production traces", "Upload CSV or JSONL. RouteLab stores and normalizes the records without classifying or evaluating them."],
+    ["02", "Generate task groups", "Start an explicit grouping run to organize requests by the outcome they are trying to achieve."],
     ["03", "Set the quality bar", "Connect eval evidence and review where automated judges disagree with people."],
     ["04", "Replay candidate models", "Compare quality, latency, and cost on the same requests within each task group."],
     ["05", "Approve an allocation policy", "Promote only the task-model combinations that clear your requirements."],

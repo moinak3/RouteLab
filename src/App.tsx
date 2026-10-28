@@ -6,7 +6,6 @@ import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateF
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
-import { applyJevSignatureDecisions, classifyTraceSignaturesWithJev } from "./core/jevSignatureGate";
 import { recommendPolicy } from "./core/recommendations";
 import { mergeRuntimeTraces } from "./core/runtimeTraces";
 import {
@@ -24,7 +23,7 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
-import { emptyPersonalWorkspace, loadActiveWorkspace, loadPersonalWorkspace, saveActiveWorkspace, savePersonalWorkspace, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
+import { clearWorkspaceTraces, loadActiveWorkspace, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
@@ -38,7 +37,7 @@ import { ReviewQueue } from "./pages/ReviewQueue";
 import { Simulations } from "./pages/Simulations";
 import { Traces } from "./pages/Traces";
 import { TaskSignatures } from "./pages/TaskSignatures";
-import type { FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace } from "./types";
+import type { DistinctTaskBucket, FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace } from "./types";
 import type { Page, ReviewQueueFilter } from "./types/ui";
 
 const initialTraces = createSeedTraces();
@@ -83,11 +82,12 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(loadActiveWorkspace);
   const [workspaceData, setWorkspaceData] = useState<Record<WorkspaceId, WorkspaceData>>(() => ({
     personal: loadPersonalWorkspace(),
-    demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets },
+    demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets, taskGroups: createDistinctTaskBuckets(initialTraces) },
   }));
   const traces = workspaceData[activeWorkspace].traces;
   const traceJudgeResults = workspaceData[activeWorkspace].traceJudgeResults;
   const goldenDatasets = workspaceData[activeWorkspace].goldenDatasets;
+  const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
   const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
     setWorkspaceData((current) => {
       const workspace = current[activeWorkspace];
@@ -101,6 +101,12 @@ export default function App() {
       const goldenDatasets = typeof next === "function" ? next(workspace.goldenDatasets) : next;
       return { ...current, [activeWorkspace]: { ...workspace, goldenDatasets } };
     });
+  }, [activeWorkspace]);
+  const setTaskGroups = useCallback((taskGroups: DistinctTaskBucket[]) => {
+    setWorkspaceData((current) => ({
+      ...current,
+      [activeWorkspace]: { ...current[activeWorkspace], taskGroups },
+    }));
   }, [activeWorkspace]);
   const [candidate, setCandidate] = useState("deepseek-r1");
   const [recommendationCandidate, setRecommendationCandidate] = useState(DEEPSEEK_RECOMMENDATION_SCOPE);
@@ -120,7 +126,6 @@ export default function App() {
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const simulationModels = useMemo(() => [...(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id), OPENROUTER_AUTO_MODEL], [openRouterModels, activeModels]);
   const simulationModelIds = useMemo(() => simulationModels.map((model) => model.id), [simulationModels]);
-  const distinctTaskBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
   const metrics = useMemo(() => dashboardMetrics(traces), [traces]);
   const workflows = useMemo(() => buildWorkflowTrees(traces), [traces]);
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
@@ -298,25 +303,13 @@ export default function App() {
     const result = ingestText(text, fileName);
     const errors = result.errors.slice(0, 8).map((error) => `Row ${error.row}: ${error.reason}`);
     if (result.traces.length) {
-      setNotice(`Classifying ${result.traces.length.toLocaleString()} incoming traces with Jev...`);
-      let classifiedTraces = result.traces;
-      let gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
-      try {
-        const gate = await classifyTraceSignaturesWithJev(result.traces, knownDistinctTaskSignatures);
-        classifiedTraces = applyJevSignatureDecisions(result.traces, gate.decisions);
-        gateSummary = `${gate.summary.matched} signature routes · ${gate.summary.fallback} fallback routes`;
-      } catch {
-        gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
-      }
-      const importedWorkspace: WorkspaceData = {
-        traces: classifiedTraces,
-        traceJudgeResults: createTraceJudgeResults(classifiedTraces),
-        goldenDatasets: activeWorkspace === "personal" ? goldenDatasets : emptyPersonalWorkspace().goldenDatasets,
-      };
-      setWorkspaceData((current) => ({ ...current, personal: importedWorkspace }));
+      setWorkspaceData((current) => ({
+        ...current,
+        personal: replaceWorkspaceTraces(current.personal, result.traces),
+      }));
       setActiveWorkspace("personal");
       navigateTo("Traces");
-      setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} task groups · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
+      setNotice(`${result.traces.length.toLocaleString()} traces imported · no classification or evaluation run${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
       return { imported: result.traces.length, errors };
     } else {
       setNotice(result.errors.length ? `${result.errors.length} rows could not be ingested` : "No LLM calls found in upload");
@@ -327,6 +320,16 @@ export default function App() {
   async function upload(file?: File) {
     if (!file) return { imported: 0, errors: ["No file was selected."] };
     return applyUploadedText(await file.text(), file.name);
+  }
+
+  function clearPersonalTraces() {
+    if (activeWorkspace !== "personal") return;
+    setWorkspaceData((current) => ({
+      ...current,
+      personal: clearWorkspaceTraces(current.personal),
+    }));
+    navigateTo("Overview");
+    setNotice("All traces cleared from My workspace");
   }
 
   function enterApp(password: string) {
@@ -501,8 +504,8 @@ export default function App() {
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}
       {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
-      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} />}
-      {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
+      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
+      {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} onTaskGroupsChange={setTaskGroups} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
