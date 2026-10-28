@@ -10,7 +10,11 @@ const workspaceId = (req: any) => {
   return String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
 };
 const groupingModel = () => String(process.env.ROUTELAB_LLM_GROUPING_MODEL ?? "google/gemini-2.5-flash").trim();
-const emit = (res: any, payload: unknown) => res.write(`${JSON.stringify(payload)}\n`);
+const emit = (res: any, payload: unknown) => {
+  if (res.writableEnded || res.destroyed) return;
+  res.write(`${JSON.stringify(payload)}\n`);
+  res.flush?.();
+};
 
 export async function handleLLMGroupingLatest(req: any, res: any) {
   if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
@@ -41,15 +45,19 @@ export async function handleLLMGroupingRun(req: any, res: any) {
   res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
   const controller = new AbortController();
   req.on?.("aborted", () => controller.abort());
   res.on?.("close", () => { if (!res.writableEnded) controller.abort(); });
+  const heartbeat = setInterval(() => emit(res, { type: "heartbeat", at: new Date().toISOString() }), 10_000);
   try {
     const run = await runLLMGrouping({
       inputs,
       snapshot: verifiedSnapshot,
       apiKey,
       model: groupingModel(),
+      batchSize: Number(process.env.ROUTELAB_LLM_GROUPING_BATCH_SIZE ?? 32),
+      concurrency: Number(process.env.ROUTELAB_LLM_GROUPING_CONCURRENCY ?? 3),
       signal: controller.signal,
       onProgress: (progress) => emit(res, { type: "progress", ...progress }),
     });
@@ -59,6 +67,7 @@ export async function handleLLMGroupingRun(req: any, res: any) {
     const recoverable = error instanceof LLMGroupingProviderError || error instanceof LLMGroupingConfigurationError || error instanceof LLMGroupingStoreUnavailableError;
     emit(res, { type: "error", error: error instanceof Error ? error.message : "LLM grouping failed.", recoverable });
   } finally {
+    clearInterval(heartbeat);
     res.end();
   }
 }

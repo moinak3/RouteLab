@@ -26,6 +26,7 @@ type RunnerOptions = {
   model: string;
   fetchImpl?: FetchLike;
   batchSize?: number;
+  concurrency?: number;
   onProgress?: (progress: Progress) => void;
   now?: () => Date;
   signal?: AbortSignal;
@@ -180,6 +181,20 @@ function chunks<T>(items: T[], size: number) {
   return result;
 }
 
+async function mapConcurrentOrdered<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), Math.max(1, items.length)) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 const unique = (items: string[]) => [...new Set(items.map((item) => String(item).trim()).filter(Boolean))];
 const progress = (options: RunnerOptions, stage: LLMGroupingStage, completed: number, total: number, message: string) => options.onProgress?.({ stage, completed, total, message });
 
@@ -198,35 +213,37 @@ export async function runLLMGrouping(options: RunnerOptions): Promise<LLMGroupin
   if (inputErrors.length) throw new Error(inputErrors.join(" "));
   assertExactIds("Input snapshot", options.snapshot.traceIds, options.inputs.map((input) => input.traceId));
   const fetchImpl = options.fetchImpl ?? fetch;
-  const batchSize = Math.max(5, Math.min(40, options.batchSize ?? 24));
+  const batchSize = Math.max(5, Math.min(40, options.batchSize ?? 32));
+  const concurrency = Math.max(1, Math.min(4, options.concurrency ?? 3));
   const startedAt = (options.now ?? (() => new Date()))().toISOString();
   const inputBatches = chunks(options.inputs, batchSize);
-  const descriptions: LLMTaskDescription[] = [];
-
-  for (let index = 0; index < inputBatches.length; index += 1) {
-    progress(options, "extraction", index, inputBatches.length, `Extracting intended work from batch ${index + 1} of ${inputBatches.length}`);
+  let extractionCompleted = 0;
+  const descriptionBatches = await mapConcurrentOrdered(inputBatches, concurrency, async (batch, index) => {
     const result = await structuredCall({
       name: "task_descriptions", schema: extractionSchema, apiKey: options.apiKey, model: options.model, fetchImpl, signal: options.signal,
       instructions: "For every trace, write a concise immediate-job description and request attributes. Preserve ambiguous or insufficient cases instead of guessing. Return exactly one description per trace.",
-      payload: { traces: inputBatches[index] },
+      payload: { traces: batch },
     });
-    assertExactIds("Extraction", inputBatches[index].map((item) => item.traceId), result.descriptions.map((item: any) => item.traceId));
-    descriptions.push(...result.descriptions);
-    progress(options, "extraction", index + 1, inputBatches.length, `Extracted ${descriptions.length} of ${options.inputs.length} traces`);
-  }
+    assertExactIds("Extraction", batch.map((item) => item.traceId), result.descriptions.map((item: any) => item.traceId));
+    extractionCompleted += 1;
+    progress(options, "extraction", extractionCompleted, inputBatches.length, `Extracted batch ${extractionCompleted} of ${inputBatches.length}`);
+    return result.descriptions as LLMTaskDescription[];
+  });
+  const descriptions = descriptionBatches.flat();
 
   const discoveryBatches = chunks(descriptions, Math.max(batchSize * 2, 40));
-  const proposals: any[] = [];
-  for (let index = 0; index < discoveryBatches.length; index += 1) {
-    progress(options, "discovery", index, discoveryBatches.length, `Discovering candidate groups from batch ${index + 1} of ${discoveryBatches.length}`);
+  let discoveryCompleted = 0;
+  const proposalBatches = await mapConcurrentOrdered(discoveryBatches, concurrency, async (batch) => {
     const result = await structuredCall({
       name: "task_catalog", schema: proposalSchema, apiKey: options.apiKey, model: options.model, fetchImpl, signal: options.signal,
       instructions: "Propose coherent task groups from these independent job descriptions. Do not force a target count. Use short unique groupKey values. Define boundaries, attributes, evaluation dimensions, and why routing treatment may differ.",
-      payload: { descriptions: discoveryBatches[index] },
+      payload: { descriptions: batch },
     });
-    proposals.push(...result.groups);
-    progress(options, "discovery", index + 1, discoveryBatches.length, `Proposed ${proposals.length} candidate groups`);
-  }
+    discoveryCompleted += 1;
+    progress(options, "discovery", discoveryCompleted, discoveryBatches.length, `Discovered candidates in batch ${discoveryCompleted} of ${discoveryBatches.length}`);
+    return result.groups as any[];
+  });
+  const proposals = proposalBatches.flat();
 
   progress(options, "consolidation", 0, 1, "Consolidating overlapping batch taxonomies");
   const consolidatedResult = await structuredCall({
@@ -241,22 +258,24 @@ export async function runLLMGrouping(options: RunnerOptions): Promise<LLMGroupin
   progress(options, "consolidation", 1, 1, `Consolidated to ${catalog.length} task groups`);
 
   const assignmentBatches = chunks(descriptions, batchSize);
-  const rawAssignments: any[] = [];
-  for (let index = 0; index < assignmentBatches.length; index += 1) {
-    progress(options, "assignment", index, assignmentBatches.length + 1, `Assigning batch ${index + 1} of ${assignmentBatches.length}`);
+  let assignmentCompleted = 0;
+  const assignmentResults = await mapConcurrentOrdered(assignmentBatches, concurrency, async (batch) => {
     const result = await structuredCall({
       name: "task_assignments", schema: assignmentSchema, apiKey: options.apiKey, model: options.model, fetchImpl, signal: options.signal,
       instructions: "Assign each trace to one primary group only when the immediate job fits clearly. Use ambiguous with two or more alternateGroupKeys when boundaries overlap. Use unassigned when no group fits or the request is insufficient. Return exactly one assignment per trace.",
-      payload: { catalog, descriptions: assignmentBatches[index] },
+      payload: { catalog, descriptions: batch },
     });
-    assertExactIds("Assignment", assignmentBatches[index].map((item) => item.traceId), result.assignments.map((item: any) => item.traceId));
+    assertExactIds("Assignment", batch.map((item) => item.traceId), result.assignments.map((item: any) => item.traceId));
     result.assignments.forEach((assignment: any) => {
       if (assignment.status === "assigned" && !catalogKeys.has(assignment.groupKey)) throw new LLMGroupingProviderError(`Assignment references unknown group ${assignment.groupKey}.`);
       if (assignment.status !== "assigned") assignment.groupKey = null;
       assignment.alternateGroupKeys = unique(assignment.alternateGroupKeys).filter((key) => catalogKeys.has(key));
     });
-    rawAssignments.push(...result.assignments);
-  }
+    assignmentCompleted += 1;
+    progress(options, "assignment", assignmentCompleted, assignmentBatches.length + 1, `Assigned batch ${assignmentCompleted} of ${assignmentBatches.length}`);
+    return result.assignments as any[];
+  });
+  const rawAssignments = assignmentResults.flat();
   assertExactIds("Full assignment", options.inputs.map((input) => input.traceId), rawAssignments.map((assignment) => assignment.traceId));
 
   progress(options, "assignment", assignmentBatches.length, assignmentBatches.length + 1, "Checking boundaries and selecting observed evidence");
