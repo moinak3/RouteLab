@@ -38,7 +38,7 @@ const wait = (milliseconds: number, signal?: AbortSignal) => new Promise<void>((
   if (signal?.aborted) return reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
   const onAbort = () => {
     clearTimeout(timeout);
-    reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
   };
   const timeout = setTimeout(() => {
     signal?.removeEventListener("abort", onAbort);
