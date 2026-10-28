@@ -2,45 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Trace, TraceJudgeResult } from "../types";
 import { pct } from "../lib/format";
 import type { ReviewQueueFilter } from "../types/ui";
+import {
+  defaultEvalDefinitions,
+  demoEvalDefinitions,
+  evalDefinitionFileName,
+  serializeEvalDefinition,
+  type EvalDefinition,
+} from "../core/evalDefinitions";
 
-const seededActiveEvalDefinition = {
-  id: "trace_quality_llm_judge",
-  name: "Trace quality LLM judge",
-  status: "Running",
-  evaluator_type: "llm_as_judge",
-  model: "gpt-5.5-pro",
-  threshold: .85,
-  prompt: `You are the Trace Quality LLM Judge for customer support agent traces.
-
-Evaluate the agent response against the user prompt, available context, policies, tool results, and expected task requirements.
-
-Return a score of 1.0, 0.5, or 0.0 and a concise rationale.
-
-Score 1.0 only when the response fully resolves the support request, includes all required facts or fields, follows grounding and policy requirements, uses the requested format, and introduces no material safety, privacy, legal, billing, or account-access risk.
-
-Score 0.5 when the response is directionally useful but incomplete, vague, missing an important requested detail, weakly grounded, or needs human follow-up before use, while avoiding critical policy or safety errors.
-
-Score 0.0 when the response fails the task, answers the wrong request, omits core required information, contradicts context or policy, produces unusable structured output, or creates high-risk customer harm.
-
-Inputs:
-- User prompt
-- Agent response
-- Trace metadata
-- Retrieved context, policy text, or tool results when present
-
-Output JSON:
-{"score":1|0.5|0,"passed":boolean,"rationale":"short reason","severity":"minor|major|critical|null"}`,
-  dimensions: [
-    "Prompt intent and requested task",
-    "Agent response completeness",
-    "Required factual details",
-    "Policy or safety risk",
-    "Severity of missing or incorrect answer",
-    "Pass/fail score threshold",
-  ],
-};
-
-type EvalDefinition = typeof seededActiveEvalDefinition & { scope: string };
 type EvalVersion = {
   version: number;
   createdAt: string;
@@ -52,58 +21,31 @@ export function appendEvalVersion(versions: EvalVersion[], definition: EvalDefin
   return [...versions, { version: nextVersion, createdAt, definition }];
 }
 
-const seededEvalDefinitions: EvalDefinition[] = [
-  { ...seededActiveEvalDefinition, scope: "All task groups" },
-  {
-    id: "policy_compliance_check",
-    name: "Policy compliance check",
-    status: "Running",
-    evaluator_type: "deterministic_rule_check",
-    model: "none",
-    threshold: 1,
-    prompt: "Rule-based evaluator rejects refund promises before verification, password disclosure requests, public data sharing, and unsupported SLA credit commitments.",
-    dimensions: ["Refund approval language", "Account access policy", "Data handling policy", "SLA eligibility constraints"],
-    scope: "Policy compliance review, refund and billing dispute resolution, account security verification",
-  },
-  {
-    id: "factual_grounding_judge",
-    name: "Factual grounding judge",
-    status: "Running",
-    evaluator_type: "llm_as_judge",
-    model: "gpt-5.5-pro",
-    threshold: .9,
-    prompt: "Score whether the answer is supported by retrieved context and cites the correct source for RAG-grounded support answers.",
-    dimensions: ["Retrieved context support", "Citation correctness", "Unsupported claim detection"],
-    scope: "RAG-grounded policy answers",
-  },
-  {
-    id: "tool_call_validity",
-    name: "Tool call validity",
-    status: "Running",
-    evaluator_type: "schema_check",
-    model: "none",
-    threshold: 1,
-    prompt: "Validate tool output schema, required arguments, tool success state, and whether the final answer reflects the returned tool data.",
-    dimensions: ["Tool arguments", "Tool status", "Schema validity", "Final answer consistency"],
-    scope: "Order status lookup, account security verification",
-  },
-];
+const EVAL_DEFINITIONS_STORAGE_PREFIX = "routelab-eval-definitions-v2:";
+const EVAL_VERSIONS_STORAGE_PREFIX = "routelab-eval-versions-v2:";
+const ACTIVE_EVAL_VERSION_STORAGE_PREFIX = "routelab-active-eval-version-v2:";
 
-const EVAL_VERSIONS_STORAGE_KEY="routelab-eval-versions-v1";
-const ACTIVE_EVAL_VERSION_STORAGE_KEY="routelab-active-eval-version-v1";
-const seededEvalVersions: EvalVersion[]=[{version:1,createdAt:"2026-10-01T17:00:00.000Z",definition:seededEvalDefinitions[0]}];
-
-function loadEvalVersions() {
+function loadEvalDefinitions(workspaceId: string, defaults: EvalDefinition[]) {
   try {
-    const parsed=JSON.parse(window.localStorage.getItem(EVAL_VERSIONS_STORAGE_KEY)??"null") as EvalVersion[]|null;
-    if(Array.isArray(parsed)&&parsed.length&&parsed.every(item=>Number.isInteger(item?.version)&&typeof item?.createdAt==="string"&&typeof item?.definition?.id==="string")) return parsed;
-  } catch { /* Start from the bundled definition when local history is unavailable. */ }
-  return seededEvalVersions;
+    const parsed = JSON.parse(window.localStorage.getItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`) ?? "null") as EvalDefinition[] | null;
+    if (Array.isArray(parsed)
+      && parsed.every((item) => typeof item?.id === "string" && typeof item?.name === "string")
+      && (parsed.length > 0 || defaults.length === 0)) return parsed;
+  } catch { /* Use workspace-specific defaults when local definitions are unavailable. */ }
+  return defaults;
 }
 
-function loadActiveEvalVersion() {
+function loadEvalVersions(workspaceId: string, defaults: EvalDefinition[]) {
   try {
-    const parsed=Number(window.localStorage.getItem(ACTIVE_EVAL_VERSION_STORAGE_KEY));
+    const parsed=JSON.parse(window.localStorage.getItem(`${EVAL_VERSIONS_STORAGE_PREFIX}${workspaceId}`)??"null") as EvalVersion[]|null;
+    if(Array.isArray(parsed)&&parsed.length&&parsed.every(item=>Number.isInteger(item?.version)&&typeof item?.createdAt==="string"&&typeof item?.definition?.id==="string")) return parsed;
+  } catch { /* Start from workspace-specific definitions when local history is unavailable. */ }
+  return defaults.length ? [{ version: 1, createdAt: "2026-10-01T17:00:00.000Z", definition: defaults[0] }] : [];
+}
+
+function loadActiveEvalVersion(workspaceId: string) {
+  try {
+    const parsed=Number(window.localStorage.getItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`));
     if(Number.isInteger(parsed)&&parsed>0)return parsed;
   } catch { /* Start from the bundled definition when local history is unavailable. */ }
   return 1;
@@ -150,10 +92,14 @@ const chartPoint = (index: number, total: number, score: number) => {
 };
 
 export function Evals({
+  workspaceId,
+  workspace,
   traces,
   traceJudgeResults,
   onReviewFilter,
 }: {
+  workspaceId: string;
+  workspace: "personal" | "demo";
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
   onReviewFilter: (filter: ReviewQueueFilter) => void;
@@ -164,47 +110,62 @@ export function Evals({
   const history = monthlyEvalHistory(traceJudgeResults);
   const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
-  const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(seededEvalDefinitions);
-  const [evalVersions,setEvalVersions]=useState<EvalVersion[]>(loadEvalVersions);
-  const [activeEvalVersion,setActiveEvalVersion]=useState(loadActiveEvalVersion);
+  const workspaceDefaults = defaultEvalDefinitions(workspace, traces);
+  const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(() => loadEvalDefinitions(workspaceId, workspaceDefaults));
+  const [evalVersions,setEvalVersions]=useState<EvalVersion[]>(() => loadEvalVersions(workspaceId, workspaceDefaults));
+  const [activeEvalVersion,setActiveEvalVersion]=useState(() => loadActiveEvalVersion(workspaceId));
   const activeVersion=evalVersions.find(item=>item.version===activeEvalVersion)??evalVersions[evalVersions.length-1];
-  const activeEvalDefinition=activeVersion.definition;
+  const activeEvalDefinition=activeVersion?.definition;
   const [modal,setModal]=useState<"import"|"create"|"edit"|"versions"|null>(null);
   const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All task groups",prompt:""});
-  const [importText,setImportText]=useState(JSON.stringify(seededEvalDefinitions[0],null,2));
+  const [importText,setImportText]=useState(JSON.stringify(workspaceDefaults[0] ?? demoEvalDefinitions[0],null,2));
   const [formError,setFormError]=useState<string|null>(null);
   useEffect(()=>{
     try {
-      window.localStorage.setItem(EVAL_VERSIONS_STORAGE_KEY,JSON.stringify(evalVersions));
-      window.localStorage.setItem(ACTIVE_EVAL_VERSION_STORAGE_KEY,String(activeVersion.version));
+      window.localStorage.setItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalDefinitions));
+      window.localStorage.setItem(`${EVAL_VERSIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalVersions));
+      if (activeVersion) window.localStorage.setItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`,String(activeVersion.version));
     } catch { /* Version history remains available for the current page session. */ }
-  },[evalVersions,activeVersion.version]);
+  },[workspaceId,evalDefinitions,evalVersions,activeVersion]);
+  function addDefinition(definition: EvalDefinition) {
+    const versions = appendEvalVersion(evalVersions, definition);
+    setEvalDefinitions(items=>[definition,...items.filter(item=>item.id!==definition.id)]);
+    setEvalVersions(versions);
+    setActiveEvalVersion(versions[versions.length-1].version);
+  }
   function importEval(event: FormEvent) {
     event.preventDefault();
     try {
       const parsed=JSON.parse(importText) as Partial<EvalDefinition>;
       if(!parsed.id||!parsed.name) throw new Error("Eval JSON must include id and name.");
-      setEvalDefinitions(items=>[{...seededEvalDefinitions[0],...parsed,dimensions:Array.isArray(parsed.dimensions)?parsed.dimensions:[],scope:parsed.scope??"Imported task scope",status:parsed.status??"Running"},...items]);
+      addDefinition({
+        ...demoEvalDefinitions[0],
+        ...parsed,
+        dimensions:Array.isArray(parsed.dimensions)?parsed.dimensions:[],
+        scope:parsed.scope??"Imported task scope",
+        status:parsed.status??"Draft",
+      });
       setModal(null); setFormError(null);
     } catch(error) { setFormError(error instanceof Error?error.message:"Invalid eval JSON."); }
   }
   function createEval(event: FormEvent) {
     event.preventDefault();
     if(!draft.name.trim()){setFormError("Name is required.");return;}
-    setEvalDefinitions(items=>[{
+    addDefinition({
       id:draft.name.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")||`eval_${Date.now()}`,
       name:draft.name.trim(),
-      status:"Running",
+      status:"Draft",
       evaluator_type:draft.evaluator_type,
       model:draft.model,
       threshold:Number(draft.threshold)||.85,
       prompt:draft.prompt||"Evaluate candidate response against the selected task rubric.",
       dimensions:["Task scope", "Pass threshold", "Evaluator prompt"],
       scope:draft.scope||"All task groups",
-    },...items]);
+    });
     setModal(null); setFormError(null);
   }
   function openEdit() {
+    if (!activeEvalDefinition) return;
     setDraft({
       name:activeEvalDefinition.name,
       evaluator_type:activeEvalDefinition.evaluator_type,
@@ -218,6 +179,7 @@ export function Evals({
   }
   function saveVersion(event: FormEvent) {
     event.preventDefault();
+    if (!activeEvalDefinition) return;
     if(!draft.name.trim()){setFormError("Name is required.");return;}
     const definition: EvalDefinition={
       ...activeEvalDefinition,
@@ -240,6 +202,17 @@ export function Evals({
     setEvalDefinitions(items=>items.map(item=>item.id===version.definition.id?version.definition:item));
     setModal(null);
   }
+  function downloadDefinition(definition: EvalDefinition) {
+    const blob = new Blob([serializeEvalDefinition(definition)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = evalDefinitionFileName(definition);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <>
@@ -256,9 +229,9 @@ export function Evals({
         <div className="eval-actions">
           <button type="button" className="primary" onClick={()=>setModal("import")}>Import eval</button>
           <button type="button" onClick={()=>setModal("create")}>Create eval</button>
-          <span className={`eval-version-button-wrap ${evalVersions.length===1?"disabled":""}`} tabIndex={evalVersions.length===1?0:undefined}>
-            <button type="button" disabled={evalVersions.length===1} onClick={()=>setModal("versions")}>Manage versions</button>
-            {evalVersions.length===1&&<span role="tooltip">The current version is the only version.</span>}
+          <span className={`eval-version-button-wrap ${evalVersions.length<2?"disabled":""}`} tabIndex={evalVersions.length<2?0:undefined}>
+            <button type="button" disabled={evalVersions.length<2} onClick={()=>setModal("versions")}>Manage versions</button>
+            {evalVersions.length<2&&<span role="tooltip">Create another version to manage history.</span>}
           </span>
         </div>
       </section>
@@ -291,14 +264,17 @@ export function Evals({
         </article>
       </section>
 
-      <article className="panel eval-card">
+      {activeEvalDefinition && activeVersion ? <article className="panel eval-card">
         <div className="eval-card-head">
           <div>
-            <p className="eyebrow">Currently running</p>
+            <p className="eyebrow">{activeEvalDefinition.status === "Draft" ? "Generated draft" : "Currently running"}</p>
             <h2>{activeEvalDefinition.name}</h2>
           </div>
           <div className="eval-current-state"><span>Version {activeVersion.version}</span><span className="eval-status">{activeEvalDefinition.status}</span></div>
         </div>
+        {activeEvalDefinition.generation_basis && <p className="eval-generation-note">
+          Generated from {Number(activeEvalDefinition.generation_basis.trace_count ?? 0).toLocaleString()} imported traces. Review and calibrate it against human labels before using it as a routing gate.
+        </p>}
         <section className="eval-prompt">
           <h3>Judge prompt</h3>
           <pre>{activeEvalDefinition.prompt}</pre>
@@ -322,16 +298,22 @@ export function Evals({
         </details>
 
         <div className="eval-crud">
+          <button type="button" className="primary" onClick={()=>downloadDefinition(activeEvalDefinition)}>Download JSON</button>
           <button type="button" onClick={openEdit}>Edit definition</button>
           <button type="button" disabled title="Not available in this preview">Duplicate</button>
           <button type="button" disabled title="Not available in this preview">Disable</button>
           <button type="button" className="danger" disabled title="Not available in this preview">Delete</button>
         </div>
-      </article>
+      </article> : <article className="panel eval-empty-state">
+        <p className="eyebrow">No evals in My workspace</p>
+        <h2>Create an eval from your own evidence</h2>
+        <p>RouteLab demo evals are intentionally kept out of personal workspaces. Import a definition or create one after your traces and task groups are ready.</p>
+        <div><button type="button" className="primary" onClick={()=>setModal("create")}>Create eval</button><button type="button" onClick={()=>setModal("import")}>Import JSON</button></div>
+      </article>}
 
       <section className="panel eval-library">
         <div className="panelhead"><div><p className="eyebrow">Eval library</p><h2>{evalDefinitions.length} active evals</h2></div></div>
-        <div className="eval-library-grid">{evalDefinitions.map((definition)=><article key={definition.id}><span className="eval-status">{definition.status}</span><h3>{definition.name}</h3><p>{definition.scope}</p><small>{definition.evaluator_type} · {definition.model} · threshold {pct(definition.threshold*100)}</small></article>)}</div>
+        <div className="eval-library-grid">{evalDefinitions.map((definition)=><article key={definition.id}><span className="eval-status">{definition.status}</span><h3>{definition.name}</h3><p>{definition.scope}</p><small>{definition.evaluator_type} · {definition.model} · threshold {pct(definition.threshold*100)}</small><button type="button" onClick={()=>downloadDefinition(definition)}>Download JSON</button></article>)}</div>
       </section>
 
       <section className="panel eval-history">

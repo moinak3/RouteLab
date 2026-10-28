@@ -135,6 +135,15 @@
   font-size:13px;
   line-height:1.55;
 }
+.eval-card>.eval-generation-note{
+  max-width:880px;
+  margin:12px 0 0;
+  padding:11px 13px;
+  border:1px solid rgba(88,240,132,.22);
+  border-radius:9px;
+  background:rgba(88,240,132,.07);
+  color:#cde0d6;
+}
 .eval-meta-grid,.eval-stats{
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
@@ -242,6 +251,30 @@
 .eval-crud button:disabled{
   cursor:not-allowed;
   opacity:.4;
+}
+.eval-empty-state{
+  display:grid;
+  justify-items:start;
+  gap:10px;
+}
+.eval-empty-state h2{
+  margin:0;
+  color:#fff;
+}
+.eval-empty-state>p:not(.eyebrow){
+  max-width:700px;
+  margin:0;
+  color:#b8c8bf;
+  line-height:1.55;
+}
+.eval-empty-state>div{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.eval-library-grid article button{
+  width:max-content;
+  margin-top:auto;
 }
 .eval-version-modal{
   width:min(820px,100%);
