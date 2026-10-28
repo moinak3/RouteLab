@@ -15,7 +15,7 @@ import routingPolicyBundle from "./api/routing-policy/bundle";
 import routingPolicyVersions from "./api/routing-policy/versions";
 import { routingPolicyWorkspaceId } from "./api/routing-policy/_config";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-grouping/_api";
-import taskGroupNamesHandler from "./api/task-group-names";
+import taskGroupNamesHandler from "./src/server/taskGroupNames";
 import waitlistHandler from "./src/server/waitlist";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {

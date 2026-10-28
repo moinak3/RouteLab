@@ -10,7 +10,7 @@ import {
 } from "./sidecar/_runtime.js";
 import { listRuntimeTraces, runtimeTraceFromResult, saveRuntimeTrace } from "./sidecar/_traceStore.js";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./llm-grouping/_api.js";
-import taskGroupNamesHandler from "./task-group-names.js";
+import taskGroupNamesHandler from "../src/server/taskGroupNames.js";
 import waitlistHandler from "../src/server/waitlist.js";
 import reviewHandler from "../src/server/reviews.js";
 

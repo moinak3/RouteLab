@@ -1,5 +1,5 @@
-import { serverOpenRouterKey, sendJson } from "./live/_shared.js";
-import { validateTaskGroupNames, type TaskGroupName, type TaskGroupNamingInput } from "../src/core/taskGroupNaming.js";
+import { serverOpenRouterKey, sendJson } from "../../api/live/_shared.js";
+import { validateTaskGroupNames, type TaskGroupName, type TaskGroupNamingInput } from "../core/taskGroupNaming.js";
 
 type FetchLike = typeof fetch;
 

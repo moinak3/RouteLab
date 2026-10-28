@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runTaskGroupNaming } from "../api/task-group-names";
+import { runTaskGroupNaming } from "../src/server/taskGroupNames";
 import { createDistinctTaskSeedTraces } from "../src/core/distinctTaskSeed";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
 import { applyTaskGroupNames, prepareTaskGroupNamingInput, validateTaskGroupNames } from "../src/core/taskGroupNaming";
