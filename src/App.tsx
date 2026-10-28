@@ -308,7 +308,7 @@ export default function App() {
         personal: replaceWorkspaceTraces(current.personal, result.traces),
       }));
       setActiveWorkspace("personal");
-      navigateTo("Traces");
+      navigateTo("Overview");
       setNotice(`${result.traces.length.toLocaleString()} traces imported · no classification or evaluation run${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
       return { imported: result.traces.length, errors };
     } else {
@@ -503,7 +503,7 @@ export default function App() {
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}
-      {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
+      {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
       {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} onTaskGroupsChange={setTaskGroups} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}

@@ -28,17 +28,59 @@
 .new-workspace-demo h2{margin:8px 0 10px;color:#fff;font-size:20px}
 .new-workspace-demo p:not(.eyebrow){margin:0 0 20px;color:#91a49b;font-size:13px;line-height:1.55}
 .new-workspace-demo small{margin-top:10px;color:#71857b;font-size:12px}
-.workspace-progress{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center;border-color:rgba(88,240,132,.22);background:linear-gradient(110deg,rgba(88,240,132,.09),rgba(17,25,33,.94) 55%)}
-.workspace-progress h2{margin:6px 0;color:#fff;font-size:18px}
-.workspace-progress p:not(.eyebrow){margin:0;color:#91a49b;font-size:12px;line-height:1.5}
-.workspace-progress-meter{display:grid;grid-template-columns:150px auto;gap:8px 12px;align-items:center}
-.workspace-progress-meter>span{height:7px;overflow:hidden;border-radius:5px;background:rgba(255,255,255,.08)}
-.workspace-progress-meter i{display:block;height:100%;border-radius:inherit;background:#58f084}
-.workspace-progress-meter b{color:#aebfb7;font-size:12px}
-.workspace-progress-meter button{grid-column:1/-1}
+.workspace-onboarding{display:grid;gap:22px;border-color:rgba(88,240,132,.25);background:radial-gradient(circle at 0 0,rgba(88,240,132,.1),transparent 34%),linear-gradient(120deg,rgba(17,25,33,.98),rgba(7,13,18,.98))}
+.workspace-onboarding-head{display:flex;align-items:flex-start;justify-content:space-between;gap:28px}
+.workspace-onboarding-head h2{margin:6px 0;color:#f4faf7;font-size:22px;letter-spacing:-.02em}
+.workspace-onboarding-head p:not(.eyebrow){max-width:720px;margin:0;color:#9fb1a8;font-size:13px;line-height:1.55}
+.workspace-onboarding-progress{display:grid;grid-template-columns:minmax(130px,180px) auto;gap:8px 12px;align-items:center;flex:0 0 auto}
+.workspace-onboarding-progress>div{height:7px;overflow:hidden;border-radius:5px;background:rgba(255,255,255,.09)}
+.workspace-onboarding-progress span{display:block;height:100%;border-radius:inherit;background:#58f084;transition:width .2s ease}
+.workspace-onboarding-progress strong{color:#b8c8c0;font-size:12px;white-space:nowrap}
+.workspace-onboarding-body{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.55fr);gap:18px}
+.workspace-onboarding-steps{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+.workspace-onboarding-steps button{display:grid;width:100%;grid-template-columns:38px minmax(0,1fr) auto;gap:13px;align-items:center;padding:12px 13px;border:1px solid rgba(154,173,163,.16);border-radius:9px;background:rgba(255,255,255,.025);text-align:left}
+.workspace-onboarding-steps button:disabled{cursor:default;opacity:.58}
+.workspace-onboarding-steps li.complete button,.workspace-onboarding-steps li.current button{opacity:1}
+.workspace-onboarding-steps li.complete button:hover,.workspace-onboarding-steps li.current button:hover{border-color:rgba(88,240,132,.35);background:rgba(88,240,132,.06)}
+.workspace-onboarding-steps li.current button{border-color:rgba(88,240,132,.4);background:rgba(88,240,132,.09);box-shadow:inset 3px 0 0 #58f084}
+.workspace-onboarding-number{display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(154,173,163,.22);border-radius:8px;color:#81968b;font:600 12px var(--font-mono)}
+.workspace-onboarding-steps li.complete .workspace-onboarding-number{border-color:rgba(88,240,132,.35);background:rgba(88,240,132,.12);color:#58f084}
+.workspace-onboarding-steps li.current .workspace-onboarding-number{border-color:#58f084;color:#58f084}
+.workspace-onboarding-steps button>span:nth-child(2){display:grid;gap:3px;min-width:0}
+.workspace-onboarding-steps strong{color:#eaf3ee;font-size:13px}
+.workspace-onboarding-steps small{overflow:hidden;color:#83978d;font-size:12px;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
+.workspace-onboarding-steps button>b{color:#71867b;font-size:12px;text-transform:uppercase;white-space:nowrap}
+.workspace-onboarding-steps li.complete button>b,.workspace-onboarding-steps li.current button>b{color:#58f084}
+.workspace-onboarding-action{display:flex;flex-direction:column;align-items:flex-start;padding:21px;border:1px solid rgba(88,240,132,.22);border-radius:10px;background:rgba(88,240,132,.065)}
+.workspace-onboarding-action>span{color:#58f084;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.workspace-onboarding-action h3{margin:9px 0 7px;color:#f4faf7;font-size:18px}
+.workspace-onboarding-action p{margin:0 0 18px;color:#96aaa0;font-size:12px;line-height:1.55}
+.workspace-onboarding-action button{width:100%}
+.workspace-onboarding-secondary{margin-top:8px;background:transparent}
+.shell>main .workspace-onboarding{border-color:var(--dossier-rule);background:linear-gradient(120deg,rgba(98,217,117,.1),rgba(251,248,240,.9) 42%);box-shadow:4px 4px 0 rgba(33,77,134,.07)}
+.shell>main .workspace-onboarding-head h2{color:var(--dossier-ink);font-family:var(--font-editorial);font-weight:600}
+.shell>main .workspace-onboarding-head p:not(.eyebrow){color:#526075}
+.shell>main .workspace-onboarding-progress>div{background:rgba(33,77,134,.13)}
+.shell>main .workspace-onboarding-progress span{background:var(--dossier-green)}
+.shell>main .workspace-onboarding-progress strong{color:var(--dossier-ink)}
+.shell>main .workspace-onboarding-steps button{border-color:var(--dossier-rule-soft);border-radius:2px;background:rgba(255,255,255,.46)}
+.shell>main .workspace-onboarding-steps button:disabled{background:rgba(233,225,210,.45);color:#697486}
+.shell>main .workspace-onboarding-steps li.complete button:hover,.shell>main .workspace-onboarding-steps li.current button:hover{border-color:#4c8f5d;background:#eef5eb}
+.shell>main .workspace-onboarding-steps li.current button{border-color:#4c8f5d;background:#e7f2e5;box-shadow:inset 3px 0 0 #2f7a43}
+.shell>main .workspace-onboarding-number{border-color:var(--dossier-rule);border-radius:2px;color:#607086}
+.shell>main .workspace-onboarding-steps li.complete .workspace-onboarding-number{border-color:#4c8f5d;background:#e3f1e2;color:#246337}
+.shell>main .workspace-onboarding-steps li.current .workspace-onboarding-number{border-color:#4c8f5d;color:#246337}
+.shell>main .workspace-onboarding-steps strong{color:var(--dossier-ink)}
+.shell>main .workspace-onboarding-steps small{color:#5d6b7e}
+.shell>main .workspace-onboarding-steps button>b{color:#677487}
+.shell>main .workspace-onboarding-steps li.complete button>b,.shell>main .workspace-onboarding-steps li.current button>b{color:#246337}
+.shell>main .workspace-onboarding-action{position:static;width:auto;height:auto;padding:21px;border-color:#6fa67a;border-radius:2px;background:#e7f2e5;color:var(--dossier-ink);box-shadow:3px 3px 0 rgba(30,111,56,.13)}
+.shell>main .workspace-onboarding-action>span{color:#246337}
+.shell>main .workspace-onboarding-action h3{color:var(--dossier-ink);font-family:var(--font-editorial);font-weight:600}
+.shell>main .workspace-onboarding-action p{color:#52675a}
 
-@media(max-width:900px){.new-workspace-hero,.new-workspace-grid{grid-template-columns:1fr}.workspace-progress{grid-template-columns:1fr}.workspace-progress-meter{max-width:360px}}
-@media(max-width:560px){.new-workspace-hero{padding:22px}.new-workspace-hero h2{font-size:26px}.new-workspace-actions{display:grid}.new-workspace-steps li{grid-template-columns:38px minmax(0,1fr)}.new-workspace-steps li>span{grid-column:2}.workspace-progress-meter{grid-template-columns:1fr}.workspace-progress-meter button{grid-column:1}}
+@media(max-width:900px){.new-workspace-hero,.new-workspace-grid,.workspace-onboarding-body{grid-template-columns:1fr}.workspace-onboarding-action{max-width:none}.workspace-onboarding-head{display:grid}.workspace-onboarding-progress{max-width:360px}}
+@media(max-width:560px){.new-workspace-hero{padding:22px}.new-workspace-hero h2{font-size:26px}.new-workspace-actions{display:grid}.new-workspace-steps li{grid-template-columns:38px minmax(0,1fr)}.new-workspace-steps li>span{grid-column:2}.workspace-onboarding-progress{grid-template-columns:1fr}.workspace-onboarding-steps button{grid-template-columns:34px minmax(0,1fr)}.workspace-onboarding-steps button>b{grid-column:2}.workspace-onboarding-steps small{white-space:normal}}
 
 .overview-policy-panel{
   display:grid;
