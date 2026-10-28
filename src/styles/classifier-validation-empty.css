@@ -1,0 +1,96 @@
+.classifier-validation-empty-card {
+  display: grid;
+  gap: 18px;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.classifier-validation-empty-card h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 28px;
+}
+
+.classifier-validation-empty-card > p:not(.eyebrow) {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.classifier-validation-readiness {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.classifier-validation-readiness article {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .025);
+}
+
+.classifier-validation-readiness article > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--muted);
+  font: 600 12px var(--font-mono);
+}
+
+.classifier-validation-readiness article > div {
+  display: grid;
+  gap: 5px;
+}
+
+.classifier-validation-readiness article b {
+  color: #f2f7f4;
+  font-size: 14px;
+}
+
+.classifier-validation-readiness article small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.classifier-validation-readiness article.complete {
+  border-color: rgba(88, 240, 132, .32);
+  background: rgba(88, 240, 132, .07);
+}
+
+.classifier-validation-readiness article.complete > span {
+  border-color: rgba(88, 240, 132, .42);
+  color: var(--green);
+}
+
+.classifier-validation-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.classifier-validation-empty-actions > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.classifier-validation-empty-actions button {
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .classifier-validation-empty-card { padding: 22px; }
+  .classifier-validation-readiness { grid-template-columns: 1fr; }
+}

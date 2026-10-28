@@ -57,8 +57,8 @@ type NavDestination = {
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Groups", page: "Distinct Tasks" }] },
-  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue", "Classifier Validation"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Classifier Validation", page: "Classifier Validation" }, { label: "Review Queue", page: "Review Queue" }] },
-  { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
+  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }] },
+  { label: "Routing", page: "Simulations", pages: ["Simulations", "Classifier Validation"], icon: "M", children: [{ label: "Routing Simulations", page: "Simulations" }, { label: "Classifier Validation", page: "Classifier Validation" }] },
 ];
 const advancedNav: NavDestination[] = [
   { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
@@ -517,7 +517,7 @@ export default function App() {
       {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
-      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}
+      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} defaultModelId={activeModels[0]?.id ?? ""} onOpenSimulations={() => navigateTo("Simulations")} />}
       {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}

@@ -1,5 +1,7 @@
-import { useMemo } from "react";
-import { buildClassifierValidationReport, createDemoClassifierValidationExamples } from "../core/classifierValidation";
+import { useEffect, useMemo, useState } from "react";
+import { buildClassifierValidationReport, classifierValidationReadiness, createDemoClassifierValidationExamples } from "../core/classifierValidation";
+import { loadDraftRoutingPolicy } from "../core/routingDraft";
+import { fetchPublishedPolicyHistory, fetchRoutingPolicyDraft } from "../core/routingPolicyPersistence";
 import type { KnownTaskSignature } from "../types";
 import { pct } from "../lib/format";
 
@@ -7,7 +9,76 @@ const shortLabel = (value: string) => value === "unknown" || value === "abstain"
   ? value
   : value.split("_").slice(0, 2).join(" ");
 
-export function ClassifierValidation({ signatures }: { signatures: KnownTaskSignature[] }) {
+type PersonalValidationEvidence = {
+  state: "loading" | "ready" | "unavailable";
+  simulationEvidenceCount: number;
+  overrideCount: number;
+  signedPolicyCount: number;
+};
+
+function PersonalClassifierValidation({ workspaceId, defaultModelId, onOpenSimulations }: {
+  workspaceId: string;
+  defaultModelId: string;
+  onOpenSimulations: () => void;
+}) {
+  const localDraft = useMemo(() => loadDraftRoutingPolicy(defaultModelId, workspaceId), [defaultModelId, workspaceId]);
+  const localOverrides = Object.values(localDraft.overrides);
+  const [evidence, setEvidence] = useState<PersonalValidationEvidence>({
+    state: "loading",
+    simulationEvidenceCount: localOverrides.filter((override) => override.replayCount > 0).length,
+    overrideCount: localOverrides.length,
+    signedPolicyCount: 0,
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    Promise.allSettled([
+      fetchRoutingPolicyDraft(workspaceId, controller.signal),
+      fetchPublishedPolicyHistory(workspaceId, controller.signal),
+    ]).then(([draftResult, historyResult]) => {
+      if (!active) return;
+      const draft = draftResult.status === "fulfilled" && draftResult.value.draft
+        ? draftResult.value.draft
+        : localDraft;
+      const overrides = Object.values(draft.overrides);
+      setEvidence({
+        state: draftResult.status === "rejected" && historyResult.status === "rejected" ? "unavailable" : "ready",
+        simulationEvidenceCount: overrides.filter((override) => override.replayCount > 0).length,
+        overrideCount: overrides.length,
+        signedPolicyCount: historyResult.status === "fulfilled" ? historyResult.value.versions.length : 0,
+      });
+    });
+    return () => { active = false; controller.abort(); };
+  }, [localDraft, workspaceId]);
+
+  const readiness = classifierValidationReadiness({
+    simulationEvidenceCount: evidence.simulationEvidenceCount,
+    overrideCount: evidence.overrideCount,
+    signedPolicyCount: evidence.signedPolicyCount,
+    reviewedLabelCount: 0,
+  });
+
+  return <div className="classifier-validation-page classifier-validation-empty">
+    <section className="panel classifier-validation-empty-card">
+      <p className="eyebrow">Classifier validation</p>
+      <h2>No workspace validation report yet</h2>
+      <p>RouteLab will not show bundled classifier metrics in My Workspace. Validation appears only from this workspace's measured routing evidence and an independently reviewed set of task labels.</p>
+      <div className="classifier-validation-readiness" aria-label="Classifier validation prerequisites">
+        {readiness.prerequisites.map((item, index) => <article className={item.complete ? "complete" : "pending"} key={item.id}>
+          <span>{item.complete ? "✓" : String(index + 1).padStart(2, "0")}</span>
+          <div><b>{item.label}</b><small>{item.detail}</small></div>
+        </article>)}
+      </div>
+      <div className="classifier-validation-empty-actions">
+        <button type="button" className="primary" onClick={onOpenSimulations}>Open Routing Simulations</button>
+        <span>{evidence.state === "loading" ? "Checking workspace evidence…" : evidence.state === "unavailable" ? "Cloud evidence is unavailable; local draft checked." : `${readiness.completedCount} of ${readiness.prerequisites.length} prerequisites complete`}</span>
+      </div>
+    </section>
+  </div>;
+}
+
+function DemoClassifierValidation({ signatures }: { signatures: KnownTaskSignature[] }) {
   const examples = useMemo(() => createDemoClassifierValidationExamples(signatures), [signatures]);
   const report = useMemo(() => buildClassifierValidationReport(examples, signatures, {
     datasetLabel: "Bundled demo held-out set",
@@ -49,4 +120,16 @@ export function ClassifierValidation({ signatures }: { signatures: KnownTaskSign
     </section>
     <p className="classifier-validation-note">Replace this bundled demo set with a customer-reviewed held-out dataset before using these numbers for a production decision. Threshold tuning must remain separate from the final test set.</p>
   </div>;
+}
+
+export function ClassifierValidation({ signatures, workspace, workspaceId, defaultModelId, onOpenSimulations }: {
+  signatures: KnownTaskSignature[];
+  workspace: "personal" | "demo";
+  workspaceId: string;
+  defaultModelId: string;
+  onOpenSimulations: () => void;
+}) {
+  return workspace === "demo"
+    ? <DemoClassifierValidation signatures={signatures} />
+    : <PersonalClassifierValidation workspaceId={workspaceId} defaultModelId={defaultModelId} onOpenSimulations={onOpenSimulations} />;
 }
