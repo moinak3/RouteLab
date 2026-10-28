@@ -45,7 +45,8 @@ export type RoutingPolicyDraftEnvelope = {
   updatedAt: string | null;
 };
 
-export const ROUTING_DRAFT_STORAGE_KEY = "routelab-routing-policy-draft-v1";
+export const ROUTING_DRAFT_STORAGE_KEY = "routelab-routing-policy-draft-v2";
+const routingDraftStorageKey = (workspaceId: string) => `${ROUTING_DRAFT_STORAGE_KEY}:${workspaceId}`;
 
 export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
   return {
@@ -61,11 +62,11 @@ export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingP
   };
 }
 
-export function loadDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
+export function loadDraftRoutingPolicy(fallbackModelId: string, workspaceId = "demo"): DraftRoutingPolicy {
   const initial = createDraftRoutingPolicy(fallbackModelId);
   if (typeof window === "undefined") return initial;
   try {
-    const saved = JSON.parse(window.localStorage.getItem(ROUTING_DRAFT_STORAGE_KEY) ?? "null") as Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string } | null;
+    const saved = JSON.parse(window.localStorage.getItem(routingDraftStorageKey(workspaceId)) ?? "null") as Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string } | null;
     return saved ? normalizeDraftRoutingPolicy(saved, fallbackModelId) : initial;
   } catch {
     return initial;
@@ -87,10 +88,10 @@ export function normalizeDraftRoutingPolicy(value: Partial<DraftRoutingPolicy> &
   };
 }
 
-export function saveDraftRoutingPolicy(policy: DraftRoutingPolicy) {
+export function saveDraftRoutingPolicy(policy: DraftRoutingPolicy, workspaceId = "demo") {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(ROUTING_DRAFT_STORAGE_KEY, JSON.stringify(policy));
-    window.dispatchEvent(new CustomEvent("routelab-routing-policy-updated", { detail: policy }));
+    window.localStorage.setItem(routingDraftStorageKey(workspaceId), JSON.stringify(policy));
+    window.dispatchEvent(new CustomEvent("routelab-routing-policy-updated", { detail: { policy, workspaceId } }));
   }
 }
 

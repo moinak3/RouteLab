@@ -21,10 +21,11 @@ function download(name: string, contents: string, type = "application/json") {
 
 const modelName = (id: string) => modelCatalog.find((model) => model.id === id)?.display_name ?? id;
 
-export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }: {
+export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved, workspaceId }: {
   signatures: PublishedTaskSignature[];
   draftRevision: number;
   draftSaved: boolean;
+  workspaceId: string;
 }) {
   const [history, setHistory] = useState<PublishedPolicyHistory>(emptyHistory);
   const [state, setState] = useState<"loading" | "idle" | "publishing" | "activating" | "exporting" | "error">("loading");
@@ -33,20 +34,20 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
   const latest = history.versions[0];
   const refresh = async () => {
     try {
-      setHistory(await fetchPublishedPolicyHistory());
+      setHistory(await fetchPublishedPolicyHistory(workspaceId));
       setState("idle");
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Could not load policy versions.");
     }
   };
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); }, [workspaceId]);
   const publish = async () => {
     setState("publishing");
     setMessage("");
     try {
-      const published = await publishRoutingPolicy({ expectedRevision: draftRevision, signatures });
-      await activateRoutingPolicy(published.bundle.version);
+      const published = await publishRoutingPolicy({ expectedRevision: draftRevision, signatures }, workspaceId);
+      await activateRoutingPolicy(published.bundle.version, workspaceId);
       setMessage(`Policy v${published.bundle.version} is signed and deployed. Sidecars will load it on their next poll.`);
       await refresh();
     } catch (error) {
@@ -58,7 +59,7 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
     setState("activating");
     setMessage("");
     try {
-      await activateRoutingPolicy(version);
+      await activateRoutingPolicy(version, workspaceId);
       setMessage(`Policy v${version} is deployed. Sidecars will load it on their next poll.`);
       await refresh();
     } catch (error) {
@@ -70,7 +71,7 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
     setState("exporting");
     setMessage("");
     try {
-      const signed = await fetchSignedRoutingPolicy(version);
+      const signed = await fetchSignedRoutingPolicy(version, workspaceId);
       download(`routelab-policy-v${signed.bundle.version}.json`, `${JSON.stringify(signed, null, 2)}\n`);
       setMessage(`Policy v${signed.bundle.version} bundle downloaded.`);
       setState("idle");
@@ -83,8 +84,8 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved }
     setState("exporting");
     setMessage("");
     try {
-      const signed = await fetchSignedRoutingPolicy("active");
-      const policyUrl = `${window.location.origin}/api/routing-policy/bundle?version=active`;
+      const signed = await fetchSignedRoutingPolicy("active", workspaceId);
+      const policyUrl = `${window.location.origin}/api/routing-policy/bundle?version=active&workspace=${encodeURIComponent(workspaceId)}`;
       const sidecarApiKey = crypto.randomUUID().replace(/-/g, "");
       const contents = [
         `ROUTELAB_POLICY_URL=${policyUrl}`,

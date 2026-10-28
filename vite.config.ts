@@ -13,6 +13,7 @@ import publishRoutingPolicy from "./api/routing-policy/publish";
 import activateRoutingPolicy from "./api/routing-policy/activate";
 import routingPolicyBundle from "./api/routing-policy/bundle";
 import routingPolicyVersions from "./api/routing-policy/versions";
+import { routingPolicyWorkspaceId } from "./api/routing-policy/_config";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-grouping/_api";
 import waitlistHandler from "./src/server/waitlist";
 
@@ -180,7 +181,8 @@ export default defineConfig(({ mode }) => {
       });
       server.middlewares.use("/api/routing-policy/draft", async (req, res) => {
         const databaseUrl = String(process.env.DATABASE_URL ?? loadedEnv.DATABASE_URL ?? "").trim();
-        const workspaceId = String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? loadedEnv.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
+        const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+        const workspaceId = routingPolicyWorkspaceId({ query: Object.fromEntries(url.searchParams.entries()) });
         try {
           if (req.method === "GET") return sendJson(res, 200, await getRoutingPolicyDraft(databaseUrl, workspaceId));
           if (req.method !== "PUT") return sendJson(res, 405, { error: "Method not allowed." });

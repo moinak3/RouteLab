@@ -643,6 +643,9 @@ body:before{
 .shell>main .task-detail-body .readiness-rule{border-color:#31415e;background:var(--dossier-ink)}
 .shell>main .task-detail-body .readiness-rule small{color:#c5d0df}
 .shell>main .task-detail-body .readiness-rule code{color:#9deb80}
+.shell>main .task-detail-body .task-action-message{border-color:#7fb18b;background:#e7f2e5;color:#31543b}
+.shell>main .task-detail-body .task-edit-form{border-color:var(--dossier-rule);background:#f7f4ec}
+.shell>main .task-detail-body .task-edit-form label{color:#44536a}
 .shell>main .eval-modal .modal-head h2,
 .shell>main .eval-modal .eval-version-list article strong,
 .shell>main .eval-modal .eval-version-list article>div>span{color:#fff}

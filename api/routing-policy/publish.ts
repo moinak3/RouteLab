@@ -41,7 +41,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
   try {
     const databaseUrl = routingPolicyDatabaseUrl();
-    const workspaceId = routingPolicyWorkspaceId();
+    const workspaceId = routingPolicyWorkspaceId(req);
     const current = await getRoutingPolicyDraft(databaseUrl, workspaceId);
     const expectedRevision = Number(req.body?.expectedRevision);
     const signatures = Array.isArray(req.body?.signatures) ? req.body.signatures : [];

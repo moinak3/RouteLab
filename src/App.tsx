@@ -23,7 +23,7 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
-import { clearWorkspaceTraces, loadActiveWorkspace, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
+import { clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
@@ -88,6 +88,7 @@ export default function App() {
   const traceJudgeResults = workspaceData[activeWorkspace].traceJudgeResults;
   const goldenDatasets = workspaceData[activeWorkspace].goldenDatasets;
   const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
+  const cloudWorkspaceId = useMemo(() => loadCloudWorkspaceId(activeWorkspace), [activeWorkspace]);
   const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
     setWorkspaceData((current) => {
       const workspace = current[activeWorkspace];
@@ -150,6 +151,12 @@ export default function App() {
       window.history[options?.replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextPath);
     }
     setPage(nextPage);
+  }
+
+  function openTaskGroupSimulation(bucketId: string) {
+    const nextPath = `${pathForPage("Simulations")}?taskGroup=${encodeURIComponent(bucketId)}`;
+    window.history.pushState({ page: "Simulations", taskGroup: bucketId }, "", nextPath);
+    setPage("Simulations");
   }
 
   function switchWorkspace(workspace: WorkspaceId) {
@@ -503,14 +510,14 @@ export default function App() {
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}
-      {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
+      {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview key={`overview-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
-      {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} onTaskGroupsChange={setTaskGroups} />}
+      {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
       {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}
-      {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
+      {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}

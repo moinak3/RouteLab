@@ -11,6 +11,7 @@ import { ModelOptions, ModelPicker } from "../components/ModelOptions";
 import { RoutingPolicyPublisher } from "../components/RoutingPolicyPublisher";
 import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, reviseDraftRoutingPolicy } from "../core/routingDraft";
 import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useRoutingPolicyDraft";
+import { taskGroupIdFromSearch } from "../core/taskGroupActions";
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
     buckets: DistinctTaskBucket[];
     selectedIds: string[];
@@ -140,7 +141,7 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     </div>
   </div>;
 }
-export function Simulations({ traces, traceJudgeResults = [], distinctTaskBuckets, candidate, setCandidate, catalogVersion, activeModels, candidateModels, familyApiKeys, gatewayApiKeys, serverGatewayKeys }: {
+export function Simulations({ traces, traceJudgeResults = [], distinctTaskBuckets, candidate, setCandidate, catalogVersion, activeModels, candidateModels, familyApiKeys, gatewayApiKeys, serverGatewayKeys, workspaceId }: {
     traces: Trace[];
     traceJudgeResults?: TraceJudgeResult[];
     distinctTaskBuckets: DistinctTaskBucket[];
@@ -152,8 +153,12 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     familyApiKeys: Partial<Record<Model["family"], string>>;
     gatewayApiKeys: Partial<Record<GatewayProvider, string>>;
     serverGatewayKeys?: Partial<Record<GatewayProvider, boolean>>;
+    workspaceId: string;
 }) {
-    const [distinctTaskBucketIds, setDistinctTaskBucketIds] = useState<string[]>([]);
+    const [distinctTaskBucketIds, setDistinctTaskBucketIds] = useState<string[]>(() => {
+        const taskGroupId = taskGroupIdFromSearch(window.location.search);
+        return taskGroupId ? [taskGroupId] : [];
+    });
     const [strategy, setStrategy] = useState<"direct" | "family_cascade">("direct");
     const [dateRange, setDateRange] = useState<DateRange>("6m");
     const [requestLimitMode, setRequestLimitMode] = useState<"count" | "percent">("percent");
@@ -175,7 +180,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
             ?? activeModels[0]?.id
             ?? "";
     }, [activeModels, traces]);
-    const { draftPolicy, setDraftPolicy, status: draftStatus, useServerDraft, retryMyDraft } = useRoutingPolicyDraft(defaultFallbackModelId);
+    const { draftPolicy, setDraftPolicy, status: draftStatus, useServerDraft, retryMyDraft } = useRoutingPolicyDraft(defaultFallbackModelId, { workspaceId });
     const dateTraces = useMemo(() => filterTracesByRange(traces, dateRange), [traces, dateRange]);
     const dateTraceIds = useMemo(() => new Set(dateTraces.map(trace => trace.id)), [dateTraces]);
     const callCounts = useMemo(() => new Map(distinctTaskBuckets.map(bucket => [bucket.bucket_id, bucket.traces.filter(id => dateTraceIds.has(id)).length])), [distinctTaskBuckets, dateTraceIds]);
@@ -367,6 +372,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div className="policy-flow"><div><small>Confident approved match</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Measured and explicitly approved per signature</span></div><i>else</i><div><small>Everyday default</small><b>{draftPolicy.defaultStrategyType==="openrouter_auto"?"OpenRouter Auto Router":defaultModel?.display_name??"Select a model"}</b><span>Unknown, low-confidence, and uncovered tasks</span></div><i>failure</i><div><small>Emergency fallback</small><b>{emergencyFallbackModel?.display_name??"Select a model"}</b><span>Classifier failure and constrained high-risk work</span></div></div>
 {Object.values(draftPolicy.overrides).length > 0 && <div className="policy-overrides"><h3>Current task overrides</h3>{Object.values(draftPolicy.overrides).map(override => <article key={override.taskId}><div><small>{override.taskName}</small><b>{override.modelName}{override.provider ? ` via ${override.provider}` : ""}</b></div><p>{pct(override.passRate * 100)} pass · {changeLabel(override.costDeltaPct)} cost · {changeLabel(override.latencyDeltaPct)} latency · {override.replayCount} traces</p><button type="button" onClick={() => removeTaskOverride(override.taskId)}>Remove override</button></article>)}</div>}
 <RoutingPolicyPublisher
+  workspaceId={workspaceId}
   signatures={distinctTaskBuckets.map((bucket) => ({
     id: bucket.bucket_id,
     label: bucket.bucket_name,

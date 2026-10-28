@@ -11,6 +11,8 @@ export type WorkspaceData = {
 
 const ACTIVE_WORKSPACE_KEY = "routelab-active-workspace-v1";
 const PERSONAL_WORKSPACE_KEY = "routelab-personal-workspace-v1";
+const PERSONAL_CLOUD_WORKSPACE_KEY = "routelab-personal-cloud-workspace-v1";
+let inMemoryPersonalCloudWorkspaceId: string | null = null;
 
 export const emptyPersonalWorkspace = (): WorkspaceData => ({ traces: [], traceJudgeResults: [], goldenDatasets: [], taskGroups: [] });
 
@@ -35,6 +37,27 @@ export function saveActiveWorkspace(workspace: WorkspaceId) {
     window.localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspace);
   } catch {
     // Privacy-restricted browsers can disable local storage.
+  }
+}
+
+function createPersonalCloudWorkspaceId() {
+  const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID().replace(/-/g, "")
+    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  return `personal_${suffix}`;
+}
+
+export function loadCloudWorkspaceId(workspace: WorkspaceId) {
+  if (workspace === "demo") return "demo";
+  try {
+    const existing = window.localStorage.getItem(PERSONAL_CLOUD_WORKSPACE_KEY);
+    if (existing) return existing;
+    const created = createPersonalCloudWorkspaceId();
+    window.localStorage.setItem(PERSONAL_CLOUD_WORKSPACE_KEY, created);
+    return created;
+  } catch {
+    inMemoryPersonalCloudWorkspaceId ??= createPersonalCloudWorkspaceId();
+    return inMemoryPersonalCloudWorkspaceId;
   }
 }
 

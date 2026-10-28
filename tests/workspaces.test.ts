@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearWorkspaceTraces, emptyPersonalWorkspace, loadActiveWorkspace, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace } from "../src/core/workspaces";
+import { clearWorkspaceTraces, emptyPersonalWorkspace, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace } from "../src/core/workspaces";
 
 function useMemoryStorage() {
   const values = new Map<string, string>();
@@ -18,6 +18,14 @@ describe("workspace persistence", () => {
     useMemoryStorage();
     expect(loadActiveWorkspace()).toBe("personal");
     expect(loadPersonalWorkspace()).toEqual(emptyPersonalWorkspace());
+  });
+
+  it("gives My Workspace a stable cloud identity separate from the demo", () => {
+    useMemoryStorage();
+    const first = loadCloudWorkspaceId("personal");
+    expect(first).toMatch(/^personal_[a-z0-9]+$/);
+    expect(loadCloudWorkspaceId("personal")).toBe(first);
+    expect(loadCloudWorkspaceId("demo")).toBe("demo");
   });
 
   it("keeps the selected workspace and personal evidence across reloads", () => {

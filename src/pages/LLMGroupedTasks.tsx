@@ -18,6 +18,7 @@ import type { DistinctTaskBucket, Trace } from "../types";
 
 type Props = {
   traces: Trace[];
+  workspaceId: string;
   serverGatewayKey?: boolean;
   embedded?: boolean;
   runToken?: number;
@@ -47,7 +48,7 @@ function Distribution({ values, label }: { values: number[]; label: string }) {
   </section>;
 }
 
-export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange }: Props) {
+export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange }: Props) {
   const [run, setRun] = useState<LLMGroupingRun | null>(null);
   const [view, setView] = useState<View>("groups");
   const [loading, setLoading] = useState(true);
@@ -77,7 +78,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetchLatestLLMGroupingRun(controller.signal)
+    fetchLatestLLMGroupingRun(workspaceId, controller.signal)
       .then((latest) => {
         setRun(latest);
         setSelectedGroupId(latest?.groups[0]?.id ?? null);
@@ -88,7 +89,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -105,7 +106,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
     setError(null);
     setProgress({ stage: "extraction", completed: 0, total: traces.length, message: "Preparing the trace snapshot" });
     try {
-      const completed = await runLLMGroupingExperiment(traces, setProgress, controller.signal);
+      const completed = await runLLMGroupingExperiment(traces, workspaceId, setProgress, controller.signal);
       setRun(completed);
       setSelectedGroupId(completed.groups[0]?.id ?? null);
       setView("groups");
@@ -117,7 +118,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
       setRunning(false);
       onRunningChange?.(false);
     }
-  }, [onRunningChange, traces]);
+  }, [onRunningChange, traces, workspaceId]);
 
   useEffect(() => {
     if (!embedded || !runToken || handledRunToken.current === runToken) return;

@@ -7,7 +7,7 @@ export default async function handler(req: any, res: any) {
   try {
     const version = Number(req.body?.version);
     if (!Number.isInteger(version) || version < 1) return sendJson(res, 400, { error: "A valid policy version is required." });
-    const activated = await activateRoutingPolicyVersion(routingPolicyDatabaseUrl(), routingPolicyWorkspaceId(), version);
+    const activated = await activateRoutingPolicyVersion(routingPolicyDatabaseUrl(), routingPolicyWorkspaceId(req), version);
     if (!activated) return sendJson(res, 404, { error: "That published policy version does not exist." });
     return sendJson(res, 200, activated);
   } catch (error) {

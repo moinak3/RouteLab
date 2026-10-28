@@ -236,6 +236,13 @@
   grid-template-columns:1.1fr .9fr;
 }
 
+.grid.one.overview-decision-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:14px;
+  margin-bottom:14px;
+}
+
 .overview-coverage-bar{
   display:flex;
   width:100%;

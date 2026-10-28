@@ -24,8 +24,10 @@ async function responseError(response: Response, fallback: string) {
   return new Error(typeof payload.error === "string" ? payload.error : fallback);
 }
 
-export async function fetchLatestLLMGroupingRun(signal?: AbortSignal) {
-  const response = await fetch("/api/llm-grouping/latest", { cache: "no-store", signal });
+const workspaceUrl = (path: string, workspaceId: string) => `${path}${path.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(workspaceId)}`;
+
+export async function fetchLatestLLMGroupingRun(workspaceId: string, signal?: AbortSignal) {
+  const response = await fetch(workspaceUrl("/api/llm-grouping/latest", workspaceId), { cache: "no-store", signal });
   if (!response.ok) throw await responseError(response, "Could not load the latest LLM grouping run.");
   const payload = await response.json() as { run?: unknown };
   return payload.run ? parseLLMGroupingRun(payload.run) : null;
@@ -33,12 +35,13 @@ export async function fetchLatestLLMGroupingRun(signal?: AbortSignal) {
 
 export async function runLLMGroupingExperiment(
   traces: Trace[],
+  workspaceId: string,
   onProgress: (progress: LLMGroupingProgress) => void,
   signal?: AbortSignal,
 ): Promise<LLMGroupingRun> {
   const inputs = prepareLLMGroupingInput(traces);
   const snapshot = createLLMGroupingSnapshot(traces);
-  const response = await fetch("/api/llm-grouping/run", {
+  const response = await fetch(workspaceUrl("/api/llm-grouping/run", workspaceId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ inputs, snapshot }),

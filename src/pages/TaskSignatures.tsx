@@ -6,11 +6,14 @@ import { LLMGroupedTasks } from "./LLMGroupedTasks";
 
 type GroupingMethod = "rules" | "llm";
 
-export function TaskSignatures({ traces, traceJudgeResults, serverGatewayKey, onTaskGroupsChange }: {
+export function TaskSignatures({ traces, traceJudgeResults, workspaceId, serverGatewayKey, taskGroups, onTaskGroupsChange, onRunSimulation }: {
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
+  workspaceId: string;
   serverGatewayKey?: boolean;
+  taskGroups: DistinctTaskBucket[];
   onTaskGroupsChange?: (groups: DistinctTaskBucket[]) => void;
+  onRunSimulation?: (bucketId: string) => void;
 }) {
   const [method, setMethod] = useState<GroupingMethod>("llm");
   const [rulesRunToken, setRulesRunToken] = useState(0);
@@ -49,9 +52,9 @@ export function TaskSignatures({ traces, traceJudgeResults, serverGatewayKey, on
       </div>
     </section>
 
-    {method === "rules" ? rulesRunToken > 0
-      ? <DistinctTasks key={rulesRunToken} traces={traces} traceJudgeResults={traceJudgeResults} embedded />
+    {method === "rules" ? rulesRunToken > 0 || taskGroups.length > 0
+      ? <DistinctTasks key={rulesRunToken} traces={traces} traceJudgeResults={traceJudgeResults} buckets={taskGroups.length ? taskGroups : undefined} onBucketsChange={onTaskGroupsChange} onRunSimulation={onRunSimulation} embedded />
       : <section className="task-signature-empty"><b>No RouteLab rule groups generated yet</b><span>Choose Generate Task Groups to classify the current trace snapshot.</span></section>
-      : <LLMGroupedTasks traces={traces} serverGatewayKey={serverGatewayKey} embedded runToken={llmRunToken} onRunningChange={setLlmRunning} onTaskGroupsChange={onTaskGroupsChange} />}
+      : <LLMGroupedTasks traces={traces} workspaceId={workspaceId} serverGatewayKey={serverGatewayKey} embedded runToken={llmRunToken} onRunningChange={setLlmRunning} onTaskGroupsChange={onTaskGroupsChange} />}
   </div>;
 }
