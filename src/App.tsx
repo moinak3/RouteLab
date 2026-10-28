@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
+import { NewWorkspaceOverview } from "./components/NewWorkspaceOverview";
 import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
@@ -23,6 +24,7 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
+import { emptyPersonalWorkspace, loadActiveWorkspace, loadPersonalWorkspace, saveActiveWorkspace, savePersonalWorkspace, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
@@ -36,7 +38,7 @@ import { ReviewQueue } from "./pages/ReviewQueue";
 import { Simulations } from "./pages/Simulations";
 import { Traces } from "./pages/Traces";
 import { TaskSignatures } from "./pages/TaskSignatures";
-import type { FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace, TraceJudgeResult } from "./types";
+import type { FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace } from "./types";
 import type { Page, ReviewQueueFilter } from "./types/ui";
 
 const initialTraces = createSeedTraces();
@@ -78,8 +80,28 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => pageForPath(window.location.pathname) ?? "Home");
   const [previewUnlocked, setPreviewUnlocked] = useState(hasPreviewAccess);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Quality: false });
-  const [traces, setTraces] = useState<Trace[]>(initialTraces);
-  const [traceJudgeResults, setTraceJudgeResults] = useState<TraceJudgeResult[]>(initialTraceJudgeResults);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(loadActiveWorkspace);
+  const [workspaceData, setWorkspaceData] = useState<Record<WorkspaceId, WorkspaceData>>(() => ({
+    personal: loadPersonalWorkspace(),
+    demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets },
+  }));
+  const traces = workspaceData[activeWorkspace].traces;
+  const traceJudgeResults = workspaceData[activeWorkspace].traceJudgeResults;
+  const goldenDatasets = workspaceData[activeWorkspace].goldenDatasets;
+  const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
+    setWorkspaceData((current) => {
+      const workspace = current[activeWorkspace];
+      const traces = typeof next === "function" ? next(workspace.traces) : next;
+      return { ...current, [activeWorkspace]: { ...workspace, traces } };
+    });
+  }, [activeWorkspace]);
+  const setGoldenDatasets = useCallback((next: SetStateAction<GoldenDatasetType[]>) => {
+    setWorkspaceData((current) => {
+      const workspace = current[activeWorkspace];
+      const goldenDatasets = typeof next === "function" ? next(workspace.goldenDatasets) : next;
+      return { ...current, [activeWorkspace]: { ...workspace, goldenDatasets } };
+    });
+  }, [activeWorkspace]);
   const [candidate, setCandidate] = useState("deepseek-r1");
   const [recommendationCandidate, setRecommendationCandidate] = useState(DEEPSEEK_RECOMMENDATION_SCOPE);
   const [catalogVersion, setCatalogVersion] = useState(0);
@@ -92,9 +114,8 @@ export default function App() {
   const [persistedReviews, setPersistedReviews] = useState<PersistedReview[]>([]);
   const [reviewPersistenceState, setReviewPersistenceState] = useState<"loading" | "ready" | "saving" | "unavailable">("loading");
   const [reviewPersistenceError, setReviewPersistenceError] = useState<string | null>(null);
-  const [goldenDatasets, setGoldenDatasets] = useState<GoldenDatasetType[]>(initialGoldenDatasets);
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
-  const [notice, setNotice] = useState<string | null>("Example dataset loaded locally");
+  const [notice, setNotice] = useState<string | null>(null);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const simulationModels = useMemo(() => [...(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id), OPENROUTER_AUTO_MODEL], [openRouterModels, activeModels]);
@@ -107,12 +128,15 @@ export default function App() {
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
   const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
 
+  useEffect(() => saveActiveWorkspace(activeWorkspace), [activeWorkspace]);
+  useEffect(() => savePersonalWorkspace(workspaceData.personal), [workspaceData.personal]);
+
   const refreshRuntimeTraces = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/runtime-traces?limit=500", { cache: "no-store", signal });
     const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
     if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
     if (payload.traces.length) setTraces(current => mergeRuntimeTraces(current, payload.traces!));
-  }, []);
+  }, [setTraces]);
 
   function navigateTo(nextPage: Page, options?: { replace?: boolean }) {
     const nextPath = pathForPage(nextPage);
@@ -121,6 +145,16 @@ export default function App() {
       window.history[options?.replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextPath);
     }
     setPage(nextPage);
+  }
+
+  function switchWorkspace(workspace: WorkspaceId) {
+    setActiveWorkspace(workspace);
+    navigateTo("Overview");
+    setNotice(workspace === "demo"
+      ? "Demo workspace loaded · sample data only"
+      : workspaceData.personal.traces.length
+        ? "Your workspace loaded"
+        : "Your workspace is ready for its first trace import");
   }
 
   function navigateToReviewLane(lane: ReviewQueueFilter, options?: { replace?: boolean }) {
@@ -157,10 +191,16 @@ export default function App() {
       const withoutHumanReviews = items.filter((item) => item.id !== HUMAN_REVIEW_DATASET_ID);
       return humanDataset ? [humanDataset, ...withoutHumanReviews] : withoutHumanReviews;
     });
-  }, []);
+  }, [setGoldenDatasets]);
 
   useEffect(() => {
-    if (!previewUnlocked) return;
+    if (!previewUnlocked || activeWorkspace !== "demo") {
+      setWeeklyReviewBudget(DEFAULT_WEEKLY_REVIEW_BUDGET);
+      setPersistedReviews([]);
+      setReviewPersistenceState("ready");
+      setReviewPersistenceError(null);
+      return;
+    }
     const controller = new AbortController();
     setReviewPersistenceState("loading");
     fetchReviewWorkflow(controller.signal)
@@ -175,7 +215,7 @@ export default function App() {
         setReviewPersistenceState("unavailable");
       });
     return () => controller.abort();
-  }, [previewUnlocked, applyReviewWorkflow]);
+  }, [previewUnlocked, activeWorkspace, applyReviewWorkflow]);
 
   useEffect(() => {
     if (!notice) return;
@@ -204,6 +244,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (activeWorkspace !== "demo") return;
     if (page !== "Overview" && page !== "Traces" && page !== "Review Queue") return;
     const controller = new AbortController();
     let refreshing = false;
@@ -228,7 +269,7 @@ export default function App() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       channel?.close();
     };
-  }, [page, refreshRuntimeTraces]);
+  }, [page, activeWorkspace, refreshRuntimeTraces]);
 
   useEffect(() => {
     let cancelled = false;
@@ -267,8 +308,13 @@ export default function App() {
       } catch {
         gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
       }
-      setTraces(classifiedTraces);
-      setTraceJudgeResults(createTraceJudgeResults(classifiedTraces));
+      const importedWorkspace: WorkspaceData = {
+        traces: classifiedTraces,
+        traceJudgeResults: createTraceJudgeResults(classifiedTraces),
+        goldenDatasets: activeWorkspace === "personal" ? goldenDatasets : emptyPersonalWorkspace().goldenDatasets,
+      };
+      setWorkspaceData((current) => ({ ...current, personal: importedWorkspace }));
+      setActiveWorkspace("personal");
       navigateTo("Traces");
       setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} task groups · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
       return { imported: result.traces.length, errors };
@@ -413,6 +459,7 @@ export default function App() {
   return <div className="shell">
     <aside>
       <a className="brand" href="/" aria-label="RouteLab home"><span className="brandmark">R</span><div><b>RouteLab</b><small>Routing intelligence</small></div></a>
+      <label className="workspace-switcher"><span>Workspace</span><select value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select><small>{activeWorkspace === "demo" ? "Sample data · changes reset" : traces.length ? `${traces.length.toLocaleString()} imported traces` : "No data added yet"}</small></label>
       <nav aria-label="Primary navigation">
         <small className="nav-group-label">Workflow</small>
         {workflowNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
@@ -448,11 +495,12 @@ export default function App() {
       </nav>
     </aside>
     <main>
-      {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1></header> : null}
+      {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1><div className="header-workspace-control"><span className={`workspace-badge ${activeWorkspace}`}>{activeWorkspace === "demo" ? "Demo data" : "My workspace"}</span><select className="mobile-workspace-select" aria-label="Select workspace" value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select></div></header> : null}
       <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
-      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} />}
+      {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}
+      {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} />}
       {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}

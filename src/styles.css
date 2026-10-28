@@ -217,6 +217,15 @@ body:before{
 }
 .brand b{font-size:18px;letter-spacing:-.02em;color:var(--green)}
 .brand small,.privacy small{color:#8d9d96}
+.workspace-switcher{display:grid;gap:6px;margin:0 4px 22px;padding:11px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.025)}
+.workspace-switcher>span{color:#82958c;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.workspace-switcher select{width:100%;min-width:0;padding:7px 8px;color:#eef7f1;font-size:12px;font-weight:700}
+.workspace-switcher small{color:#6f8379;font-size:12px;line-height:1.35}
+.workspace-badge{display:inline-flex;align-items:center;padding:6px 9px;border:1px solid var(--line-strong);border-radius:7px;color:#9fb1a8;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.workspace-badge.demo{border-color:rgba(247,198,77,.28);background:rgba(247,198,77,.08);color:#f7cf75}
+.workspace-badge.personal{border-color:rgba(88,240,132,.25);background:rgba(88,240,132,.07);color:#8bf3a8}
+.header-workspace-control{display:flex;align-items:center;gap:8px}
+.mobile-workspace-select{display:none}
 nav{gap:7px}
 nav button{
   color:#b9c7c0;
