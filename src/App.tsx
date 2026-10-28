@@ -23,7 +23,7 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
-import { clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
+import { clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type TaskGroupingMethod, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
@@ -82,12 +82,13 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(loadActiveWorkspace);
   const [workspaceData, setWorkspaceData] = useState<Record<WorkspaceId, WorkspaceData>>(() => ({
     personal: loadPersonalWorkspace(),
-    demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets, taskGroups: createDistinctTaskBuckets(initialTraces) },
+    demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets, taskGroups: createDistinctTaskBuckets(initialTraces), taskGroupingMethod: "rules" },
   }));
   const traces = workspaceData[activeWorkspace].traces;
   const traceJudgeResults = workspaceData[activeWorkspace].traceJudgeResults;
   const goldenDatasets = workspaceData[activeWorkspace].goldenDatasets;
   const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
+  const taskGroupingMethod = workspaceData[activeWorkspace].taskGroupingMethod;
   const cloudWorkspaceId = useMemo(() => loadCloudWorkspaceId(activeWorkspace), [activeWorkspace]);
   const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
     setWorkspaceData((current) => {
@@ -103,10 +104,10 @@ export default function App() {
       return { ...current, [activeWorkspace]: { ...workspace, goldenDatasets } };
     });
   }, [activeWorkspace]);
-  const setTaskGroups = useCallback((taskGroups: DistinctTaskBucket[]) => {
+  const setTaskGroups = useCallback((taskGroups: DistinctTaskBucket[], method: TaskGroupingMethod) => {
     setWorkspaceData((current) => ({
       ...current,
-      [activeWorkspace]: { ...current[activeWorkspace], taskGroups },
+      [activeWorkspace]: { ...current[activeWorkspace], taskGroups, taskGroupingMethod: method },
     }));
   }, [activeWorkspace]);
   const [candidate, setCandidate] = useState("deepseek-r1");
@@ -512,7 +513,7 @@ export default function App() {
       {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}
       {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview key={`overview-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
-      {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
+      {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} taskGroupingMethod={taskGroupingMethod} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
       {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={navigateToReviewLane} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}

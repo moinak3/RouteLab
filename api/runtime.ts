@@ -10,6 +10,7 @@ import {
 } from "./sidecar/_runtime.js";
 import { listRuntimeTraces, runtimeTraceFromResult, saveRuntimeTrace } from "./sidecar/_traceStore.js";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./llm-grouping/_api.js";
+import taskGroupNamesHandler from "./task-group-names.js";
 import waitlistHandler from "../src/server/waitlist.js";
 import reviewHandler from "../src/server/reviews.js";
 
@@ -96,6 +97,7 @@ export default async function handler(req: any, res: any) {
   try {
     if (action === "llm-grouping-latest") return handleLLMGroupingLatest(req, res);
     if (action === "llm-grouping-run") return handleLLMGroupingRun(req, res);
+    if (action === "task-group-names") return taskGroupNamesHandler(req, res);
     if (action === "waitlist") return waitlistHandler(req, res);
     if (action === "reviews") return reviewHandler(req, res);
     if (action === "runtime-traces") {

@@ -15,6 +15,7 @@ import {
   type LLMGroupingProgress,
 } from "../core/llmGroupingPersistence";
 import type { DistinctTaskBucket, Trace } from "../types";
+import { DistinctTasks } from "./DistinctTasks";
 
 type Props = {
   traces: Trace[];
@@ -24,6 +25,8 @@ type Props = {
   runToken?: number;
   onRunningChange?: (running: boolean) => void;
   onTaskGroupsChange?: (groups: DistinctTaskBucket[]) => void;
+  savedTaskGroups?: DistinctTaskBucket[];
+  onRunSimulation?: (bucketId: string) => void;
 };
 type View = "groups" | "compare";
 
@@ -48,7 +51,7 @@ function Distribution({ values, label }: { values: number[]; label: string }) {
   </section>;
 }
 
-export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange }: Props) {
+export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTaskGroups = [], embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange, onRunSimulation }: Props) {
   const [run, setRun] = useState<LLMGroupingRun | null>(null);
   const [view, setView] = useState<View>("groups");
   const [loading, setLoading] = useState(true);
@@ -165,7 +168,10 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, embedde
     {!serverGatewayKey && serverGatewayKey !== undefined && <div className="llm-alert warning"><b>Provider configuration required</b><span>Add <code>ROUTELAB_OPENROUTER_API_KEY</code> to the server environment. The key is never sent to this browser.</span></div>}
     {storageNotice && !run && <div className="llm-alert neutral"><b>Saved run unavailable</b><span>{storageNotice}</span></div>}
 
-    {loading ? <section className="llm-empty"><b>Loading the latest saved experiment…</b></section> : !run || stale ? <section className="llm-empty">
+    {loading && !savedTaskGroups.length ? <section className="llm-empty"><b>Loading the latest saved experiment…</b></section> : (!run || stale) && savedTaskGroups.length ? <>
+      <div className="llm-alert neutral"><b>Showing saved LLM task groups</b><span>The full experiment record is unavailable, but the latest groups chosen for this workspace remain available.</span></div>
+      <DistinctTasks traces={traces} buckets={savedTaskGroups} onBucketsChange={onTaskGroupsChange} onRunSimulation={onRunSimulation} embedded />
+    </> : !run || stale ? <section className="llm-empty">
       <div><span>LLM</span></div>
       <h3>{stale ? "No task groups for this trace snapshot" : "No experiment has been run"}</h3>
       <p>{stale ? "The saved result belongs to a different trace population and is not applied here. Generate Task Groups to create a new catalog for the current import." : "Start an explicit run to build independent task definitions and assign the current trace snapshot. No provider request is made until you use the run button."}</p>

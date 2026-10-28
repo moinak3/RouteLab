@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearWorkspaceTraces, emptyPersonalWorkspace, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace } from "../src/core/workspaces";
+import { clearWorkspaceTraces, emptyPersonalWorkspace, inferTaskGroupingMethod, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace } from "../src/core/workspaces";
 
 function useMemoryStorage() {
   const values = new Map<string, string>();
@@ -37,6 +37,12 @@ describe("workspace persistence", () => {
     expect(loadPersonalWorkspace().traces).toEqual([{ id: "trace_1" }]);
   });
 
+  it("restores the latest task grouping approach for existing workspaces", () => {
+    expect(inferTaskGroupingMethod([{ bucket_id: "task_rules" }] as never[])).toBe("rules");
+    expect(inferTaskGroupingMethod([{ bucket_id: "llm_discovered" }] as never[])).toBe("llm");
+    expect(inferTaskGroupingMethod([])).toBeUndefined();
+  });
+
   it("imports traces without creating classifications or judge results", () => {
     const workspace = {
       ...emptyPersonalWorkspace(),
@@ -48,6 +54,7 @@ describe("workspace persistence", () => {
     expect(imported.traces).toEqual([{ id: "trace_1" }]);
     expect(imported.traceJudgeResults).toEqual([]);
     expect(imported.taskGroups).toEqual([]);
+    expect(imported.taskGroupingMethod).toBeUndefined();
     expect(imported.goldenDatasets).toEqual([{ id: "golden" }]);
   });
 
@@ -63,6 +70,7 @@ describe("workspace persistence", () => {
       traces: [],
       traceJudgeResults: [],
       taskGroups: [],
+      taskGroupingMethod: undefined,
       goldenDatasets: [{ id: "golden" }],
     });
   });

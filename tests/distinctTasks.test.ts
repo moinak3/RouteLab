@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DistinctTaskEvalPlanGenerator } from "../src/core/evalPlans";
 import { createDistinctTaskSeedTraces } from "../src/core/distinctTaskSeed";
-import { createDistinctTaskBuckets, HeuristicDistinctTaskClassifier } from "../src/core/distinctTasks";
-import type { Trace } from "../src/types";
+import { bucketName, createDistinctTaskBuckets, distinctTaskKey, HeuristicDistinctTaskClassifier } from "../src/core/distinctTasks";
+import type { DistinctTask, Trace } from "../src/types";
 
 const traces=createDistinctTaskSeedTraces(); const classifier=new HeuristicDistinctTaskClassifier();
 const by=(key:string)=>traces.find(trace=>trace.id.includes(key))!;
@@ -52,6 +52,16 @@ describe("distinct task buckets",()=>{
     expect(buckets.every(bucket=>bucket.trace_count===3&&bucket.total_tokens>0&&bucket.avg_latency_ms&&bucket.examples.length===3)).toBe(true);
     expect(new Set(buckets.map(bucket=>bucket.task.domain))).toEqual(new Set(["customer_support"]));
     expect(traces.every(trace=>trace.prompt_text.startsWith("As an AI customer support agent,"))).toBe(true);
+  });
+  it("does not use grounding to split task groups",()=>{
+    const base=classifier.infer(by("rag_grounded_answers")).task;
+    const alternate={...base,grounding_requirement:"none" as const};
+    expect(distinctTaskKey(base)).toBe(distinctTaskKey(alternate));
+  });
+  it("uses readable outcome names instead of concatenated factors",()=>{
+    const task={...classifier.infer(by("summarization")).task,domain:"billing",complexity:"high",temporal_context:"late_multi_turn",tool_use:"recovered_failure"} as DistinctTask;
+    expect(bucketName(task)).toBe("Ticket Summaries");
+    expect(bucketName(task)).not.toMatch(/complexity|late multi turn|tools/i);
   });
 });
 describe("task eval plans",()=>{

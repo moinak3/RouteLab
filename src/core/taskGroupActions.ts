@@ -19,6 +19,7 @@ export function editTaskGroup(
       task: changes.task,
       review_status: "edited" as const,
       reviewed_at: reviewedAt,
+      name_source: "user" as const,
     }
     : group);
 }

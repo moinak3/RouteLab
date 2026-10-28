@@ -76,6 +76,7 @@ export type DistinctTaskBucket = {
   examples: Array<{ trace_id: string; prompt_preview: string; response_preview: string }>;
   review_status?: "inferred" | "confirmed" | "edited";
   reviewed_at?: string;
+  name_source?: "heuristic" | "llm" | "user";
 };
 export type EvalType = "json_schema_validation" | "field_level_exact_match" | "regex_match" | "classification_accuracy" | "confusion_matrix" | "sql_parse" | "sql_execution" | "unit_tests" | "compile_check" | "groundedness_judge" | "citation_accuracy" | "policy_compliance_judge" | "required_facts_check" | "hallucination_check" | "summarization_fidelity_judge" | "omission_check" | "pairwise_judge_against_baseline" | "rubric_judge" | "safety_policy_check" | "tool_call_validity" | "tool_argument_correctness" | "tool_error_recovery" | "context_retention" | "instruction_adherence" | "uncertainty_calibration" | "human_review_sample" | "business_outcome_check";
 export type EvalRecommendation = { eval_type: EvalType; priority: "required" | "recommended" | "optional"; reason: string; suggested_config?: Record<string, unknown> };

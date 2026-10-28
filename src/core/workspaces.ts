@@ -1,12 +1,14 @@
 import type { DistinctTaskBucket, GoldenDataset, Trace, TraceJudgeResult } from "../types";
 
 export type WorkspaceId = "personal" | "demo";
+export type TaskGroupingMethod = "rules" | "llm";
 
 export type WorkspaceData = {
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
   goldenDatasets: GoldenDataset[];
   taskGroups: DistinctTaskBucket[];
+  taskGroupingMethod?: TaskGroupingMethod;
 };
 
 const ACTIVE_WORKSPACE_KEY = "routelab-active-workspace-v1";
@@ -16,8 +18,13 @@ let inMemoryPersonalCloudWorkspaceId: string | null = null;
 
 export const emptyPersonalWorkspace = (): WorkspaceData => ({ traces: [], traceJudgeResults: [], goldenDatasets: [], taskGroups: [] });
 
+export function inferTaskGroupingMethod(taskGroups: DistinctTaskBucket[]): TaskGroupingMethod | undefined {
+  if (!taskGroups.length) return undefined;
+  return taskGroups.every((group) => group.bucket_id.startsWith("llm_")) ? "llm" : "rules";
+}
+
 export function replaceWorkspaceTraces(workspace: WorkspaceData, traces: Trace[]): WorkspaceData {
-  return { ...workspace, traces, traceJudgeResults: [], taskGroups: [] };
+  return { ...workspace, traces, traceJudgeResults: [], taskGroups: [], taskGroupingMethod: undefined };
 }
 
 export function clearWorkspaceTraces(workspace: WorkspaceData): WorkspaceData {
@@ -66,11 +73,16 @@ export function loadPersonalWorkspace(): WorkspaceData {
     const raw = window.localStorage.getItem(PERSONAL_WORKSPACE_KEY);
     if (!raw) return emptyPersonalWorkspace();
     const parsed = JSON.parse(raw) as Partial<WorkspaceData>;
+    const taskGroups = Array.isArray(parsed.taskGroups) ? parsed.taskGroups : [];
+    const taskGroupingMethod = parsed.taskGroupingMethod === "rules" || parsed.taskGroupingMethod === "llm"
+      ? parsed.taskGroupingMethod
+      : inferTaskGroupingMethod(taskGroups);
     return {
       traces: Array.isArray(parsed.traces) ? parsed.traces : [],
       traceJudgeResults: Array.isArray(parsed.traceJudgeResults) ? parsed.traceJudgeResults : [],
       goldenDatasets: Array.isArray(parsed.goldenDatasets) ? parsed.goldenDatasets : [],
-      taskGroups: Array.isArray(parsed.taskGroups) ? parsed.taskGroups : [],
+      taskGroups,
+      taskGroupingMethod,
     };
   } catch {
     return emptyPersonalWorkspace();
