@@ -20,6 +20,7 @@
     { "source": "/quality/classifier-validation", "destination": "/index.html" },
     { "source": "/quality/review-queue", "destination": "/index.html" },
     { "source": "/routing-simulations", "destination": "/index.html" },
+    { "source": "/routing/classifier-validation", "destination": "/index.html" },
     { "source": "/benchmarking", "destination": "/index.html" },
     { "source": "/routes/recommendations", "destination": "/index.html" },
     { "source": "/routes/fine-tuning", "destination": "/index.html" },
