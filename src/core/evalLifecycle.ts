@@ -39,6 +39,37 @@ const POLICY_PREFIX = "routelab-eval-automation-v1:";
 const RUN_PREFIX = "routelab-eval-runs-v1:";
 export const HISTORICAL_TEST_SAMPLE_SIZE = 25;
 
+const monthLabel = (date: Date) => date.toLocaleString("en-US", { month: "short" });
+
+export function monthlyEvalHistory(results: TraceJudgeResult[]) {
+  const buckets = new Map<string, { label: string; count: number; scoreSum: number; passing: number }>();
+
+  for (const result of results) {
+    const date = new Date(result.created_at);
+    if (Number.isNaN(date.getTime())) continue;
+
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = buckets.get(key) ?? { label: monthLabel(date), count: 0, scoreSum: 0, passing: 0 };
+    bucket.count += 1;
+    bucket.scoreSum += result.score;
+    bucket.passing += result.passed ? 1 : 0;
+    buckets.set(key, bucket);
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([key, bucket]) => ({
+      key,
+      label: bucket.label,
+      count: bucket.count,
+      passing: bucket.passing,
+      failing: bucket.count - bucket.passing,
+      averageScore: bucket.count ? bucket.scoreSum / bucket.count : 0,
+      passRate: bucket.count ? bucket.passing / bucket.count : 0,
+    }));
+}
+
 function storage() {
   return typeof window === "undefined" ? null : window.localStorage;
 }

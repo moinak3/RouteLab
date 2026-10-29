@@ -3,6 +3,7 @@ import {
   configureNewTraceEvaluation,
   loadEvalAutomationPolicies,
   mergeEvalResults,
+  monthlyEvalHistory,
   selectHistoricalTestSample,
 } from "../src/core/evalLifecycle";
 import { evaluateTraceWithDefinition } from "../src/server/evalRuns";
@@ -42,6 +43,26 @@ afterEach(() => {
 });
 
 describe("eval lifecycle", () => {
+  it("reconciles monthly historical quality with passed divided by scored", () => {
+    const results: TraceJudgeResult[] = Array.from({ length: 25 }, (_, index) => ({
+      id: `result_${index}`,
+      trace_id: `trace_${index}`,
+      evaluator_type: "personal_agent_eval",
+      eval_id: "personal_agent_eval",
+      score: index < 3 ? 1 : index < 20 ? .5 : 0,
+      passed: index < 3,
+      rationale: "Historical evaluation result.",
+      created_at: "2026-10-28T12:00:00.000Z",
+    }));
+
+    expect(monthlyEvalHistory(results)).toEqual([expect.objectContaining({
+      count: 25,
+      passing: 3,
+      failing: 22,
+      passRate: .12,
+    })]);
+  });
+
   it("selects a bounded historical sample spanning the full time range", () => {
     const traces = Array.from({ length: 100 }, (_, index) => trace(index));
     const sample = selectHistoricalTestSample(traces, 25);
