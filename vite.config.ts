@@ -81,7 +81,7 @@ export default defineConfig(({ mode }) => {
   plugins: [react(), {
     name: "routelab-support-console-assets",
     generateBundle() {
-      for (const fileName of ["index.html", "styles.css", "app.js"]) {
+      for (const fileName of ["index.html", "styles.css", "app.js", "http.js"]) {
         this.emitFile({
           type: "asset",
           fileName: `support-console/${fileName}`,

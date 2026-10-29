@@ -1,3 +1,5 @@
+import { apiErrorMessage, readApiPayload } from "./http.js?v=1";
+
 const conversation = document.querySelector("#conversation");
 const composer = document.querySelector("#composer");
 const prompt = document.querySelector("#prompt");
@@ -88,8 +90,8 @@ function setConnection(state, label) {
 async function refreshStatus() {
   try {
     const response = await fetch(`${apiBase}/status`, { cache: "no-store" });
-    const status = await response.json();
-    if (!response.ok || !status.connected) throw new Error(status.error || "Sidecar unavailable");
+    const status = await readApiPayload(response);
+    if (!response.ok || !status.connected) throw new Error(apiErrorMessage(status, "Sidecar unavailable"));
     setConnection("connected", `Sidecar connected - policy v${status.policyVersion}`);
   } catch {
     setConnection("error", "Sidecar disconnected");
@@ -263,8 +265,8 @@ async function sendMessage(value) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: supportSessionId, messages: requestMessages, tools: supportTools, temperature: .2, max_tokens: 500, stream: false }),
     });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload?.error?.message || `Request failed with HTTP ${response.status}.`);
+    const payload = await readApiPayload(response);
+    if (!response.ok) throw new Error(apiErrorMessage(payload, `Request failed with HTTP ${response.status}.`));
     messages.pop();
     messages.push({ role: "assistant", content: assistantContent(payload), createdAt: new Date() });
     renderTrace(payload);

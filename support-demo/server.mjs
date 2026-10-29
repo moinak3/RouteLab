@@ -15,6 +15,7 @@ const assets = new Map([
   ["/index.html", { path: resolve(here, "public/index.html"), type: "text/html; charset=utf-8" }],
   ["/styles.css", { path: resolve(here, "public/styles.css"), type: "text/css; charset=utf-8" }],
   ["/app.js", { path: resolve(here, "public/app.js"), type: "text/javascript; charset=utf-8" }],
+  ["/http.js", { path: resolve(here, "public/http.js"), type: "text/javascript; charset=utf-8" }],
   ["/routelab-icon.svg", { path: resolve(repoRoot, "public/routelab-icon.svg"), type: "image/svg+xml" }],
 ]);
 
