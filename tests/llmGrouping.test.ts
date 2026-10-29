@@ -4,6 +4,7 @@ import { parseStoredLLMGroupingRun } from "../api/llm-grouping/_store";
 import {
   LLM_GROUPING_PROMPT_VERSION,
   LLM_GROUPING_SCHEMA_VERSION,
+  compactLLMGroupingRunNames,
   compareLLMGrouping,
   createLLMGroupingInputSnapshot,
   createLLMGroupingSnapshot,
@@ -163,6 +164,16 @@ describe("LLM grouping validation and persistence", () => {
     run.snapshot = createLLMGroupingSnapshot(traces);
     expect(isLLMGroupingRunOutdated(run, traces)).toBe(false);
     expect(isLLMGroupingRunOutdated(run, [trace("t1", "changed"), trace("t2")])).toBe(true);
+  });
+
+  it("presents saved detailed group names as short collision-free summaries", () => {
+    const run = fixtureRun();
+    run.groups[0].name = "general question answering, low complexity, single turn";
+    run.groups[1].name = "general question answering, low complexity, natural language";
+    const compact = compactLLMGroupingRunNames([trace("t1"), trace("t2")], run);
+    const names = compact.groups.map((item) => item.name);
+    expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(2);
+    expect(names.every((name) => name.split(/\s+/).length <= 4 && !name.includes(","))).toBe(true);
   });
 });
 

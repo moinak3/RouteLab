@@ -1,4 +1,5 @@
 import type { DistinctTaskBucket, GoldenDataset, Trace, TraceJudgeResult } from "../types";
+import { normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames";
 
 export type WorkspaceId = "personal" | "demo";
 export type TaskGroupingMethod = "rules" | "llm";
@@ -73,7 +74,7 @@ export function loadPersonalWorkspace(): WorkspaceData {
     const raw = window.localStorage.getItem(PERSONAL_WORKSPACE_KEY);
     if (!raw) return emptyPersonalWorkspace();
     const parsed = JSON.parse(raw) as Partial<WorkspaceData>;
-    const taskGroups = Array.isArray(parsed.taskGroups) ? parsed.taskGroups : [];
+    const taskGroups = normalizeAutomaticTaskGroupNames(Array.isArray(parsed.taskGroups) ? parsed.taskGroups : []);
     const taskGroupingMethod = parsed.taskGroupingMethod === "rules" || parsed.taskGroupingMethod === "llm"
       ? parsed.taskGroupingMethod
       : inferTaskGroupingMethod(taskGroups);

@@ -43,6 +43,34 @@ describe("workspace persistence", () => {
     expect(inferTaskGroupingMethod([])).toBeUndefined();
   });
 
+  it("migrates automatic factor-list names to short unique summaries", () => {
+    useMemoryStorage();
+    const task = {
+      task_type: "tool_use_function_calling", domain: "security", complexity: "high", temporal_context: "early_multi_turn",
+      tool_use: "success", output_uncertainty: "low", output_format: "natural_language", grounding_requirement: "none",
+    };
+    savePersonalWorkspace({
+      ...emptyPersonalWorkspace(),
+      taskGroups: [
+        { bucket_id: "one", bucket_name: "security tool use function calling, high complexity", name_source: "heuristic", task },
+        { bucket_id: "two", bucket_name: "billing tool use function calling, early multi turn", name_source: "heuristic", task: { ...task, domain: "billing" } },
+      ] as never[],
+    });
+    const names = loadPersonalWorkspace().taskGroups.map((group) => group.bucket_name);
+    expect(names).toEqual(["Security Tool Requests", "Billing Tool Requests"]);
+    expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(2);
+  });
+
+  it("preserves names explicitly edited by a user", () => {
+    useMemoryStorage();
+    const task = {
+      task_type: "question_answering", domain: "general", complexity: "low", temporal_context: "single_turn",
+      tool_use: "none", output_uncertainty: "low", output_format: "natural_language", grounding_requirement: "none",
+    };
+    savePersonalWorkspace({ ...emptyPersonalWorkspace(), taskGroups: [{ bucket_id: "one", bucket_name: "My Carefully Chosen Support Name", name_source: "user", task }] as never[] });
+    expect(loadPersonalWorkspace().taskGroups[0].bucket_name).toBe("My Carefully Chosen Support Name");
+  });
+
   it("imports traces without creating classifications or judge results", () => {
     const workspace = {
       ...emptyPersonalWorkspace(),

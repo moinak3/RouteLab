@@ -451,6 +451,19 @@
   letter-spacing:0;
   text-transform:none;
 }
+.shell>main .eval-form-grid>label{
+  align-content:start;
+  grid-auto-rows:max-content;
+}
+.shell>main .eval-form-grid :is(input,select){
+  min-height:42px;
+}
+.shell>main .eval-form-grid .eval-threshold-field{
+  align-self:start;
+}
+.shell>main .eval-form-grid .eval-scope-field{
+  color:#f4faf6;
+}
 .eval-version-list{
   display:grid;
   gap:9px;

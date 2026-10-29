@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDistinctTaskBuckets } from "../core/distinctTasks";
 import {
   compareLLMGrouping,
+  compactLLMGroupingRunNames,
   createTaskBucketsFromLLMGrouping,
   createLLMGroupingSnapshot,
   isLLMGroupingRunOutdated,
@@ -83,8 +84,9 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
     setLoading(true);
     fetchLatestLLMGroupingRun(workspaceId, controller.signal)
       .then((latest) => {
-        setRun(latest);
-        setSelectedGroupId(latest?.groups[0]?.id ?? null);
+        const compact = latest ? compactLLMGroupingRunNames(traces, latest) : null;
+        setRun(compact);
+        setSelectedGroupId(compact?.groups[0]?.id ?? null);
       })
       .catch((loadError) => {
         if (controller.signal.aborted) return;
@@ -92,7 +94,7 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [workspaceId]);
+  }, [traces, workspaceId]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -110,8 +112,9 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
     setProgress({ stage: "extraction", completed: 0, total: traces.length, message: "Preparing the trace snapshot" });
     try {
       const completed = await runLLMGroupingExperiment(traces, workspaceId, setProgress, controller.signal);
-      setRun(completed);
-      setSelectedGroupId(completed.groups[0]?.id ?? null);
+      const compact = compactLLMGroupingRunNames(traces, completed);
+      setRun(compact);
+      setSelectedGroupId(compact.groups[0]?.id ?? null);
       setView("groups");
     } catch (runError) {
       if (controller.signal.aborted) setError("Run cancelled. No partial result was saved.");

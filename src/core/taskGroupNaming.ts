@@ -1,4 +1,5 @@
 import type { DistinctTaskBucket } from "../types";
+import { resolveAutomaticTaskGroupNames } from "./taskGroupDisplayNames";
 
 export type TaskGroupNamingInput = {
   bucketId: string;
@@ -43,15 +44,28 @@ export function validateTaskGroupNames(inputs: TaskGroupNamingInput[], names: Ta
   if (expected.size !== received.size || [...expected].some((id) => !received.has(id))) {
     throw new Error("The naming model did not return exactly one name for every task group.");
   }
-  const normalizedNames = names.map((item) => item.name.trim().toLocaleLowerCase());
-  if (new Set(normalizedNames).size !== normalizedNames.length) throw new Error("The naming model returned duplicate task group names.");
   names.forEach((item) => {
     const wordCount = item.name.trim().split(/\s+/).filter(Boolean).length;
-    if (wordCount < 2 || wordCount > 6 || item.name.trim().length > 64) {
-      throw new Error("Task group names must be concise phrases between 2 and 6 words.");
+    if (wordCount < 2 || wordCount > 4 || item.name.trim().length > 48 || /[,;:|/\\()[\]{}]/.test(item.name) || item.name.includes("_")) {
+      throw new Error("Task group names must be plain, concise phrases between 2 and 4 words.");
     }
   });
-  return names.map((item) => ({ bucketId: item.bucketId, name: item.name.trim() }));
+  const inputById = new Map(inputs.map((input) => [input.bucketId, input]));
+  return resolveAutomaticTaskGroupNames(names.map((item) => {
+    const input = inputById.get(item.bucketId)!;
+    return {
+      id: item.bucketId,
+      name: item.name,
+      factors: {
+        task_type: input.factors.taskType,
+        domain: input.factors.domain,
+        complexity: input.factors.complexity,
+        temporal_context: input.factors.temporalContext,
+        tool_use: input.factors.toolUse,
+        output_format: input.factors.outputFormat,
+      } as DistinctTaskBucket["task"],
+    };
+  })).map((item) => ({ bucketId: item.id, name: item.name }));
 }
 
 export function applyTaskGroupNames(groups: DistinctTaskBucket[], names: TaskGroupName[]) {

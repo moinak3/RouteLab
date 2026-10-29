@@ -1,4 +1,5 @@
 import type { Complexity, Domain, GroundingRequirement, InferredDistinctTask, NormalizedTrace, OutputFormat, OutputUncertainty, Risk, DistinctTaskField, TaskType, TemporalContext, ToolUse, DistinctTask, DistinctTaskBucket } from "../types";
+import { baseTaskGroupName, normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames";
 
 type Inference<T> = { value: T; confidence: number; evidence: string[] };
 const has = (text: string, words: string[]) => words.filter((word) => text.includes(word));
@@ -170,16 +171,7 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
 }
 export const distinctTaskKey=(task:DistinctTask)=>[task.task_type,task.domain,task.complexity,task.temporal_context,task.tool_use,task.output_uncertainty,task.output_format].join("|");
 const hash=(value:string)=>{let result=2166136261;for(const char of value){result^=char.charCodeAt(0);result=Math.imul(result,16777619)}return (result>>>0).toString(36)};
-const outcomeNames:Record<TaskType,string>={
-  summarization:"Ticket Summaries",extraction:"Structured Data Extraction",classification_tagging:"Intent Classification and Tagging",question_answering:"General Question Answering",rag_grounded_answers:"Policy and Knowledge Answers",customer_support_responses:"Customer Support Responses",policy_compliance_reasoning:"Policy Compliance Review",code_generation:"Code Generation",code_review_debugging:"Code Review and Debugging",sql_data_query_generation:"SQL Query Generation",data_analysis_insight_generation:"Data Analysis and Insights",writing_editing:"Writing and Editing",sales_marketing_content:"Sales and Marketing Content",translation_localization:"Translation and Localization",document_review_legal_analysis:"Legal Document Review",planning_strategy_recommendations:"Planning and Recommendations",tool_use_function_calling:"Tool-Based Request Handling",agentic_workflow_execution:"Multi-Step Workflow Execution",moderation_safety_review:"Safety and Moderation Review",multimodal_document_image_understanding:"Document and Image Understanding",
-};
-export const bucketName=(task:DistinctTask)=>outcomeNames[task.task_type];
-const fallbackQualifier=(task:DistinctTask)=>{
-  if(!["general","customer_support","unknown"].includes(task.domain))return task.domain.replaceAll("_"," ");
-  if(task.temporal_context!=="single_turn")return task.temporal_context==="late_multi_turn"?"extended":"multi turn";
-  if(task.tool_use!=="none")return task.tool_use==="success"?"tool assisted":"tool recovery";
-  return task.complexity;
-};
+export const bucketName=(task:DistinctTask)=>baseTaskGroupName(task.task_type);
 const mostCommon=<T extends string>(values:T[]):T=>{
   const counts=new Map<T,number>();
   values.forEach(value=>counts.set(value,(counts.get(value)??0)+1));
@@ -196,7 +188,7 @@ export function createDistinctTaskBuckets(traces:NormalizedTrace[], classifier:D
     const riskLevel=items.map(item=>item.result.risk_level).sort((a,b)=>riskOrder.indexOf(b)-riskOrder.indexOf(a))[0]??"medium";
     const evidence=Object.fromEntries(distinctTaskFields.map(field=>[field,[...new Set(items.flatMap(item=>item.result.evidence[field]))].slice(0,3)])) as Record<DistinctTaskField,string[]>;
     return {
-      bucket_id:`task_${hash(key)}`,bucket_name:explicitLabel??bucketName(task),name_source:"heuristic" as const,task,traces:items.map(item=>item.trace.id),trace_count:items.length,
+      bucket_id:`task_${hash(key)}`,bucket_name:explicitLabel??bucketName(task),name_source:explicitLabel?"user" as const:"heuristic" as const,task,traces:items.map(item=>item.trace.id),trace_count:items.length,
       total_cost_usd:items.reduce((s,i)=>s+(i.trace.cost_usd??0),0),avg_cost_usd:average(items.map(i=>i.trace.cost_usd??0)),
       total_tokens:items.reduce((s,i)=>s+i.trace.total_tokens,0),avg_input_tokens:average(items.map(i=>i.trace.input_tokens)),
       avg_output_tokens:average(items.map(i=>i.trace.output_tokens)),avg_latency_ms:average(items.map(i=>i.trace.latency_ms??0)),
@@ -205,14 +197,5 @@ export function createDistinctTaskBuckets(traces:NormalizedTrace[], classifier:D
       evidence,examples:items.slice(0,3).map(i=>({trace_id:i.trace.id,prompt_preview:i.trace.prompt_text.slice(0,140),response_preview:(i.trace.response_text??"").slice(0,140)})),
     };
   }).sort((a,b)=>b.trace_count-a.trace_count);
-  const totals=new Map<string,number>();
-  buckets.forEach(bucket=>totals.set(bucket.bucket_name,(totals.get(bucket.bucket_name)??0)+1));
-  const used=new Map<string,number>();
-  return buckets.map(bucket=>{
-    if((totals.get(bucket.bucket_name)??0)<2)return bucket;
-    const qualifier=fallbackQualifier(bucket.task).replace(/\b\w/g,letter=>letter.toUpperCase());
-    const qualified=`${qualifier} ${bucket.bucket_name}`;
-    const count=(used.get(qualified)??0)+1; used.set(qualified,count);
-    return {...bucket,bucket_name:count===1?qualified:`${qualified} ${count}`};
-  });
+  return normalizeAutomaticTaskGroupNames(buckets);
 }

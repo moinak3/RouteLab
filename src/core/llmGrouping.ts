@@ -1,8 +1,9 @@
 import type { DistinctTaskBucket, Trace } from "../types.js";
 import { createDistinctTaskBuckets } from "./distinctTasks.js";
+import { normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames.js";
 
 export const LLM_GROUPING_SCHEMA_VERSION = "routelab.llm-grouping.v1" as const;
-export const LLM_GROUPING_PROMPT_VERSION = "independent-task-discovery-v1";
+export const LLM_GROUPING_PROMPT_VERSION = "independent-task-discovery-v2";
 
 export type LLMGroupingStage = "extraction" | "discovery" | "consolidation" | "assignment";
 export type LLMGroupingAssignmentStatus = "assigned" | "ambiguous" | "unassigned";
@@ -92,7 +93,7 @@ const average = (values: number[]) => values.length ? values.reduce((sum, value)
 
 export function createTaskBucketsFromLLMGrouping(traces: Trace[], run: LLMGroupingRun): DistinctTaskBucket[] {
   const traceById = new Map(traces.map((trace) => [trace.id, trace]));
-  return run.groups.flatMap((group) => {
+  const buckets = run.groups.flatMap((group) => {
     const assignments = run.assignments.filter((assignment) => assignment.status === "assigned" && assignment.groupId === group.id);
     const groupedTraces = assignments.flatMap((assignment) => {
       const trace = traceById.get(assignment.traceId);
@@ -108,6 +109,7 @@ export function createTaskBucketsFromLLMGrouping(traces: Trace[], run: LLMGroupi
     return [{
       bucket_id: group.id,
       bucket_name: group.name,
+      name_source: "llm" as const,
       task: representative.task,
       traces: groupedTraces.map((trace) => trace.id),
       trace_count: groupedTraces.length,
@@ -129,6 +131,15 @@ export function createTaskBucketsFromLLMGrouping(traces: Trace[], run: LLMGroupi
       })),
     }];
   }).sort((left, right) => right.trace_count - left.trace_count);
+  return normalizeAutomaticTaskGroupNames(buckets);
+}
+
+export function compactLLMGroupingRunNames(traces: Trace[], run: LLMGroupingRun) {
+  const nameById = new Map(createTaskBucketsFromLLMGrouping(traces, run).map((bucket) => [bucket.bucket_id, bucket.bucket_name]));
+  return {
+    ...run,
+    groups: run.groups.map((group) => ({ ...group, name: nameById.get(group.id) ?? group.name })),
+  };
 }
 
 export type LLMGroupingComparisonCell = {

@@ -24,11 +24,14 @@ describe("task group naming", () => {
     expect(named.every((group) => group.name_source === "llm")).toBe(true);
   });
 
-  it("rejects missing, duplicate, or verbose names", () => {
+  it("rejects missing or verbose names and resolves duplicate summaries", () => {
     const input = prepareTaskGroupNamingInput(groups);
     expect(() => validateTaskGroupNames(input, [{ bucketId: groups[0].bucket_id, name: "Ticket Summaries" }])).toThrow(/exactly one/i);
-    expect(() => validateTaskGroupNames(input, groups.map((group) => ({ bucketId: group.bucket_id, name: "Duplicate Name" })))).toThrow(/duplicate task group names/i);
-    expect(() => validateTaskGroupNames(input, groups.map((group, index) => ({ bucketId: group.bucket_id, name: index ? "A Name With Far Too Many Words To Accept" : "Ticket Summaries" })))).toThrow(/2 and 6 words/i);
+    const deduplicated = validateTaskGroupNames(input, groups.map((group) => ({ bucketId: group.bucket_id, name: "Duplicate Name" })));
+    expect(new Set(deduplicated.map((item) => item.name.toLowerCase())).size).toBe(groups.length);
+    expect(deduplicated.every((item) => item.name.split(/\s+/).length <= 4)).toBe(true);
+    expect(() => validateTaskGroupNames(input, groups.map((group, index) => ({ bucketId: group.bucket_id, name: index ? "A Name With Far Too Many Words To Accept" : "Ticket Summaries" })))).toThrow(/2 and 4 words/i);
+    expect(() => validateTaskGroupNames(input, groups.map((group, index) => ({ bucketId: group.bucket_id, name: index ? "Billing, High Complexity" : "Ticket Summaries" })))).toThrow(/plain, concise/i);
   });
 
   it("requests structured names through OpenRouter", async () => {

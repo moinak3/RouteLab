@@ -454,8 +454,8 @@ export function Evals({
                 <small className="eval-field-note">This evaluator runs deterministically and does not call a judge model.</small>
               </>}
             </label>
-            <label>Threshold<input value={draft.threshold} onChange={event=>setDraft({...draft,threshold:event.target.value})} /></label>
-            <label>Task scope<input value={draft.scope} onChange={event=>setDraft({...draft,scope:event.target.value})} /></label>
+            <label className="eval-threshold-field">Threshold<input value={draft.threshold} onChange={event=>setDraft({...draft,threshold:event.target.value})} /></label>
+            <label className="eval-scope-field">Task scope<input value={draft.scope} onChange={event=>setDraft({...draft,scope:event.target.value})} /></label>
             <label className="wide">Prompt<textarea value={draft.prompt} onChange={event=>setDraft({...draft,prompt:event.target.value})} rows={6} /></label>
           </div>}
           {formError&&<p className="form-error" role="alert">{formError}</p>}

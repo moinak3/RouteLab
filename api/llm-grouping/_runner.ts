@@ -236,7 +236,7 @@ export async function runLLMGrouping(options: RunnerOptions): Promise<LLMGroupin
   const proposalBatches = await mapConcurrentOrdered(discoveryBatches, concurrency, async (batch) => {
     const result = await structuredCall({
       name: "task_catalog", schema: proposalSchema, apiKey: options.apiKey, model: options.model, fetchImpl, signal: options.signal,
-      instructions: "Propose coherent task groups from these independent job descriptions. Do not force a target count. Use short unique groupKey values. Define boundaries, attributes, evaluation dimensions, and why routing treatment may differ.",
+      instructions: "Propose coherent task groups from these independent job descriptions. Do not force a target count. Use short unique groupKey values. Give every group a 2-to-4-word outcome name, aiming for 2 or 3 words. Do not concatenate modality, grounding, complexity, or other attributes into the name. Add the smallest meaningful qualifier only when two outcome names would otherwise collide. Define boundaries, attributes, evaluation dimensions, and why routing treatment may differ.",
       payload: { descriptions: batch },
     });
     discoveryCompleted += 1;
@@ -248,7 +248,7 @@ export async function runLLMGrouping(options: RunnerOptions): Promise<LLMGroupin
   progress(options, "consolidation", 0, 1, "Consolidating overlapping batch taxonomies");
   const consolidatedResult = await structuredCall({
     name: "task_catalog", schema: proposalSchema, apiKey: options.apiKey, model: options.model, fetchImpl, signal: options.signal,
-    instructions: "Consolidate duplicate and overlapping candidates into one coherent catalog. Preserve meaningful distinctions in immediate jobs, grounding, output contract, and reasoning. Do not force ambiguous traces into a group. Candidate trace IDs are evidence only, not final assignments.",
+    instructions: "Consolidate duplicate and overlapping candidates into one coherent catalog. Preserve meaningful distinctions in immediate jobs, grounding, output contract, and reasoning. Every final group name must be a unique 2-to-4-word outcome label, not a list of attributes; use the smallest meaningful qualifier only to prevent a collision. Do not force ambiguous traces into a group. Candidate trace IDs are evidence only, not final assignments.",
     payload: { candidateGroups: proposals, descriptions },
   });
   const catalog = consolidatedResult.groups;
