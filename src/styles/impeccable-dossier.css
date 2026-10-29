@@ -373,7 +373,7 @@ body:before{
 .shell>main .task-signature-empty{border-color:var(--dossier-rule);border-radius:1px;background:rgba(255,255,255,.36)}
 .shell>main .task-signature-empty b{color:var(--dossier-ink)}.shell>main .task-signature-empty span{color:#657184}
 .shell>main :is(button,select,input):disabled{color:#687386;opacity:.72}
-.shell>main .scenario-builder{grid-template-columns:minmax(0,1fr) minmax(250px,320px)}
+.shell>main .scenario-builder{grid-template-columns:minmax(0,1fr);gap:10px;padding-block:18px}
 .shell>main .projection{min-width:0;overflow-wrap:anywhere}
 .shell>main button,.shell>main .upload,.shell>main .search,.shell>main select,.shell>main input,.shell>main textarea{
   border-color:var(--dossier-rule);
@@ -828,6 +828,8 @@ body:before{
   height:var(--simulation-control-height);
 }
 .shell>main .scenario-controls .request-limit small{grid-row:3;margin-top:7px}
+.shell>main .scenario-controls .scenario-note{margin-top:2px}
+.shell>main .scenario-builder .sim-actions{padding-top:10px}
 
 .shell>main .routing-policy-controls{
   --policy-control-height:42px;

@@ -292,7 +292,6 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         return <section className="panel"><p className="eyebrow">Simulations</p><h2>No enabled models</h2><p>Enable at least one model in Model Catalog before running simulations.</p></section>;
     if (!simulation)
         return null;
-    const monthlySavings = simulation.summary.estimated_savings_usd * MONTHLY_MULTIPLIER;
     const candidateName = getModel(candidate)?.display_name ?? candidate;
     const candidateFamily = getModel(candidate)?.family ?? candidateName;
     const providerName = strategy === "direct" ? liveDirect?.label ?? simulation.runs[0]?.provider : undefined;
@@ -338,11 +337,6 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <input aria-label="Requests to simulate" inputMode="decimal" value={requestLimitValue} onChange={event => setRequestLimitValue(event.target.value)} placeholder={requestLimitMode === "percent" ? "100" : "500"}/>
 </div>{requestLimit.message && <small>{requestLimit.message}</small>}</div>
 <p className="scenario-note">{liveDirect && strategy === "direct" ? `Live replay via ${liveDirect.label}` : isAutoRouter ? "Live replay required to observe OpenRouter's selected models" : `Deterministic demo replay${providerName ? ` via ${providerName}` : ""}`} · random sample of {scenarioTraces.length.toLocaleString()} from {availableTraces.length.toLocaleString()} matching LLM calls{autoNeedsLiveReplay?"":` · monthly projection = selected sample × ${MONTHLY_MULTIPLIER}`}</p>
-</div>
-<div className={`projection ${monthlySavings < 0 ? "projection-cost" : ""}`}>
-<small>{autoNeedsLiveReplay?"Auto Router economics are not fixed":strategy === "direct" ? "Raw direct scenario savings (before guardrails)" : "Raw cascade scenario savings (before guardrails)"}</small>
-<strong>{autoNeedsLiveReplay?"Live replay required":money(Math.abs(monthlySavings))}</strong>
-<span>{autoNeedsLiveReplay?"Run requests through openrouter/auto to measure the actual mix":`${monthlySavings >= 0 ? "saved per month" : "additional monthly cost"} with ${strategy === "direct" ? candidateRouteName : `the ${candidateFamily} family`}`}</span>
 </div>
 <div className="sim-actions">
 <button className={strategy === "direct" ? "primary" : ""} disabled={liveStatus.state === "running"} onClick={runDirect}>{liveStatus.state === "running" ? "Running live replay..." : "Simulate direct routing"}</button>{liveStatus.state === "running" && <button type="button" className="stop-simulation" onClick={stopLiveReplay}>Stop simulation</button>}
