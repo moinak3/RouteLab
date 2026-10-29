@@ -12,6 +12,7 @@ import { RoutingPolicyPublisher } from "../components/RoutingPolicyPublisher";
 import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, reviseDraftRoutingPolicy } from "../core/routingDraft";
 import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useRoutingPolicyDraft";
 import { taskGroupIdFromSearch } from "../core/taskGroupActions";
+import { simulationScopeKey } from "../core/simulationScope";
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
     buckets: DistinctTaskBucket[];
     selectedIds: string[];
@@ -171,6 +172,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         message: string;
     }>({ state: "idle", message: "" });
     const liveAbortRef = useRef<AbortController | null>(null);
+    const activeScopeKeyRef = useRef("");
     const hasActiveModels = candidateModels.length > 0;
     const defaultFallbackModelId = useMemo(() => {
         const counts = new Map<string, number>();
@@ -211,6 +213,14 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         return { count: requested, message: parsed % 1 ? "Rounded down to a whole request count." : undefined };
     }, [availableTraces.length, requestLimitMode, requestLimitValue]);
     const selectedTraces = useMemo(() => sampleTraces(availableTraces, requestLimit.count, sampleSeed), [availableTraces, requestLimit.count, sampleSeed]);
+    const activeScopeKey = simulationScopeKey({
+        candidateId: candidate,
+        dateRange,
+        requestCount: requestLimit.count,
+        taskGroupIds: distinctTaskBucketIds,
+        traceIds: availableTraces.map(trace => trace.id),
+    });
+    activeScopeKeyRef.current = activeScopeKey;
     const direct = useMemo(() => hasActiveModels ? replay(selectedTraces, candidate) : undefined, [selectedTraces, candidate, catalogVersion, hasActiveModels]);
     const liveKeyStatus = useMemo(() => liveRoutingStatus(candidate, { familyApiKeys, gatewayApiKeys, serverGatewayKeys }), [candidate, familyApiKeys, gatewayApiKeys, serverGatewayKeys]);
     const judgeByTraceId = useMemo(() => traceJudgeResultsByTraceId(traceJudgeResults), [traceJudgeResults]);
@@ -222,8 +232,9 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         if (!activeModels.some(model => model.id === draftPolicy.emergencyFallbackModelId) && defaultFallbackModelId) changes.emergencyFallbackModelId = defaultFallbackModelId;
         if (Object.keys(changes).length) setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, changes));
     }, [activeModels, defaultFallbackModelId, draftPolicy.defaultModelId, draftPolicy.emergencyFallbackModelId]);
-    useEffect(() => { liveAbortRef.current?.abort(); liveAbortRef.current = null; setLiveDirect(null); setPendingLiveReplay(null); setLiveStatus({ state: "idle", message: "" }); }, [candidate, availableTraces, requestLimit.count, dateRange]);
+    useEffect(() => { liveAbortRef.current?.abort(); liveAbortRef.current = null; setLiveDirect(null); setPendingLiveReplay(null); setLiveStatus({ state: "idle", message: "" }); }, [activeScopeKey]);
     const runDirect = async () => {
+        const runScopeKey = activeScopeKey;
         const nextSeed = Date.now() + Math.floor(Math.random() * 1000000);
         const runTraces = sampleTraces(availableTraces, requestLimit.count, nextSeed);
         setSampleSeed(nextSeed);
@@ -252,7 +263,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         setLiveStatus({ state: "running", message: `Sending ${runTraces.length.toLocaleString()} request${runTraces.length === 1 ? "" : "s"} through ${liveKeyStatus.label}...` });
         try {
             const live = await runLiveDirectRouting(runTraces, candidate, { familyApiKeys, gatewayApiKeys, serverGatewayKeys }, controller.signal);
-            if (controller.signal.aborted)
+            if (controller.signal.aborted || activeScopeKeyRef.current !== runScopeKey)
                 return;
             const result = replayFromRuns(runTraces, live.runs);
             const failures = live.runs.filter(run => run.status === "error").length;
@@ -336,6 +347,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div className="sim-actions">
 <button className={strategy === "direct" ? "primary" : ""} disabled={liveStatus.state === "running"} onClick={runDirect}>{liveStatus.state === "running" ? "Running live replay..." : "Simulate direct routing"}</button>{liveStatus.state === "running" && <button type="button" className="stop-simulation" onClick={stopLiveReplay}>Stop simulation</button>}
 </div>
+{liveStatus.message && <p className={`simulation-run-status ${liveStatus.state}`} role="status" aria-live="polite">{liveStatus.message}</p>}
 </section>
 <section className="scenario-results panel">
 <div className="panelhead">
