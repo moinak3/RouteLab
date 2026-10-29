@@ -99,6 +99,7 @@ export default function App() {
   const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
   const taskGroupingMethod = workspaceData[activeWorkspace].taskGroupingMethod;
   const cloudWorkspaceId = activeWorkspace === "demo" ? "demo" : personalCloudWorkspaceId;
+  const supportConsoleUrl = `/support-console/?workspace=${encodeURIComponent(cloudWorkspaceId)}&workspaceLabel=${encodeURIComponent(activeWorkspace === "demo" ? "RouteLab demo" : "My workspace")}`;
   const [evalAutomationPolicies, setEvalAutomationPolicies] = useState<EvalAutomationPolicy[]>(() => loadEvalAutomationPolicies(cloudWorkspaceId));
   const activeEvalRuns = useRef(new Set<string>());
   const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
@@ -210,11 +211,11 @@ export default function App() {
   }, [previewUnlocked, traces, evalAutomationPolicies, cloudWorkspaceId, addEvalResults]);
 
   const refreshRuntimeTraces = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch("/api/runtime-traces?limit=500", { cache: "no-store", signal });
+    const response = await fetch(`/api/runtime-traces?limit=500&workspace=${encodeURIComponent(cloudWorkspaceId)}`, { cache: "no-store", signal });
     const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
     if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
     if (payload.traces.length) setTraces(current => mergeRuntimeTraces(current, payload.traces!));
-  }, [setTraces]);
+  }, [cloudWorkspaceId, setTraces]);
 
   function navigateTo(nextPage: Page, options?: { replace?: boolean }) {
     const nextPath = pathForPage(nextPage);
@@ -331,7 +332,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeWorkspace !== "demo") return;
     if (page !== "Overview" && page !== "Traces" && page !== "Review Queue") return;
     const controller = new AbortController();
     let refreshing = false;
@@ -344,7 +344,9 @@ export default function App() {
     };
     const refreshWhenVisible = () => { if (document.visibilityState === "visible") void refresh(); };
     const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("routelab-runtime-traces");
-    if (channel) channel.onmessage = (event) => { if (event.data?.type === "trace_saved") void refresh(); };
+    if (channel) channel.onmessage = (event) => {
+      if (event.data?.type === "trace_saved" && event.data?.workspaceId === cloudWorkspaceId) void refresh();
+    };
     void refresh();
     const timer = window.setInterval(refreshWhenVisible, 10_000);
     window.addEventListener("focus", refreshWhenVisible);
@@ -356,7 +358,7 @@ export default function App() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       channel?.close();
     };
-  }, [page, activeWorkspace, refreshRuntimeTraces]);
+  }, [page, activeWorkspace, cloudWorkspaceId, refreshRuntimeTraces]);
 
   useEffect(() => {
     let cancelled = false;
@@ -585,7 +587,7 @@ export default function App() {
           </button>
           {expandedNav.Advanced && <div className="nav-submenu" id="advanced-submenu">
             {advancedNav.map((item) => <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
-            <a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a>
+            <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Support Console</a>
           </div>}
         </div>
       </nav>
@@ -598,7 +600,7 @@ export default function App() {
       </div>
       {expandedNav.Advanced && <nav className="group-mobile-subnav mobile-advanced-submenu" id="mobile-advanced-submenu" aria-label="Advanced navigation">
           {advancedNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
-          <a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a>
+          <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Support Console</a>
       </nav>}
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}

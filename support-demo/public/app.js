@@ -1,4 +1,4 @@
-import { apiErrorMessage, readApiPayload } from "./http.js?v=1";
+import { apiErrorMessage, readApiPayload, scopedSupportApiUrl, supportWorkspaceContext } from "./http.js?v=3";
 
 const conversation = document.querySelector("#conversation");
 const composer = document.querySelector("#composer");
@@ -8,9 +8,12 @@ const connection = document.querySelector("#connection");
 const connectionLabel = document.querySelector("#connection-label");
 const traceSubtitle = document.querySelector("#trace-subtitle");
 const traceState = document.querySelector("#trace-state");
+const workspaceName = document.querySelector("#workspace-name");
 const apiBase = window.location.pathname.startsWith("/support-console") ? "/api/support" : "/api";
+const { workspaceId, workspaceLabel } = supportWorkspaceContext(window.location.search);
+workspaceName.textContent = workspaceLabel;
 const supportSessionId = (() => {
-  const key = "routelab-support-session-id";
+  const key = `routelab-support-session-id:${workspaceId}`;
   try {
     const existing = window.sessionStorage.getItem(key);
     if (existing) return existing;
@@ -89,7 +92,7 @@ function setConnection(state, label) {
 
 async function refreshStatus() {
   try {
-    const response = await fetch(`${apiBase}/status`, { cache: "no-store" });
+    const response = await fetch(scopedSupportApiUrl(apiBase, "status", workspaceId), { cache: "no-store" });
     const status = await readApiPayload(response);
     if (!response.ok || !status.connected) throw new Error(apiErrorMessage(status, "Sidecar unavailable"));
     setConnection("connected", `Sidecar connected - policy v${status.policyVersion}`);
@@ -241,7 +244,7 @@ function assistantContent(payload) {
 function announceSavedTrace() {
   try {
     const channel = new BroadcastChannel("routelab-runtime-traces");
-    channel.postMessage({ type: "trace_saved", sessionId: supportSessionId, savedAt: Date.now() });
+    channel.postMessage({ type: "trace_saved", workspaceId, sessionId: supportSessionId, savedAt: Date.now() });
     channel.close();
   } catch {}
 }
@@ -260,7 +263,7 @@ async function sendMessage(value) {
   ];
 
   try {
-    const response = await fetch(`${apiBase}/chat`, {
+    const response = await fetch(scopedSupportApiUrl(apiBase, "chat", workspaceId), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: supportSessionId, messages: requestMessages, tools: supportTools, temperature: .2, max_tokens: 500, stream: false }),

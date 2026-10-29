@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DistinctTaskEvalPlanGenerator } from "../src/core/evalPlans";
 import { createDistinctTaskSeedTraces } from "../src/core/distinctTaskSeed";
-import { bucketName, createDistinctTaskBuckets, distinctTaskKey, HeuristicDistinctTaskClassifier } from "../src/core/distinctTasks";
-import type { DistinctTask, Trace } from "../src/types";
+import { bucketName, createDistinctTaskBuckets, distinctTaskKey, HeuristicDistinctTaskClassifier, mostCommonModelForTaskGroup } from "../src/core/distinctTasks";
+import type { DistinctTask } from "../src/types";
 
 const traces=createDistinctTaskSeedTraces(); const classifier=new HeuristicDistinctTaskClassifier();
 const by=(key:string)=>traces.find(trace=>trace.id.includes(key))!;
@@ -62,6 +62,14 @@ describe("distinct task buckets",()=>{
     const task={...classifier.infer(by("summarization")).task,domain:"billing",complexity:"high",temporal_context:"late_multi_turn",tool_use:"recovered_failure"} as DistinctTask;
     expect(bucketName(task)).toBe("Ticket Summaries");
     expect(bucketName(task)).not.toMatch(/complexity|late multi turn|tools/i);
+  });
+  it("reports the most frequently observed model with deterministic ties",()=>{
+    const bucket=buckets[0];
+    const observed=traces.filter(trace=>bucket.traces.includes(trace.id));
+    const withModels=observed.map((trace,index)=>({...trace,model:index<2?"provider/model-b":"provider/model-a"}));
+    expect(mostCommonModelForTaskGroup(bucket,withModels)).toBe("provider/model-b");
+    expect(mostCommonModelForTaskGroup(bucket,withModels.slice(1))).toBe("provider/model-a");
+    expect(mostCommonModelForTaskGroup(bucket,[])).toBeUndefined();
   });
 });
 describe("task eval plans",()=>{

@@ -14,6 +14,7 @@ import taskGroupNamesHandler from "../src/server/taskGroupNames.js";
 import waitlistHandler from "../src/server/waitlist.js";
 import reviewHandler from "../src/server/reviews.js";
 import evalRunHandler from "../src/server/evalRuns.js";
+import { routingPolicyWorkspaceId } from "./routing-policy/_config.js";
 
 export const maxDuration = 300;
 
@@ -44,8 +45,8 @@ function executeSupportTool(call: any) {
   return { name, arguments: arguments_, result: { error: "This tool is not implemented by the support demo." } };
 }
 
-async function supportCompletion(request: any) {
-  const first = await runInspectedCompletion(request);
+async function supportCompletion(request: any,workspaceId:string) {
+  const first = await runInspectedCompletion(request,undefined,workspaceId);
   const message = first.payload?.openRouterResponse?.choices?.[0]?.message;
   const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
   if (first.status !== 200 || !first.payload?.ok || !toolCalls.length) return {
@@ -71,6 +72,7 @@ async function supportCompletion(request: any) {
       ],
     },
     { ...first.payload?.route, decision: first.payload?.decision },
+    workspaceId,
   );
   return {
     ...second,
@@ -95,6 +97,7 @@ async function supportCompletion(request: any) {
 
 export default async function handler(req: any, res: any) {
   const action = String(req.query?.action ?? "");
+  const workspaceId=routingPolicyWorkspaceId(req);
   try {
     if (action === "llm-grouping-latest") return handleLLMGroupingLatest(req, res);
     if (action === "llm-grouping-run") return handleLLMGroupingRun(req, res);
@@ -104,13 +107,13 @@ export default async function handler(req: any, res: any) {
     if (action === "eval-run") return evalRunHandler(req, res);
     if (action === "runtime-traces") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
-      const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500));
+      const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500),workspaceId);
       res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
       return sendJson(res, 200, { traces, count: traces.length });
     }
     if (action === "support-status" || action === "sidecar-status") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
-      const bundle = await loadPolicyBundle();
+      const bundle = await loadPolicyBundle(workspaceId);
       return sendJson(res, 200, {
         ...(action === "support-status" ? { connected: true } : {}),
         status: "ready",
@@ -118,6 +121,7 @@ export default async function handler(req: any, res: any) {
         policyId: bundle.policyId,
         mode: String(process.env.ROUTELAB_DECISION_MODE ?? "enforce"),
         runtime: "vercel-demo",
+        workspaceId,
       });
     }
 
@@ -126,7 +130,7 @@ export default async function handler(req: any, res: any) {
       return sendJson(res, 401, { error: { message: "A valid RouteLab sidecar API key is required.", type: "authentication_error" } });
     }
     if (action === "sidecar-route") {
-      const route = await runRoute(req.body ?? {});
+      const route = await runRoute(req.body ?? {},workspaceId);
       const { decision, ...selectedRoute } = route;
       await saveRuntimeTrace(runtimeTraceFromResult({
         request: req.body ?? {},
@@ -134,37 +138,40 @@ export default async function handler(req: any, res: any) {
         decision,
         route: selectedRoute,
         source: "routelab_sidecar",
-      }));
+        workspaceId,
+      }),workspaceId);
       Object.entries(routeHeaders(route)).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, 200, { route });
     }
     if (action === "sidecar-inspect") {
-      const result = await runInspectedCompletion(req.body ?? {});
-      await saveRuntimeTrace(runtimeTraceFromResult({ request: req.body ?? {}, payload: result.payload, source: "routelab_sidecar" }));
+      const result = await runInspectedCompletion(req.body ?? {},undefined,workspaceId);
+      await saveRuntimeTrace(runtimeTraceFromResult({ request: req.body ?? {}, payload: result.payload, source: "routelab_sidecar",workspaceId }),workspaceId);
       Object.entries(result.headers).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, result.status, result.payload);
     }
     if (action === "sidecar-chat") {
-      const result = await runChatCompletion(req.body ?? {});
+      const result = await runChatCompletion(req.body ?? {},workspaceId);
       await saveRuntimeTrace(runtimeTraceFromResult({
         request: req.body ?? {},
         payload: { ok: result.status >= 200 && result.status < 300, openRouterResponse: result.payload },
         decision: result.route.decision,
         route: result.route,
         source: "routelab_sidecar",
-      }));
+        workspaceId,
+      }),workspaceId);
       Object.entries(result.headers).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, result.status, result.payload);
     }
     if (action === "support-chat") {
-      const result = await supportCompletion(req.body ?? {});
+      const result = await supportCompletion(req.body ?? {},workspaceId);
       await saveRuntimeTrace(runtimeTraceFromResult({
         request: req.body ?? {},
         payload: result.payload,
         decision: result.traceDecision,
         route: result.traceRoute,
         source: "routelab_support",
-      }));
+        workspaceId,
+      }),workspaceId);
       return sendJson(res, result.status, result.payload);
     }
     return sendJson(res, 404, { error: { message: "Unknown RouteLab runtime action.", type: "not_found" } });

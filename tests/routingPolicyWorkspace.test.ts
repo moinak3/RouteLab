@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { routingPolicyWorkspaceId } from "../api/routing-policy/_config";
+import { policyUrlForWorkspace } from "../api/sidecar/_workspace";
 import { fetchPublishedPolicyHistory } from "../src/core/routingPolicyPersistence";
 
 describe("routing policy workspace isolation", () => {
@@ -23,5 +24,10 @@ describe("routing policy workspace isolation", () => {
       "/api/routing-policy/versions?workspace=personal_abc123",
       expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
+  });
+
+  it("replaces any default workspace on the hosted runtime policy URL", () => {
+    expect(policyUrlForWorkspace("https://routelab.example/api/routing-policy/bundle?version=active&workspace=demo", "personal_abc123"))
+      .toBe("https://routelab.example/api/routing-policy/bundle?version=active&workspace=personal_abc123");
   });
 });

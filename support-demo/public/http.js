@@ -22,3 +22,18 @@ export function apiErrorMessage(payload, fallback) {
   if (typeof payload?.message === "string" && payload.message.trim()) return payload.message.trim();
   return fallback;
 }
+
+const workspaceIdPattern = /^[a-z0-9][a-z0-9_-]{0,127}$/i;
+
+export function supportWorkspaceContext(search = "") {
+  const params = new URLSearchParams(search);
+  const requested = String(params.get("workspace") ?? "").trim();
+  const workspaceId = workspaceIdPattern.test(requested) ? requested : "demo";
+  const requestedLabel = String(params.get("workspaceLabel") ?? "").trim();
+  const workspaceLabel = requestedLabel || (workspaceId === "demo" ? "RouteLab demo" : "My workspace");
+  return { workspaceId, workspaceLabel };
+}
+
+export function scopedSupportApiUrl(apiBase, path, workspaceId) {
+  return `${apiBase}/${path}?workspace=${encodeURIComponent(workspaceId)}`;
+}

@@ -172,6 +172,16 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
 export const distinctTaskKey=(task:DistinctTask)=>[task.task_type,task.domain,task.complexity,task.temporal_context,task.tool_use,task.output_uncertainty,task.output_format].join("|");
 const hash=(value:string)=>{let result=2166136261;for(const char of value){result^=char.charCodeAt(0);result=Math.imul(result,16777619)}return (result>>>0).toString(36)};
 export const bucketName=(task:DistinctTask)=>baseTaskGroupName(task.task_type);
+export function mostCommonModelForTaskGroup(bucket:Pick<DistinctTaskBucket,"traces">,traces:NormalizedTrace[]):string|undefined{
+  const traceIds=new Set(bucket.traces);
+  const counts=new Map<string,number>();
+  traces.forEach(trace=>{
+    if(!traceIds.has(trace.id))return;
+    const model=trace.model.trim();
+    if(model)counts.set(model,(counts.get(model)??0)+1);
+  });
+  return [...counts.entries()].sort(([leftModel,leftCount],[rightModel,rightCount])=>rightCount-leftCount||leftModel.localeCompare(rightModel))[0]?.[0];
+}
 const mostCommon=<T extends string>(values:T[]):T=>{
   const counts=new Map<T,number>();
   values.forEach(value=>counts.set(value,(counts.get(value)??0)+1));

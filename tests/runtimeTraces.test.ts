@@ -18,6 +18,7 @@ describe("runtime trace ingestion", () => {
       decision: { signatureId: "unknown", signatureLabel: "Unknown or new trace bucket", confidence: .31, probabilities: { unknown: .31 }, threshold: 1, status: "unknown", latencyMs: 55, reason: "No published trace bucket matched reliably." },
       route: { source: "fallback", taskBucketId: "unknown", taskBucketLabel: "Unknown or new trace bucket", policyId: "policy_1", policyVersion: 1, openRouterModelId: "openai/gpt-5.5-pro" },
       source: "routelab_support",
+      workspaceId: "personal_abc123",
     });
 
     expect(trace.prompt_text).toBe("A completely new workflow");
@@ -26,6 +27,7 @@ describe("runtime trace ingestion", () => {
     expect(trace.workflow_id).toBe("support_session_1");
     expect(trace.metadata?.conversation_id).toBe("support_session_1");
     expect(trace.metadata?.conversation_turn).toBe(1);
+    expect(trace.metadata?.workspace_id).toBe("personal_abc123");
     expect(runtimeTraceSourceLabel(trace)).toBe("Support Console");
     expect(trace.metadata?.unknown_classifier).toBe(true);
     expect(trace.metadata?.classifier_invocations).toBe(1);
