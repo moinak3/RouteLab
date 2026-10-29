@@ -829,7 +829,45 @@ body:before{
 }
 .shell>main .scenario-controls .request-limit small{grid-row:3;margin-top:7px}
 .shell>main .scenario-controls .scenario-note{margin-top:2px}
-.shell>main .scenario-builder .sim-actions{padding-top:10px}
+.shell>main .scenario-builder .sim-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-top:10px;
+}
+.shell>main .scenario-builder .sim-actions button:disabled{
+  border-color:#7d8ca1;
+  background:#e7ebf0;
+  color:#34445c;
+  opacity:1;
+}
+.shell>main .scenario-builder .sim-actions .stop-simulation{
+  border-color:#a83b28;
+  background:#fff0ec;
+  color:#862f22;
+  box-shadow:2px 2px 0 rgba(168,59,40,.18);
+}
+.shell>main .scenario-builder .sim-actions .stop-simulation:hover,
+.shell>main .scenario-builder .sim-actions .stop-simulation:focus-visible{
+  border-color:#862f22;
+  background:#862f22;
+  color:#fff;
+}
+.shell>main .scenario-builder .simulation-run-status{
+  margin:0;
+  border-radius:2px;
+  font-weight:600;
+}
+.shell>main .scenario-builder .simulation-run-status.running{
+  border-color:#6d90bd;
+  background:#eaf2fb;
+  color:#244e7a;
+}
+.shell>main .scenario-builder .simulation-run-status.error{
+  border-color:#a83b28;
+  background:#fff0ec;
+  color:#862f22;
+}
 
 .shell>main .routing-policy-controls{
   --policy-control-height:42px;
