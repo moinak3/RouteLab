@@ -7,7 +7,7 @@ import { exportLiteLlm, exportOpenRouterConfig, exportPolicyJson, exportTypeScri
 import { buildReviewQueue, REVIEW_QUEUE_MAX } from "../src/core/reviewQueue";
 import { traceUserFeedback } from "../src/core/traceFeedback";
 import { createSeedTraces, SEED_TASK_GROUP_COUNT, SEED_TRACE_COUNT, SEED_TRACES_PER_GROUP } from "../src/core/seed";
-import { cascade, costOnly, deterministicGenerate, distinctTaskImpactBreakdown, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, replay } from "../src/core/simulations";
+import { cascade, costOnly, deterministicGenerate, distinctTaskImpactBreakdown, familyCascade, MONTHLY_MULTIPLIER, monthlyDistinctTaskBreakdown, replay, replayFromRuns } from "../src/core/simulations";
 import { MIN_PROVIDER_QUOTES, providerQuotesForModel, quoteLabel } from "../src/core/providerPricing";
 import { liveRoutingStatus } from "../src/core/liveRouting";
 import { filterTracesByRange, monthlyBuckets } from "../src/core/time";
@@ -286,6 +286,18 @@ describe("golden datasets and fine-tuning signals", () => {
 });
 
 describe("simulation and recommendations", () => {
+  it("keeps average eval score distinct from pass rate for completed live runs", () => {
+    const trace = traces[0];
+    const run = {
+      ...deterministicGenerate(trace, "claude-opus-4.8"),
+      response_text: "This candidate response is complete enough to be scored but does not match the calibrated reference.",
+    };
+    const result = replayFromRuns([trace], [run]);
+
+    expect(result.summary.average_quality_score).toBe(.5);
+    expect(result.summary.pass_rate).toBe(0);
+  });
+
   it("calculates cheaper cost-only routing", () => {
     const result = costOnly(traces, "deepseek-r1", distinctTaskBuckets);
     expect(result.simulated_cost_usd).toBeLessThan(result.baseline_cost_usd);

@@ -14,6 +14,7 @@ import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useR
 import { taskGroupIdFromSearch } from "../core/taskGroupActions";
 import { simulationScopeKey } from "../core/simulationScope";
 import { mostCommonModelForTaskGroup } from "../core/distinctTasks";
+import { ScenarioMetricRows, type ScenarioMetric } from "../components/SimulationMetricRows";
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
     buckets: DistinctTaskBucket[];
     selectedIds: string[];
@@ -79,16 +80,17 @@ const compactMoney = (value: number) => value < .01 ? `$${value.toFixed(5)}` : m
 const scoreLabel = (value?: number) => Number.isFinite(value) ? pct((value ?? 0) * 100) : "Not scored";
 const changeLabel = (value: number) => `${value > 0 ? "+" : ""}${pct(value)}`;
 const pointChangeLabel = (value?: number) => value === undefined ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(1)} pts`;
-function TaskImpactValues({ before, after, impact, tone }: {
+function TaskImpactValues({ before, after, impact, tone, pending = false }: {
     before: string;
     after: string;
     impact: string;
     tone: "good" | "warn";
+    pending?: boolean;
 }) {
     return <div className="task-impact-values">
         <span><small>Before</small>{before}</span>
-        <span><small>After</small><strong>{after}</strong></span>
-        <span><small>Impact</small><em className={tone}>{impact}</em></span>
+        <span><small>After</small><strong aria-busy={pending}>{pending ? null : after}</strong></span>
+        <span><small>Impact</small><em className={pending ? undefined : tone} aria-busy={pending}>{pending ? null : impact}</em></span>
     </div>;
 }
 const policySaveLabel = (state: RoutingPolicySaveState) => ({
@@ -298,7 +300,8 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
                 liveAbortRef.current = null;
         }
     };
-    const scenarioTraces = strategy === "direct" && liveDirect ? liveDirect.traces : selectedTraces;
+    const liveReplayPending = strategy === "direct" && liveStatus.state === "running";
+    const scenarioTraces = strategy === "direct" ? liveDirect?.traces ?? pendingLiveReplay?.traces ?? selectedTraces : selectedTraces;
     const simulation = useMemo(() => hasActiveModels ? (strategy === "direct" ? (liveDirect?.result ?? direct!) : familyCascade(selectedTraces, candidate)) : undefined, [strategy, direct, liveDirect, selectedTraces, candidate, catalogVersion, hasActiveModels]);
     const distinctTaskImpact = useMemo(() => simulation ? distinctTaskImpactBreakdown(scenarioTraces, selectedDistinctTasks, simulation, traceJudgeResults) : [], [simulation, scenarioTraces, selectedDistinctTasks, traceJudgeResults]);
     const currentModelByTaskGroup = useMemo(() => new Map(distinctTaskBuckets.map(bucket => {
@@ -311,7 +314,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         return null;
     const candidateName = getModel(candidate)?.display_name ?? candidate;
     const candidateFamily = getModel(candidate)?.family ?? candidateName;
-    const providerName = strategy === "direct" ? liveDirect?.label ?? simulation.runs[0]?.provider : undefined;
+    const providerName = strategy === "direct" ? liveDirect?.label ?? pendingLiveReplay?.label ?? simulation.runs[0]?.provider : undefined;
     const providerId = strategy === "direct" ? simulation.runs[0]?.provider_id : undefined;
     const candidateRouteName = providerName ? `${candidateName} via ${providerName}` : candidateName;
     const isAutoRouter = candidate === "openrouter-auto";
@@ -324,10 +327,12 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Task Group" : `${distinctTaskBucketIds.length} selected Task Groups`;
     const baselineJudges = scenarioTraces.map(trace => judgeByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
     const baselinePassRate = baselineJudges.length ? baselineJudges.filter(judge => judge.passed).length / baselineJudges.length : undefined;
-    const metricRows = [
+    const baselineAverageScore = baselineJudges.length ? average(baselineJudges.map(judge => judge.score)) : undefined;
+    const metricRows: ScenarioMetric[] = [
         { label: "Projected monthly cost", before: money(simulation.summary.baseline_cost_usd * MONTHLY_MULTIPLIER), after: money(simulation.summary.simulated_cost_usd * MONTHLY_MULTIPLIER), change: changeLabel(-simulation.summary.estimated_savings_pct), good: simulation.summary.estimated_savings_usd >= 0 },
         { label: "Average latency", before: `${simulation.summary.baseline_avg_latency_ms.toFixed(0)}ms`, after: `${simulation.summary.simulated_avg_latency_ms.toFixed(0)}ms`, change: changeLabel(simulation.summary.latency_delta_pct), good: simulation.summary.latency_delta_pct <= 0 },
-        { label: "Eval pass rate (quality)", before: baselinePassRate === undefined ? "Not scored" : pct(baselinePassRate * 100), after: pct(simulation.summary.pass_rate * 100), change: baselinePassRate === undefined ? "n/a" : pointChangeLabel((simulation.summary.pass_rate - baselinePassRate) * 100), good: baselinePassRate === undefined || simulation.summary.pass_rate >= baselinePassRate },
+        { label: "Average eval score", before: baselineAverageScore === undefined ? "Not scored" : pct(baselineAverageScore * 100), after: pct(simulation.summary.average_quality_score * 100), change: baselineAverageScore === undefined ? "n/a" : pointChangeLabel((simulation.summary.average_quality_score - baselineAverageScore) * 100), good: baselineAverageScore === undefined || simulation.summary.average_quality_score >= baselineAverageScore },
+        { label: "Eval pass rate", before: baselinePassRate === undefined ? "Not scored" : pct(baselinePassRate * 100), after: pct(simulation.summary.pass_rate * 100), change: baselinePassRate === undefined ? "n/a" : pointChangeLabel((simulation.summary.pass_rate - baselinePassRate) * 100), good: baselinePassRate === undefined || simulation.summary.pass_rate >= baselinePassRate },
     ];
     return <>
 <section className="sim-builder scenario-builder">
@@ -365,7 +370,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div>
 <p className="eyebrow">Overall impact</p>
 <h2>{scopeName} → {strategy === "family_cascade" ? `${candidateFamily} enabled family cascade` : candidateRouteName}</h2>
-<p className="impact-explainer">{autoNeedsLiveReplay?"Auto Router results appear only after a live replay, including the model selected for every request.":"Before uses observed production traces. After uses the candidate replay. Quality is the calibrated evaluator pass rate."}</p>
+<p className="impact-explainer">{autoNeedsLiveReplay?"Auto Router results appear only after a live replay, including the model selected for every request.":"Before uses observed production traces. After uses the completed candidate replay. Average eval score and pass rate are reported separately."}</p>
 </div>
 <span>{scenarioTraces.length.toLocaleString()} calls</span>
 </div>
@@ -375,14 +380,9 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <span>Before · current</span>
 <span>After · candidate</span>
 <span>Impact</span>
-</div>{metricRows.map(row => <div className="scenario-metric-row" key={row.label}>
-<b>{row.label}</b>
-<span>{row.before}</span>
-<strong>{autoNeedsLiveReplay?"Run live replay":row.after}</strong>
-<em className={autoNeedsLiveReplay?"warn":row.good ? "good" : "warn"}>{autoNeedsLiveReplay?"not estimated":row.change}</em>
-</div>)}</div>
+</div><ScenarioMetricRows rows={metricRows} pending={liveReplayPending} requiresLiveReplay={autoNeedsLiveReplay}/></div>
 <div className="scenario-foot">
-{autoNeedsLiveReplay?<span>Actual quality, cost, latency, and selected models will be measured live.</span>:<><span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span><span>Candidate pass rate: {pct(simulation.summary.pass_rate * 100)}</span></>}{strategy === "family_cascade" && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
+{liveReplayPending?<span>Waiting for completed candidate responses and eval scores.</span>:autoNeedsLiveReplay?<span>Actual quality, cost, latency, and selected models will be measured live.</span>:<><span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span><span>Candidate pass rate: {pct(simulation.summary.pass_rate * 100)}</span></>}{strategy === "family_cascade" && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
 <section className="panel routing-policy-builder">
 <div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Approve task overrides and configure the unmatched path</h2><p className="impact-explainer">Confident match to an approved task override → use its model. Otherwise → use the configured default strategy. Runtime failures use the separate emergency fallback.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
 <div className="routing-policy-controls">
@@ -439,10 +439,10 @@ return <tr key={row.distinct_task_bucket_id}>
 <small>{row.trace_count.toLocaleString()} replayed trace{row.trace_count === 1 ? "" : "s"}</small>
 <small className="current-task-model">Current model: {currentModelByTaskGroup.get(row.distinct_task_bucket_id) ?? "Not recorded"}</small>
 </td>
-<td><TaskImpactValues before={money(row.cost.before_monthly_usd)} after={money(row.cost.after_monthly_usd)} impact={changeLabel(row.cost.delta_pct)} tone={row.cost.delta_pct <= 0 ? "good" : "warn"}/></td>
-<td><TaskImpactValues before={`${row.latency.before_ms.toFixed(0)}ms`} after={`${row.latency.after_ms.toFixed(0)}ms`} impact={changeLabel(row.latency.delta_pct)} tone={row.latency.delta_pct <= 0 ? "good" : "warn"}/></td>
-<td><TaskImpactValues before={row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)} after={pct(row.quality.after_pass_rate * 100)} impact={pointChangeLabel(row.quality.delta_points)} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"}/></td>
-<td className="route-action">{isAutoRouter ? <><span className="route-ineligible">Default strategy only</span><small>Auto Router results are measured live but are not promoted as a fixed task override.</small></> : strategy !== "direct" ? <><span className="route-ineligible">Direct replay required</span><small>Cascades need a separate policy rule.</small></> : assessment.eligible ? <button type="button" className={candidateIsActive ? "active" : ""} disabled={candidateIsActive} onClick={() => setTaskOverride(row)}>{candidateIsActive ? "Override active" : activeOverride ? `Replace ${activeOverride.modelName}` : `Use ${candidateName}`}</button> : <><span className="route-ineligible" title={failedChecks.map(check => check.detail).join("; ")}>Does not clear guardrails</span><small>{failedChecks[0]?.detail}</small></>}</td>
+<td><TaskImpactValues before={money(row.cost.before_monthly_usd)} after={money(row.cost.after_monthly_usd)} impact={changeLabel(row.cost.delta_pct)} tone={row.cost.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/></td>
+<td><TaskImpactValues before={`${row.latency.before_ms.toFixed(0)}ms`} after={`${row.latency.after_ms.toFixed(0)}ms`} impact={changeLabel(row.latency.delta_pct)} tone={row.latency.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/></td>
+<td><TaskImpactValues before={row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)} after={pct(row.quality.after_pass_rate * 100)} impact={pointChangeLabel(row.quality.delta_points)} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"} pending={liveReplayPending}/></td>
+<td className="route-action">{liveReplayPending ? <><span className="route-ineligible">Simulation in progress</span><small>Policy eligibility appears after the live replay completes.</small></> : isAutoRouter ? <><span className="route-ineligible">Default strategy only</span><small>Auto Router results are measured live but are not promoted as a fixed task override.</small></> : strategy !== "direct" ? <><span className="route-ineligible">Direct replay required</span><small>Cascades need a separate policy rule.</small></> : assessment.eligible ? <button type="button" className={candidateIsActive ? "active" : ""} disabled={candidateIsActive} onClick={() => setTaskOverride(row)}>{candidateIsActive ? "Override active" : activeOverride ? `Replace ${activeOverride.modelName}` : `Use ${candidateName}`}</button> : <><span className="route-ineligible" title={failedChecks.map(check => check.detail).join("; ")}>Does not clear guardrails</span><small>{failedChecks[0]?.detail}</small></>}</td>
 </tr>;
 })}</tbody>
 </table>
