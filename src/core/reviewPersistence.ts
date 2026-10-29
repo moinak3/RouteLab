@@ -61,9 +61,19 @@ export function reviewsAsGoldenDataset(reviews: PersistedReview[]): GoldenDatase
   };
 }
 
+export function reviewWorkflowErrorMessage(error: unknown, fallback = "Review workflow request failed."): string {
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (error && typeof error === "object") {
+    const value = error as { message?: unknown; error?: unknown; detail?: unknown };
+    return reviewWorkflowErrorMessage(value.message ?? value.error ?? value.detail, fallback);
+  }
+  return fallback;
+}
+
 async function responseJson<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({})) as T & { error?: unknown };
-  if (!response.ok) throw new Error(String(payload.error ?? "Review workflow request failed."));
+  if (!response.ok) throw new Error(reviewWorkflowErrorMessage(payload.error));
   return payload;
 }
 

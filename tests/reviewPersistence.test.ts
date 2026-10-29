@@ -5,6 +5,7 @@ import {
   normalizedReviewBudget,
   reviewLaneFromSearch,
   reviewLaneHref,
+  reviewWorkflowErrorMessage,
   reviewsAsGoldenDataset,
   type PersistedReview,
 } from "../src/core/reviewPersistence";
@@ -21,6 +22,12 @@ describe("review workflow persistence", () => {
     expect(normalizedReviewBudget(0)).toBe(MIN_WEEKLY_REVIEW_BUDGET);
     expect(normalizedReviewBudget(42.4)).toBe(42);
     expect(normalizedReviewBudget(5_000)).toBe(MAX_WEEKLY_REVIEW_BUDGET);
+  });
+
+  it("renders structured API failures as readable messages", () => {
+    expect(reviewWorkflowErrorMessage({ message: "A server error has occurred" })).toBe("A server error has occurred");
+    expect(reviewWorkflowErrorMessage({ error: { message: "Review storage is unavailable." } })).toBe("Review storage is unavailable.");
+    expect(reviewWorkflowErrorMessage({ code: "500" })).toBe("Review workflow request failed.");
   });
 
   it("materializes only human-labeled outcomes as a golden dataset", () => {

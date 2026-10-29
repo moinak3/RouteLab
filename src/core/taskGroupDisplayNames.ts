@@ -1,4 +1,4 @@
-import type { DistinctTask, DistinctTaskBucket, Risk, TaskType } from "../types";
+import type { DistinctTask, DistinctTaskBucket, Risk, TaskType } from "../types.js";
 
 export type TaskGroupNamingFactors = Pick<DistinctTask, "task_type" | "domain" | "complexity" | "temporal_context" | "tool_use" | "output_format"> & {
   risk_level?: Risk;

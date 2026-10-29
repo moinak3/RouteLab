@@ -1,5 +1,5 @@
-import type { Complexity, Domain, GroundingRequirement, InferredDistinctTask, NormalizedTrace, OutputFormat, OutputUncertainty, Risk, DistinctTaskField, TaskType, TemporalContext, ToolUse, DistinctTask, DistinctTaskBucket } from "../types";
-import { baseTaskGroupName, normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames";
+import type { Complexity, Domain, GroundingRequirement, InferredDistinctTask, NormalizedTrace, OutputFormat, OutputUncertainty, Risk, DistinctTaskField, TaskType, TemporalContext, ToolUse, DistinctTask, DistinctTaskBucket } from "../types.js";
+import { baseTaskGroupName, normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames.js";
 
 type Inference<T> = { value: T; confidence: number; evidence: string[] };
 const has = (text: string, words: string[]) => words.filter((word) => text.includes(word));

@@ -1,5 +1,5 @@
-import type { DistinctTaskBucket } from "../types";
-import { resolveAutomaticTaskGroupNames, type TaskGroupNamingFactors } from "./taskGroupDisplayNames";
+import type { DistinctTaskBucket } from "../types.js";
+import { resolveAutomaticTaskGroupNames, type TaskGroupNamingFactors } from "./taskGroupDisplayNames.js";
 
 export type TaskGroupNamingInput = {
   bucketId: string;

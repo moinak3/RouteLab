@@ -211,7 +211,7 @@ const stringList = (value: unknown) => Array.isArray(value) ? value.map((item) =
 function sanitizedMessages(trace: Trace) {
   const messages = (trace.messages ?? []).map((message) => ({ role: message.role, content: text(message.content) })).filter((message) => message.content);
   const response = text(trace.response_text);
-  while (messages.length && messages.at(-1)?.role === "assistant" && response && messages.at(-1)?.content === response) messages.pop();
+  while (messages.length && messages[messages.length - 1]?.role === "assistant" && response && messages[messages.length - 1]?.content === response) messages.pop();
   return messages;
 }
 

@@ -1,4 +1,4 @@
-import type { Model } from "../types";
+import type { Model } from "../types.js";
 
 export type FrontierHarnessId = "baseline" | "improved";
 export type FrontierHarnessSelection = FrontierHarnessId | "both";
@@ -694,7 +694,8 @@ export function frontierTakeaways(run: FrontierLabRun): string[] {
   const separator = [...caseStats].sort((a, b) => b.spread - a.spread)[0];
   if (separator && separator.spread >= 0.08) {
     const ranked = [...separator.models].sort((a, b) => b.quality - a.quality);
-    takeaways.push(`${separator.evalCase.name} was the clearest separator: ${ranked[0].model.displayName} averaged ${(ranked[0].quality * 100).toFixed(1)}% quality versus ${(ranked.at(-1)!.quality * 100).toFixed(1)}% for ${ranked.at(-1)!.model.displayName}.`);
+    const lastRanked = ranked[ranked.length - 1];
+    takeaways.push(`${separator.evalCase.name} was the clearest separator: ${ranked[0].model.displayName} averaged ${(ranked[0].quality * 100).toFixed(1)}% quality versus ${(lastRanked.quality * 100).toFixed(1)}% for ${lastRanked.model.displayName}.`);
   }
   const equivalent = caseStats.find((item) => item.models.length > 1 && item.spread <= 0.03 && item.models.every((row) => row.quality >= run.qualityThreshold));
   if (equivalent) takeaways.push(`All measured models were effectively equivalent on ${equivalent.evalCase.name}; this workflow should favor the lowest-cost passing route.`);

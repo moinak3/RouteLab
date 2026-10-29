@@ -1,5 +1,5 @@
-import type { DraftRoutingPolicy } from "./routingDraft";
-import type { DistinctTask, Risk } from "../types";
+import type { DraftRoutingPolicy } from "./routingDraft.js";
+import type { DistinctTask, Risk } from "../types.js";
 
 export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v3" as const;
 export const LEGACY_ROUTING_POLICY_SCHEMA_VERSIONS = ["routelab.policy.v1", "routelab.policy.v2"] as const;
