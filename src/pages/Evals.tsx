@@ -459,8 +459,8 @@ export function Evals({
         </details>
 
         <div className="eval-crud">
-          <button type="button" className="primary" onClick={()=>downloadDefinition(activeEvalDefinition)}>Download JSON</button>
-          <button type="button" onClick={openEdit}>Edit definition</button>
+          <button type="button" onClick={()=>downloadDefinition(activeEvalDefinition)}>Download JSON</button>
+          <button type="button" className="primary" onClick={openEdit}>Edit definition</button>
           <button type="button" disabled title="Not available in this preview">Duplicate</button>
           <button type="button" disabled title="Not available in this preview">Disable</button>
           <button type="button" className="danger" disabled title="Not available in this preview">Delete</button>
