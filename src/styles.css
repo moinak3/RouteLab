@@ -1542,9 +1542,13 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
   line-height:1.2;
 }
 .judge-snapshot{
+  vertical-align:middle;
+}
+.judge-snapshot-content{
   display:flex;
   align-items:center;
   gap:8px;
+  min-height:100%;
 }
 .severity{
   padding:4px 7px;
