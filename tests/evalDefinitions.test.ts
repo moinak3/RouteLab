@@ -3,9 +3,12 @@ import {
   buildPersonalAgentEvalDefinition,
   defaultEvalDefinitions,
   evalDefinitionFileName,
+  formatEvalDefinitionJson,
+  parseEvalDefinitionJson,
   serializeEvalDefinition,
 } from "../src/core/evalDefinitions";
 import type { Trace } from "../src/types";
+import { evaluatorUsesJudgeModel, resolveJudgeModelValue } from "../src/pages/Evals";
 
 function personalAgentTrace(id: string, taskGroup: string): Trace {
   return {
@@ -74,5 +77,39 @@ describe("workspace eval definitions", () => {
 
     expect(JSON.parse(serialized)).toEqual(definition);
     expect(evalDefinitionFileName(definition)).toBe("personal_agent_outcome_and_control_v1.json");
+  });
+
+  it("validates and formats imported eval definition JSON", () => {
+    const source = '{"id":"refund_check","name":"Refund check","threshold":0.9}';
+
+    expect(parseEvalDefinitionJson(source)).toMatchObject({ id: "refund_check", name: "Refund check" });
+    expect(formatEvalDefinitionJson(source)).toBe(
+      '{\n  "id": "refund_check",\n  "name": "Refund check",\n  "threshold": 0.9\n}\n',
+    );
+    expect(() => parseEvalDefinitionJson("[]")).toThrow("single definition object");
+    expect(() => parseEvalDefinitionJson('{"id":"missing_name"}')).toThrow("non-empty name");
+  });
+
+  it("recognizes judge evaluators and stores their OpenRouter runtime route", () => {
+    const models = [{
+      id: "openrouter:openai/gpt-5.5-pro",
+      provider: "openai",
+      display_name: "GPT-5.5 Pro",
+      input_cost_per_1m: 1,
+      output_cost_per_1m: 2,
+      default_latency_ms: 500,
+      deployment_type: "closed_managed",
+      pricing_source: "OpenRouter" as const,
+      pricing_source_model_id: "openai/gpt-5.5-pro",
+      quality_tier: "strong" as const,
+      family: "OpenAI" as const,
+      family_tier: "top" as const,
+    }];
+
+    expect(evaluatorUsesJudgeModel("llm_as_judge")).toBe(true);
+    expect(evaluatorUsesJudgeModel("hybrid_deterministic_and_llm_judge")).toBe(true);
+    expect(evaluatorUsesJudgeModel("schema_check")).toBe(false);
+    expect(resolveJudgeModelValue("openrouter:openai/gpt-5.5-pro", models)).toBe("openai/gpt-5.5-pro");
+    expect(resolveJudgeModelValue("custom/judge-v1", models)).toBe("custom/judge-v1");
   });
 });

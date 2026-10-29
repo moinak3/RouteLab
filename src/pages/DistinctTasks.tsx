@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { benchmarkFamilies, buildBenchmarkPriorRecommendation } from "../core/benchmarkPriors";
 import { createDistinctTaskBuckets } from "../core/distinctTasks";
 import { generateEvalPlans } from "../core/evalPlans";
@@ -82,7 +83,7 @@ function DistinctTaskDetail({bucket,plan,customerEvaluations,onClose,onConfirm,o
     onConfirm(bucket.bucket_id);
     setActionMessage("Group confirmed and saved to this workspace.");
   };
-  return <div className="task-detail-layer" onClick={event=>{if(event.target===event.currentTarget)onClose()}}>
+  const drawer=<div className="task-detail-layer" onClick={event=>{if(event.target===event.currentTarget)onClose()}}>
     <aside className="task-detail" role="dialog" aria-modal="true" aria-label="Task Group detail">
       <div className="task-detail-head"><div><p className="eyebrow">Task Group</p><h2>{bucket.bucket_name}</h2><span>{bucket.bucket_id} · {bucket.trace_count.toLocaleString()} traces · {bucket.name_source === "llm" ? "AI-proposed name, editable" : bucket.name_source === "user" ? "User-edited name" : "RouteLab fallback name"}</span></div><button aria-label="Close task detail" onClick={onClose}>×</button></div>
       <div className="task-detail-body">
@@ -108,4 +109,5 @@ function DistinctTaskDetail({bucket,plan,customerEvaluations,onClose,onConfirm,o
       </div>
     </aside>
   </div>;
+  return createPortal(drawer,document.body);
 }

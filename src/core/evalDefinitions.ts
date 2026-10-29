@@ -241,6 +241,26 @@ export function serializeEvalDefinition(definition: EvalDefinition) {
   return `${JSON.stringify(definition, null, 2)}\n`;
 }
 
+export function parseEvalDefinitionJson(source: string): Partial<EvalDefinition> {
+  const parsed = JSON.parse(source) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Eval JSON must be a single definition object.");
+  }
+
+  const definition = parsed as Partial<EvalDefinition>;
+  if (typeof definition.id !== "string" || !definition.id.trim()) {
+    throw new Error("Eval JSON must include a non-empty id.");
+  }
+  if (typeof definition.name !== "string" || !definition.name.trim()) {
+    throw new Error("Eval JSON must include a non-empty name.");
+  }
+  return definition;
+}
+
+export function formatEvalDefinitionJson(source: string) {
+  return `${JSON.stringify(parseEvalDefinitionJson(source), null, 2)}\n`;
+}
+
 export function evalDefinitionFileName(definition: EvalDefinition) {
   const safeId = definition.id.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
   return `${safeId || "routelab-eval"}.json`;

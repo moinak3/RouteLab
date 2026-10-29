@@ -24,3 +24,46 @@
 @media(max-width:650px){
   .distinct-task-explainer{display:grid}
 }
+
+/* The detail view is portaled to the document so it stays aligned to the viewport. */
+.task-detail-layer{
+  overflow:hidden;
+}
+.task-detail-layer .task-detail{
+  right:0;
+  left:auto;
+  width:min(820px,96vw);
+  max-width:100vw;
+  padding:0;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+}
+.task-detail-head>div,
+.task-detail-body,
+.task-detail-body>section,
+.task-summary>div,
+.task-metrics>div{
+  min-width:0;
+}
+.task-detail-head h2,
+.task-detail-head span,
+.task-summary b,
+.task-metrics b,
+.evidence-list span{
+  overflow-wrap:anywhere;
+}
+.task-detail-head button{
+  flex:0 0 auto;
+}
+.task-summary,
+.task-metrics{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.evidence-list div{
+  grid-template-columns:160px minmax(0,1fr);
+}
+@media(max-width:650px){
+  .task-summary,
+  .task-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .evidence-list div{grid-template-columns:1fr}
+}

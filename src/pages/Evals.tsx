@@ -1,11 +1,14 @@
-import { useEffect, useState, type FormEvent } from "react";
-import type { Trace, TraceJudgeResult } from "../types";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import type { Model, Trace, TraceJudgeResult } from "../types";
 import { pct } from "../lib/format";
 import type { ReviewQueueFilter } from "../types/ui";
+import { ModelOptions } from "../components/ModelOptions";
 import {
   defaultEvalDefinitions,
   demoEvalDefinitions,
   evalDefinitionFileName,
+  formatEvalDefinitionJson,
+  parseEvalDefinitionJson,
   serializeEvalDefinition,
   type EvalDefinition,
 } from "../core/evalDefinitions";
@@ -53,6 +56,15 @@ function loadActiveEvalVersion(workspaceId: string) {
 
 const monthLabel = (date: Date) => date.toLocaleString("en-US", { month: "short" });
 
+export const evaluatorUsesJudgeModel = (evaluatorType: string) => evaluatorType.toLowerCase().includes("judge");
+
+export const openRouterJudgeModelValue = (model: Model) => model.pricing_source_model_id ?? model.id;
+
+export function resolveJudgeModelValue(value: string, models: Model[]) {
+  const selected = models.find((model) => model.id === value || model.pricing_source_model_id === value);
+  return selected ? openRouterJudgeModelValue(selected) : value;
+}
+
 function monthlyEvalHistory(results: TraceJudgeResult[]) {
   const buckets = new Map<string, { label: string; count: number; scoreSum: number; passing: number }>();
 
@@ -96,12 +108,14 @@ export function Evals({
   workspace,
   traces,
   traceJudgeResults,
+  models,
   onReviewFilter,
 }: {
   workspaceId: string;
   workspace: "personal" | "demo";
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
+  models: Model[];
   onReviewFilter: (filter: ReviewQueueFilter) => void;
 }) {
   const passing = traceJudgeResults.filter((result) => result.passed).length;
@@ -111,14 +125,17 @@ export function Evals({
   const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const workspaceDefaults = defaultEvalDefinitions(workspace, traces);
+  const judgeModels = models.filter((model) => model.pricing_source === "OpenRouter" && model.family !== "Router");
+  const defaultJudgeModel = judgeModels[0] ? openRouterJudgeModelValue(judgeModels[0]) : "gpt-5.5-pro";
   const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(() => loadEvalDefinitions(workspaceId, workspaceDefaults));
   const [evalVersions,setEvalVersions]=useState<EvalVersion[]>(() => loadEvalVersions(workspaceId, workspaceDefaults));
   const [activeEvalVersion,setActiveEvalVersion]=useState(() => loadActiveEvalVersion(workspaceId));
   const activeVersion=evalVersions.find(item=>item.version===activeEvalVersion)??evalVersions[evalVersions.length-1];
   const activeEvalDefinition=activeVersion?.definition;
   const [modal,setModal]=useState<"import"|"create"|"edit"|"versions"|null>(null);
-  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:"gpt-5.5-pro",threshold:"0.85",scope:"All task groups",prompt:""});
+  const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:defaultJudgeModel,threshold:"0.85",scope:"All task groups",prompt:""});
   const [importText,setImportText]=useState(JSON.stringify(workspaceDefaults[0] ?? demoEvalDefinitions[0],null,2));
+  const [importFileName,setImportFileName]=useState<string|null>(null);
   const [formError,setFormError]=useState<string|null>(null);
   useEffect(()=>{
     try {
@@ -136,8 +153,7 @@ export function Evals({
   function importEval(event: FormEvent) {
     event.preventDefault();
     try {
-      const parsed=JSON.parse(importText) as Partial<EvalDefinition>;
-      if(!parsed.id||!parsed.name) throw new Error("Eval JSON must include id and name.");
+      const parsed=parseEvalDefinitionJson(importText);
       addDefinition({
         ...demoEvalDefinitions[0],
         ...parsed,
@@ -147,6 +163,46 @@ export function Evals({
       });
       setModal(null); setFormError(null);
     } catch(error) { setFormError(error instanceof Error?error.message:"Invalid eval JSON."); }
+  }
+  function openImportModal() {
+    setFormError(null);
+    setImportFileName(null);
+    setModal("import");
+  }
+  function openCreateModal() {
+    setDraft({name:"",evaluator_type:"llm_as_judge",model:defaultJudgeModel,threshold:"0.85",scope:"All task groups",prompt:""});
+    setFormError(null);
+    setModal("create");
+  }
+  async function loadImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file=event.target.files?.[0];
+    event.target.value="";
+    if(!file)return;
+    if(!file.name.toLowerCase().endsWith(".json")){
+      setFormError("Choose a .json eval definition file.");
+      return;
+    }
+    if(file.size>2_000_000){
+      setFormError("Eval definition files must be smaller than 2 MB.");
+      return;
+    }
+    try {
+      const formatted=formatEvalDefinitionJson(await file.text());
+      setImportText(formatted);
+      setImportFileName(file.name);
+      setFormError(null);
+    } catch(error) {
+      setImportFileName(file.name);
+      setFormError(error instanceof Error?error.message:"Invalid eval JSON file.");
+    }
+  }
+  function formatImportText() {
+    try {
+      setImportText(formatEvalDefinitionJson(importText));
+      setFormError(null);
+    } catch(error) {
+      setFormError(error instanceof Error?error.message:"Invalid eval JSON.");
+    }
   }
   function createEval(event: FormEvent) {
     event.preventDefault();
@@ -169,13 +225,22 @@ export function Evals({
     setDraft({
       name:activeEvalDefinition.name,
       evaluator_type:activeEvalDefinition.evaluator_type,
-      model:activeEvalDefinition.model,
+      model:resolveJudgeModelValue(activeEvalDefinition.model,judgeModels),
       threshold:String(activeEvalDefinition.threshold),
       scope:activeEvalDefinition.scope,
       prompt:activeEvalDefinition.prompt,
     });
     setFormError(null);
     setModal("edit");
+  }
+  function updateEvaluatorType(evaluatorType: string) {
+    setDraft((current) => ({
+      ...current,
+      evaluator_type:evaluatorType,
+      model:evaluatorUsesJudgeModel(evaluatorType)
+        ? resolveJudgeModelValue(current.model === "none" ? defaultJudgeModel : current.model,judgeModels)
+        : "none",
+    }));
   }
   function saveVersion(event: FormEvent) {
     event.preventDefault();
@@ -227,8 +292,8 @@ export function Evals({
           </p>
         </div>
         <div className="eval-actions">
-          <button type="button" className="primary" onClick={()=>setModal("import")}>Import eval</button>
-          <button type="button" onClick={()=>setModal("create")}>Create eval</button>
+          <button type="button" className="primary" onClick={openImportModal}>Import eval</button>
+          <button type="button" onClick={openCreateModal}>Create eval</button>
           <span className={`eval-version-button-wrap ${evalVersions.length<2?"disabled":""}`} tabIndex={evalVersions.length<2?0:undefined}>
             <button type="button" disabled={evalVersions.length<2} onClick={()=>setModal("versions")}>Manage versions</button>
             {evalVersions.length<2&&<span role="tooltip">Create another version to manage history.</span>}
@@ -308,7 +373,7 @@ export function Evals({
         <p className="eyebrow">No evals in My workspace</p>
         <h2>Create an eval from your own evidence</h2>
         <p>RouteLab demo evals are intentionally kept out of personal workspaces. Import a definition or create one after your traces and task groups are ready.</p>
-        <div><button type="button" className="primary" onClick={()=>setModal("create")}>Create eval</button><button type="button" onClick={()=>setModal("import")}>Import JSON</button></div>
+        <div><button type="button" className="primary" onClick={openCreateModal}>Create eval</button><button type="button" onClick={openImportModal}>Import JSON</button></div>
       </article>}
 
       <section className="panel eval-library">
@@ -353,7 +418,50 @@ export function Evals({
           </svg>
         </div>
       </section>
-      {modal&&<div className="modal-layer" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setModal(null)}}>{modal==="versions"?<section className="eval-modal eval-version-modal" role="dialog" aria-modal="true" aria-labelledby="eval-version-heading"><div className="modal-head"><div><p className="eyebrow">Eval history</p><h2 id="eval-version-heading">Manage versions</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div><p>Activate an earlier immutable definition. Historical trace scores are not recalculated.</p><div className="eval-version-list">{[...evalVersions].sort((a,b)=>b.version-a.version).map(version=><article key={version.version}><div><span>Version {version.version}</span>{version.version===activeVersion.version&&<b>Current</b>}<small>{new Date(version.createdAt).toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}</small></div><p><strong>{version.definition.name}</strong><span>{version.definition.model} · threshold {pct(version.definition.threshold*100)}</span></p><button type="button" disabled={version.version===activeVersion.version} onClick={()=>activateVersion(version)}>{version.version===activeVersion.version?"Active":"Activate version"}</button></article>)}</div></section>:<form className="eval-modal" onSubmit={modal==="import"?importEval:modal==="edit"?saveVersion:createEval} role="dialog" aria-modal="true"><div className="modal-head"><div><p className="eyebrow">{modal==="import"?"Import eval":modal==="edit"?"Version eval":"Create eval"}</p><h2>{modal==="import"?"Import JSON eval definition":modal==="edit"?"Create a new version":"Create evaluator"}</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>{modal==="import"?<><p>Paste an eval definition JSON object with id, name, evaluator_type, model, threshold, prompt, dimensions, and scope.</p><textarea value={importText} onChange={event=>setImportText(event.target.value)} rows={12} /></>:<div className="eval-form-grid"><label>Name<input value={draft.name} onChange={event=>setDraft({...draft,name:event.target.value})} /></label><label>Evaluator type<select value={draft.evaluator_type} onChange={event=>setDraft({...draft,evaluator_type:event.target.value})}><option>llm_as_judge</option><option>deterministic_rule_check</option><option>schema_check</option></select></label><label>Judge model<input value={draft.model} onChange={event=>setDraft({...draft,model:event.target.value})} /></label><label>Threshold<input value={draft.threshold} onChange={event=>setDraft({...draft,threshold:event.target.value})} /></label><label>Task scope<input value={draft.scope} onChange={event=>setDraft({...draft,scope:event.target.value})} /></label><label className="wide">Prompt<textarea value={draft.prompt} onChange={event=>setDraft({...draft,prompt:event.target.value})} rows={6} /></label></div>}{formError&&<p className="form-error">{formError}</p>}<button type="submit" className="primary">{modal==="import"?"Import eval":modal==="edit"?"Save version":"Create eval"}</button></form>}</div>}
+      {modal&&<div className="modal-layer" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setModal(null)}}>
+        {modal==="versions"?<section className="eval-modal eval-version-modal" role="dialog" aria-modal="true" aria-labelledby="eval-version-heading">
+          <div className="modal-head"><div><p className="eyebrow">Eval history</p><h2 id="eval-version-heading">Manage versions</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
+          <p>Activate an earlier immutable definition. Historical trace scores are not recalculated.</p>
+          <div className="eval-version-list">{[...evalVersions].sort((a,b)=>b.version-a.version).map(version=><article key={version.version}><div><span>Version {version.version}</span>{version.version===activeVersion.version&&<b>Current</b>}<small>{new Date(version.createdAt).toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}</small></div><p><strong>{version.definition.name}</strong><span>{version.definition.model} · threshold {pct(version.definition.threshold*100)}</span></p><button type="button" disabled={version.version===activeVersion.version} onClick={()=>activateVersion(version)}>{version.version===activeVersion.version?"Active":"Activate version"}</button></article>)}</div>
+        </section>:<form className={`eval-modal ${modal==="import"?"eval-import-modal":""}`} onSubmit={modal==="import"?importEval:modal==="edit"?saveVersion:createEval} role="dialog" aria-modal="true" aria-labelledby="eval-modal-heading">
+          <div className="modal-head"><div><p className="eyebrow">{modal==="import"?"Import eval":modal==="edit"?"Version eval":"Create eval"}</p><h2 id="eval-modal-heading">{modal==="import"?"Import an eval definition":modal==="edit"?"Create a new version":"Create evaluator"}</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
+          {modal==="import"?<div className="eval-import-workspace">
+            <p>Upload a JSON definition or paste one below. You can review and edit the exact definition before RouteLab imports it.</p>
+            <label className="eval-import-file">
+              <input type="file" accept=".json,application/json" onChange={loadImportFile} aria-label="Choose eval JSON file" />
+              <span aria-hidden="true">JSON</span>
+              <span><b>Choose a JSON definition</b><small>One eval object · maximum 2 MB</small></span>
+              <strong>{importFileName??"Browse file"}</strong>
+            </label>
+            <div className="eval-import-divider"><span>or paste JSON</span></div>
+            <section className="eval-json-editor" aria-label="JSON editor">
+              <header><div><b>Eval definition JSON</b><small>Required fields: id and name</small></div><button type="button" onClick={formatImportText}>Format JSON</button></header>
+              <textarea aria-label="Eval definition JSON" value={importText} onChange={event=>setImportText(event.target.value)} rows={20} spellCheck={false} autoCapitalize="off" autoCorrect="off" />
+              <footer>Supports evaluator type, model, threshold, prompt, dimensions, scope, scoring rules, and output schema.</footer>
+            </section>
+          </div>:<div className="eval-form-grid">
+            <label>Name<input value={draft.name} onChange={event=>setDraft({...draft,name:event.target.value})} /></label>
+            <label>Evaluator type<select value={draft.evaluator_type} onChange={event=>updateEvaluatorType(event.target.value)}><option>llm_as_judge</option><option>hybrid_deterministic_and_llm_judge</option><option>deterministic_rule_check</option><option>schema_check</option></select></label>
+            <label>Judge model
+              {evaluatorUsesJudgeModel(draft.evaluator_type)?<>
+                <select aria-label="Judge model" value={draft.model} onChange={event=>setDraft({...draft,model:event.target.value})}>
+                  {!judgeModels.some((model)=>openRouterJudgeModelValue(model)===draft.model)&&draft.model&&<optgroup label="Current selection"><option value={draft.model}>{draft.model} · saved selection</option></optgroup>}
+                  <ModelOptions models={judgeModels} valueForModel={openRouterJudgeModelValue} />
+                </select>
+                <small className="eval-field-note">Live OpenRouter catalog · the provider route is saved with this eval version.</small>
+              </>:<>
+                <input value="No judge model required" readOnly aria-label="Judge model not required" />
+                <small className="eval-field-note">This evaluator runs deterministically and does not call a judge model.</small>
+              </>}
+            </label>
+            <label>Threshold<input value={draft.threshold} onChange={event=>setDraft({...draft,threshold:event.target.value})} /></label>
+            <label>Task scope<input value={draft.scope} onChange={event=>setDraft({...draft,scope:event.target.value})} /></label>
+            <label className="wide">Prompt<textarea value={draft.prompt} onChange={event=>setDraft({...draft,prompt:event.target.value})} rows={6} /></label>
+          </div>}
+          {formError&&<p className="form-error" role="alert">{formError}</p>}
+          <div className="eval-modal-actions"><button type="button" onClick={()=>setModal(null)}>Cancel</button><button type="submit" className="primary">{modal==="import"?"Import eval":modal==="edit"?"Save version":"Create eval"}</button></div>
+        </form>}
+      </div>}
     </>
   );
 }

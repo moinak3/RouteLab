@@ -279,6 +279,178 @@
 .eval-version-modal{
   width:min(820px,100%);
 }
+.eval-modal.eval-import-modal{
+  width:min(1040px,100%);
+  max-height:94vh;
+  gap:20px;
+  padding:28px;
+}
+.eval-import-workspace{
+  display:grid;
+  gap:16px;
+  min-width:0;
+}
+.eval-import-workspace>p{
+  max-width:780px;
+}
+.eval-import-file{
+  position:relative;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+  min-height:82px;
+  padding:15px 16px;
+  overflow:hidden;
+  border:1px dashed rgba(88,240,132,.45);
+  border-radius:10px;
+  background:rgba(88,240,132,.07);
+  cursor:pointer;
+}
+.eval-import-file:hover,
+.eval-import-file:focus-within{
+  border-color:#58f084;
+  background:rgba(88,240,132,.11);
+}
+.eval-import-file input{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  opacity:0;
+  cursor:pointer;
+}
+.eval-import-file>span:first-of-type{
+  display:grid;
+  place-items:center;
+  width:48px;
+  height:48px;
+  border:1px solid rgba(88,240,132,.35);
+  border-radius:8px;
+  background:#10231a;
+  color:#8cff9d;
+  font:500 12px var(--font-mono);
+  letter-spacing:.04em;
+}
+.eval-import-file>span:nth-of-type(2){
+  display:grid;
+  gap:5px;
+  min-width:0;
+}
+.shell>main .eval-import-modal .eval-import-file b{
+  color:#f4faf6;
+  font-size:14px;
+}
+.shell>main .eval-import-modal .eval-import-file small{
+  color:#9fb3a8;
+  font-size:12px;
+}
+.shell>main .eval-import-modal .eval-import-file strong{
+  max-width:260px;
+  overflow:hidden;
+  color:#b7ff6d;
+  font-size:12px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.eval-import-divider{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  gap:12px;
+  align-items:center;
+  color:#8fa199;
+  font-size:12px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.eval-import-divider::before,
+.eval-import-divider::after{
+  content:"";
+  height:1px;
+  background:var(--line);
+}
+.eval-json-editor{
+  min-width:0;
+  overflow:hidden;
+  border:1px solid rgba(88,240,132,.28);
+  border-radius:10px;
+  background:#050b10;
+}
+.eval-json-editor header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  margin:0;
+  padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+  background:#101920;
+}
+.eval-json-editor header>div{
+  display:grid;
+  gap:3px;
+}
+.shell>main .eval-import-modal .eval-json-editor header b{
+  color:#f4faf6;
+  font-size:13px;
+}
+.shell>main .eval-import-modal .eval-json-editor header small{
+  color:#93a79d;
+  font-size:12px;
+}
+.eval-json-editor header button{
+  position:relative;
+  z-index:1;
+  flex:0 0 auto;
+  min-height:34px;
+  padding:0 11px;
+  border-color:rgba(88,240,132,.3);
+  background:rgba(88,240,132,.08);
+  color:#dff8e5;
+}
+.shell>main .eval-import-modal .eval-json-editor textarea{
+  display:block;
+  min-height:420px;
+  max-height:55vh;
+  padding:18px 20px;
+  border:0;
+  border-radius:0;
+  outline:none;
+  background:#050b10;
+  color:#dcebe3;
+  font:400 13px/1.65 var(--font-mono);
+  tab-size:2;
+  resize:vertical;
+  white-space:pre;
+  overflow:auto;
+}
+.shell>main .eval-import-modal .eval-json-editor textarea:focus{
+  box-shadow:inset 0 0 0 2px rgba(88,240,132,.55);
+}
+.eval-json-editor footer{
+  padding:10px 14px;
+  border-top:1px solid rgba(255,255,255,.1);
+  color:#93a79d;
+  font-size:12px;
+  line-height:1.45;
+}
+.eval-modal-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+.eval-modal-actions button{
+  min-width:130px;
+}
+.eval-field-note{
+  color:#91a39b;
+  font-size:12px;
+  font-weight:500;
+  line-height:1.45;
+  letter-spacing:0;
+  text-transform:none;
+}
 .eval-version-list{
   display:grid;
   gap:9px;
@@ -429,9 +601,18 @@
 }
 @media(max-width:650px){
   .eval-run-summary,.eval-meta-grid,.eval-stats{grid-template-columns:1fr}
+  .shell>main .eval-form-grid{grid-template-columns:1fr}
+  .shell>main .eval-form-grid .wide{grid-column:auto}
   .eval-history-chart svg{height:230px}
   .eval-card-head{display:grid}
   .eval-version-list article{grid-template-columns:1fr}
   .eval-version-list article button{width:100%}
   .eval-version-button-wrap>[role="tooltip"]{left:0;right:auto}
+  .eval-modal.eval-import-modal{width:100%;padding:18px}
+  .eval-import-file{grid-template-columns:auto minmax(0,1fr)}
+  .eval-import-file strong{grid-column:2;max-width:100%}
+  .eval-json-editor header{align-items:flex-start}
+  .shell>main .eval-import-modal .eval-json-editor textarea{min-height:320px;padding:14px}
+  .eval-modal-actions{display:grid;grid-template-columns:1fr 1fr}
+  .eval-modal-actions button{min-width:0}
 }

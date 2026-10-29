@@ -1,0 +1,97 @@
+{
+  "name": "Synthetic personal-agent production traces",
+  "version": 1,
+  "generated_at": "2026-10-28T03:12:14.403Z",
+  "trace_count": 300,
+  "case_distribution": {
+    "happy": 180,
+    "unhappy": 75,
+    "edge": 45
+  },
+  "pass_distribution": {
+    "passed": 195,
+    "failed": 105
+  },
+  "feedback_distribution": {
+    "thumbs_up": 60,
+    "thumbs_down": 79,
+    "none": 161
+  },
+  "task_groups": [
+    {
+      "id": "calendar_scheduling",
+      "label": "Calendar scheduling and conflict resolution",
+      "count": 20
+    },
+    {
+      "id": "reminders_routines",
+      "label": "Reminders and recurring routines",
+      "count": 20
+    },
+    {
+      "id": "email_communication",
+      "label": "Email drafting and sending",
+      "count": 20
+    },
+    {
+      "id": "travel_planning",
+      "label": "Travel research and itinerary planning",
+      "count": 20
+    },
+    {
+      "id": "shopping_comparison",
+      "label": "Shopping research and purchase decisions",
+      "count": 20
+    },
+    {
+      "id": "personal_finance",
+      "label": "Personal finance tracking and bill management",
+      "count": 20
+    },
+    {
+      "id": "health_wellness",
+      "label": "Health, fitness, and wellness support",
+      "count": 20
+    },
+    {
+      "id": "memory_preferences",
+      "label": "Personal memory and preference management",
+      "count": 20
+    },
+    {
+      "id": "smart_home",
+      "label": "Smart-home monitoring and control",
+      "count": 20
+    },
+    {
+      "id": "contact_coordination",
+      "label": "Contact coordination and group planning",
+      "count": 20
+    },
+    {
+      "id": "document_knowledge",
+      "label": "Personal document search and grounded answers",
+      "count": 20
+    },
+    {
+      "id": "meal_planning",
+      "label": "Meal planning and grocery preparation",
+      "count": 20
+    },
+    {
+      "id": "productivity_planning",
+      "label": "Task planning and personal productivity",
+      "count": 20
+    },
+    {
+      "id": "privacy_security",
+      "label": "Privacy, account security, and authorization",
+      "count": 20
+    },
+    {
+      "id": "emotional_support",
+      "label": "Emotional support and wellbeing check-ins",
+      "count": 20
+    }
+  ]
+}
