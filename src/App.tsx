@@ -313,6 +313,9 @@ export default function App() {
   useEffect(() => {
     const activeGroup = allNav.find((item) => item.children?.length && item.pages.includes(page));
     if (activeGroup) setExpandedNav((expanded) => ({ ...expanded, [activeGroup.label]: true }));
+    if (advancedNav.some((item) => item.pages.includes(page))) {
+      setExpandedNav((expanded) => ({ ...expanded, Advanced: true }));
+    }
   }, [page]);
 
   useEffect(() => {
@@ -557,27 +560,33 @@ export default function App() {
             {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
           </div>}
         </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
-        <small className="nav-group-label advanced">Advanced</small>
-        {advancedNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
+        <div className="nav-collapsible advanced-nav">
           <button
             type="button"
-            className={`nav-parent ${item.pages.includes(page) ? "active" : ""}`}
-            onClick={() => setExpandedNav((expanded) => ({ ...expanded, [item.label]: !expanded[item.label] }))}
-            aria-expanded={Boolean(expandedNav[item.label])}
-            aria-controls={`${item.label.toLowerCase()}-submenu`}
+            className={`nav-parent ${advancedNav.some((item) => item.pages.includes(page)) ? "active" : ""}`}
+            onClick={() => setExpandedNav((expanded) => ({ ...expanded, Advanced: !expanded.Advanced }))}
+            aria-expanded={Boolean(expandedNav.Advanced)}
+            aria-controls="advanced-submenu"
           >
-            <span>{item.icon}</span>{item.label}<i className="nav-caret" aria-hidden="true">{expandedNav[item.label] ? "-" : "+"}</i>
+            <span>A</span>Advanced<i className="nav-caret" aria-hidden="true">{expandedNav.Advanced ? "-" : "+"}</i>
           </button>
-          {expandedNav[item.label] && <div className="nav-submenu" id={`${item.label.toLowerCase()}-submenu`}>
-            {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
+          {expandedNav.Advanced && <div className="nav-submenu" id="advanced-submenu">
+            {advancedNav.map((item) => <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+            <a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a>
           </div>}
-        </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
-        <a className="nav-external" href="/support-console/" target="_blank" rel="noreferrer"><span>C</span>Support Console</a>
+        </div>
       </nav>
     </aside>
     <main>
       {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1><div className="header-workspace-control"><span className={`workspace-badge ${activeWorkspace}`}>{activeWorkspace === "demo" ? "Demo data" : "My workspace"}</span><select className="mobile-workspace-select" aria-label="Select workspace" value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select></div></header> : null}
-      <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
+      <div className="mobile-nav" aria-label="Mobile navigation">
+        {workflowNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+        <button type="button" className={advancedNav.some((item) => item.pages.includes(page)) ? "active" : ""} aria-expanded={Boolean(expandedNav.Advanced)} aria-controls="mobile-advanced-submenu" onClick={() => setExpandedNav((expanded) => ({ ...expanded, Advanced: !expanded.Advanced }))}>Advanced</button>
+      </div>
+      {expandedNav.Advanced && <nav className="group-mobile-subnav mobile-advanced-submenu" id="mobile-advanced-submenu" aria-label="Advanced navigation">
+          {advancedNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+          <a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a>
+      </nav>}
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
       {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}

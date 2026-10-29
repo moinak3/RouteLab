@@ -1754,8 +1754,8 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
   letter-spacing:.06em;
   text-transform:uppercase;
 }
-.nav-group-label.advanced{margin-top:18px}
 .nav-collapsible{display:grid;gap:5px}
+.nav-collapsible.advanced-nav{margin-top:18px}
 nav .nav-parent{width:100%}
 .nav-caret{
   margin-left:auto;
