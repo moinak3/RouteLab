@@ -144,6 +144,169 @@
   background:rgba(88,240,132,.07);
   color:#cde0d6;
 }
+.eval-lifecycle{
+  display:grid;
+  gap:14px;
+  margin-top:18px;
+  padding:18px;
+  border:1px solid rgba(88,240,132,.24);
+  border-radius:12px;
+  background:rgba(5,11,16,.58);
+}
+.eval-lifecycle-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:18px;
+}
+.shell>main .eval-lifecycle .eyebrow{
+  color:#91a39b;
+}
+.shell>main .eval-lifecycle-head h3{
+  margin:4px 0 0;
+  color:#f4faf6;
+  font-size:18px;
+  letter-spacing:-.02em;
+}
+.shell>main .eval-lifecycle-head>span{
+  flex:0 0 auto;
+  padding:6px 9px;
+  border:1px solid rgba(88,240,132,.28);
+  border-radius:999px;
+  background:rgba(88,240,132,.08);
+  color:#b7ff6d;
+  font-size:12px;
+  font-weight:600;
+}
+.eval-lifecycle ol{
+  display:grid;
+  gap:0;
+  margin:0;
+  padding:0;
+  list-style:none;
+}
+.eval-lifecycle li{
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  min-height:86px;
+  padding:14px 0;
+  border-top:1px solid rgba(255,255,255,.09);
+}
+.eval-lifecycle li:first-child{
+  border-top:0;
+}
+.eval-lifecycle li>span:first-child{
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:50%;
+  color:#9fb3a8;
+  font-size:12px;
+  font-weight:600;
+}
+.eval-lifecycle li.complete>span:first-child{
+  border-color:rgba(88,240,132,.48);
+  background:rgba(88,240,132,.13);
+  color:#b7ff6d;
+}
+.eval-lifecycle li>div{
+  display:grid;
+  gap:4px;
+  min-width:0;
+}
+.shell>main .eval-lifecycle li b{
+  color:#f4faf6;
+  font-size:14px;
+}
+.shell>main .eval-lifecycle li p{
+  max-width:720px;
+  margin:0;
+  color:#aebfb7;
+  font-size:13px;
+  line-height:1.5;
+}
+.shell>main .eval-lifecycle li small{
+  color:#8cff9d;
+  font-size:12px;
+  line-height:1.45;
+}
+.shell>main .eval-lifecycle li>strong{
+  color:#8cff9d;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.eval-lifecycle li>button{
+  min-width:170px;
+  min-height:40px;
+}
+.eval-automation-toggle{
+  display:grid;
+  grid-template-columns:auto auto;
+  gap:7px;
+  align-items:center;
+  cursor:pointer;
+}
+.eval-automation-toggle input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.eval-automation-toggle>span{
+  position:relative;
+  width:44px;
+  height:24px;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;
+  background:#172129;
+  transition:background .15s ease,border-color .15s ease;
+}
+.eval-automation-toggle>span::after{
+  content:"";
+  position:absolute;
+  top:3px;
+  left:3px;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:#91a39b;
+  transition:transform .15s ease,background .15s ease;
+}
+.eval-automation-toggle input:checked+span{
+  border-color:#58f084;
+  background:rgba(88,240,132,.25);
+}
+.eval-automation-toggle input:checked+span::after{
+  transform:translateX(20px);
+  background:#58f084;
+}
+.eval-automation-toggle input:focus-visible+span{
+  outline:2px solid #b7ff6d;
+  outline-offset:3px;
+}
+.eval-automation-toggle input:disabled+span,
+.eval-automation-toggle input:disabled~b{
+  cursor:not-allowed;
+  opacity:.45;
+}
+.shell>main .eval-automation-toggle>b{
+  min-width:22px;
+  color:#dce8e2;
+  font-size:12px;
+}
+.shell>main .eval-lifecycle-message{
+  margin:0;
+  padding:10px 12px;
+  border-left:3px solid #58f084;
+  background:rgba(88,240,132,.08);
+  color:#dff8e5;
+  font-size:13px;
+  line-height:1.45;
+}
 .eval-meta-grid,.eval-stats{
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
@@ -628,4 +791,10 @@
   .shell>main .eval-import-modal .eval-json-editor textarea{min-height:320px;padding:14px}
   .eval-modal-actions{display:grid;grid-template-columns:1fr 1fr}
   .eval-modal-actions button{min-width:0}
+  .eval-lifecycle{padding:14px}
+  .eval-lifecycle-head{display:grid}
+  .eval-lifecycle-head>span{width:max-content}
+  .eval-lifecycle li{grid-template-columns:30px minmax(0,1fr)}
+  .eval-lifecycle li>button,.eval-lifecycle li>strong,.eval-lifecycle li>.eval-automation-toggle{grid-column:2;width:100%}
+  .eval-automation-toggle{grid-template-columns:auto 1fr;width:max-content!important}
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
 import { NewWorkspaceOverview } from "./components/NewWorkspaceOverview";
 import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
@@ -23,6 +23,14 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
+import {
+  loadEvalAutomationPolicies,
+  markEvalTracesProcessed,
+  mergeEvalResults,
+  runEvalOnTraces,
+  saveEvalRunRecord,
+  type EvalAutomationPolicy,
+} from "./core/evalLifecycle";
 import { clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type TaskGroupingMethod, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
@@ -90,6 +98,8 @@ export default function App() {
   const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
   const taskGroupingMethod = workspaceData[activeWorkspace].taskGroupingMethod;
   const cloudWorkspaceId = useMemo(() => loadCloudWorkspaceId(activeWorkspace), [activeWorkspace]);
+  const [evalAutomationPolicies, setEvalAutomationPolicies] = useState<EvalAutomationPolicy[]>(() => loadEvalAutomationPolicies(cloudWorkspaceId));
+  const activeEvalRuns = useRef(new Set<string>());
   const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
     setWorkspaceData((current) => {
       const workspace = current[activeWorkspace];
@@ -103,6 +113,16 @@ export default function App() {
       const goldenDatasets = typeof next === "function" ? next(workspace.goldenDatasets) : next;
       return { ...current, [activeWorkspace]: { ...workspace, goldenDatasets } };
     });
+  }, [activeWorkspace]);
+  const addEvalResults = useCallback((results: typeof traceJudgeResults) => {
+    if (!results.length) return;
+    setWorkspaceData((current) => ({
+      ...current,
+      [activeWorkspace]: {
+        ...current[activeWorkspace],
+        traceJudgeResults: mergeEvalResults(current[activeWorkspace].traceJudgeResults, results),
+      },
+    }));
   }, [activeWorkspace]);
   const setTaskGroups = useCallback((taskGroups: DistinctTaskBucket[], method: TaskGroupingMethod) => {
     setWorkspaceData((current) => ({
@@ -137,6 +157,56 @@ export default function App() {
 
   useEffect(() => saveActiveWorkspace(activeWorkspace), [activeWorkspace]);
   useEffect(() => savePersonalWorkspace(workspaceData.personal), [workspaceData.personal]);
+  useEffect(() => {
+    setEvalAutomationPolicies(loadEvalAutomationPolicies(cloudWorkspaceId));
+    const handlePolicyUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string; policies?: EvalAutomationPolicy[] }>).detail;
+      if (detail?.workspaceId === cloudWorkspaceId && Array.isArray(detail.policies)) setEvalAutomationPolicies(detail.policies);
+    };
+    window.addEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
+    return () => window.removeEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
+  }, [cloudWorkspaceId]);
+
+  useEffect(() => {
+    if (!previewUnlocked || !traces.length) return;
+    const controller = new AbortController();
+    const enabled = evalAutomationPolicies.filter((policy) => policy.runOnNewTraces);
+    const runNewTraceEvals = async () => {
+      for (const policy of enabled) {
+        if (activeEvalRuns.current.has(policy.evalId) || controller.signal.aborted) continue;
+        const known = new Set(policy.knownTraceIds);
+        const pending = traces.filter((trace) => !known.has(trace.id));
+        if (!pending.length) continue;
+        activeEvalRuns.current.add(policy.evalId);
+        try {
+          for (let offset = 0; offset < pending.length; offset += 25) {
+            if (controller.signal.aborted) break;
+            const batch = pending.slice(offset, offset + 25);
+            const response = await runEvalOnTraces({
+              workspaceId: cloudWorkspaceId,
+              definition: policy.definition,
+              evalVersion: policy.evalVersion,
+              mode: "new_traces",
+              traces: batch,
+              signal: controller.signal,
+            });
+            addEvalResults(response.results);
+            saveEvalRunRecord(cloudWorkspaceId, response.run);
+          }
+          if (!controller.signal.aborted) {
+            markEvalTracesProcessed(cloudWorkspaceId, policy.evalId, pending.map((trace) => trace.id));
+            setNotice(`${policy.definition.name} evaluated ${pending.length.toLocaleString()} new traces`);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : "New-trace evaluation failed");
+        } finally {
+          activeEvalRuns.current.delete(policy.evalId);
+        }
+      }
+    };
+    void runNewTraceEvals();
+    return () => controller.abort();
+  }, [previewUnlocked, traces, evalAutomationPolicies, cloudWorkspaceId, addEvalResults]);
 
   const refreshRuntimeTraces = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/runtime-traces?limit=500", { cache: "no-store", signal });
@@ -514,7 +584,7 @@ export default function App() {
       {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview key={`overview-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
       {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} taskGroupingMethod={taskGroupingMethod} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
-      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={navigateToReviewLane} />}
+      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={navigateToReviewLane} onEvalResults={addEvalResults} onAutomationPoliciesChange={setEvalAutomationPolicies} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
       {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} defaultModelId={activeModels[0]?.id ?? ""} onOpenSimulations={() => navigateTo("Simulations")} />}

@@ -739,6 +739,9 @@ body:before{
   .home-hero{grid-template-columns:1fr;gap:30px}.home-why-now-card{max-width:620px}
 }
 @media(max-width:1000px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .shell>aside{display:none}
+  .shell>main{grid-column:1;min-width:0;width:100%;padding:20px 16px 48px;overflow-x:hidden}
   .shell .mobile-nav{
     border-color:#9cabc0;
     background:rgba(251,248,240,.98);
@@ -790,7 +793,4 @@ body:before{
   .home-page{padding-inline:16px}.home-nav{min-height:64px}.home-hero{padding-top:36px}.home-hero-copy h1{font-size:48px;line-height:.96}
   .home-section-head,.home-comparison-intro{grid-template-columns:1fr;gap:20px}.home-section-head>*{min-width:0}.home-section-head h2,.home-coming-next h2,.home-final h2,.home-comparison-intro h2{font-size:36px}
   .home-why-now-card{margin-right:10px}.home-section{padding-block:64px}.home-waitlist-copy h2{font-size:36px}
-  .shell{grid-template-columns:minmax(0,1fr)}
-  .shell>aside{display:none}
-  .shell>main{grid-column:1;min-width:0;width:100%;padding:20px 16px 48px;overflow-x:hidden}
 }

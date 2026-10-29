@@ -12,6 +12,17 @@ import {
   serializeEvalDefinition,
   type EvalDefinition,
 } from "../core/evalDefinitions";
+import {
+  configureNewTraceEvaluation,
+  HISTORICAL_TEST_SAMPLE_SIZE,
+  loadEvalAutomationPolicies,
+  loadEvalRunHistory,
+  runEvalOnTraces,
+  saveEvalRunRecord,
+  selectHistoricalTestSample,
+  type EvalAutomationPolicy,
+  type EvalRunRecord,
+} from "../core/evalLifecycle";
 
 type EvalVersion = {
   version: number;
@@ -110,6 +121,8 @@ export function Evals({
   traceJudgeResults,
   models,
   onReviewFilter,
+  onEvalResults,
+  onAutomationPoliciesChange,
 }: {
   workspaceId: string;
   workspace: "personal" | "demo";
@@ -117,13 +130,9 @@ export function Evals({
   traceJudgeResults: TraceJudgeResult[];
   models: Model[];
   onReviewFilter: (filter: ReviewQueueFilter) => void;
+  onEvalResults: (results: TraceJudgeResult[]) => void;
+  onAutomationPoliciesChange: (policies: EvalAutomationPolicy[]) => void;
 }) {
-  const passing = traceJudgeResults.filter((result) => result.passed).length;
-  const failing = traceJudgeResults.length - passing;
-  const averageScore = traceJudgeResults.length ? traceJudgeResults.reduce((sum, result) => sum + result.score, 0) / traceJudgeResults.length : 0;
-  const history = monthlyEvalHistory(traceJudgeResults);
-  const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
-  const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const workspaceDefaults = defaultEvalDefinitions(workspace, traces);
   const judgeModels = models.filter((model) => model.pricing_source === "OpenRouter" && model.family !== "Router");
   const defaultJudgeModel = judgeModels[0] ? openRouterJudgeModelValue(judgeModels[0]) : "gpt-5.5-pro";
@@ -132,11 +141,33 @@ export function Evals({
   const [activeEvalVersion,setActiveEvalVersion]=useState(() => loadActiveEvalVersion(workspaceId));
   const activeVersion=evalVersions.find(item=>item.version===activeEvalVersion)??evalVersions[evalVersions.length-1];
   const activeEvalDefinition=activeVersion?.definition;
+  const activeTraceJudgeResults=activeEvalDefinition
+    ? traceJudgeResults.filter((result)=>result.eval_id===activeEvalDefinition.id||(!result.eval_id&&result.evaluator_type.startsWith(activeEvalDefinition.id)))
+    : [];
+  const passing = activeTraceJudgeResults.filter((result) => result.passed).length;
+  const failing = activeTraceJudgeResults.length - passing;
+  const averageScore = activeTraceJudgeResults.length ? activeTraceJudgeResults.reduce((sum, result) => sum + result.score, 0) / activeTraceJudgeResults.length : 0;
+  const history = monthlyEvalHistory(activeTraceJudgeResults);
+  const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
+  const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const [modal,setModal]=useState<"import"|"create"|"edit"|"versions"|null>(null);
   const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:defaultJudgeModel,threshold:"0.85",scope:"All task groups",prompt:""});
   const [importText,setImportText]=useState(JSON.stringify(workspaceDefaults[0] ?? demoEvalDefinitions[0],null,2));
   const [importFileName,setImportFileName]=useState<string|null>(null);
   const [formError,setFormError]=useState<string|null>(null);
+  const [automationPolicies,setAutomationPolicies]=useState<EvalAutomationPolicy[]>(() => loadEvalAutomationPolicies(workspaceId));
+  const [runHistory,setRunHistory]=useState<EvalRunRecord[]>(() => loadEvalRunHistory(workspaceId));
+  const [historicalRunState,setHistoricalRunState]=useState<"idle"|"running">("idle");
+  const [lifecycleMessage,setLifecycleMessage]=useState<string|null>(null);
+  const automationPolicy=activeEvalDefinition ? automationPolicies.find((policy)=>policy.evalId===activeEvalDefinition.id) : undefined;
+  const latestHistoricalRun=activeEvalDefinition
+    ? runHistory.find((run)=>run.evalId===activeEvalDefinition.id&&run.mode==="historical_test")
+    : undefined;
+  const latestContinuousRun=activeEvalDefinition
+    ? runHistory.find((run)=>run.evalId===activeEvalDefinition.id&&run.mode==="new_traces")
+    : undefined;
+  const historicalSample=selectHistoricalTestSample(traces,HISTORICAL_TEST_SAMPLE_SIZE);
+  const supportsLiveRuns=Boolean(activeEvalDefinition&&evaluatorUsesJudgeModel(activeEvalDefinition.evaluator_type));
   useEffect(()=>{
     try {
       window.localStorage.setItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalDefinitions));
@@ -144,6 +175,11 @@ export function Evals({
       if (activeVersion) window.localStorage.setItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`,String(activeVersion.version));
     } catch { /* Version history remains available for the current page session. */ }
   },[workspaceId,evalDefinitions,evalVersions,activeVersion]);
+  useEffect(()=>{
+    setAutomationPolicies(loadEvalAutomationPolicies(workspaceId));
+    setRunHistory(loadEvalRunHistory(workspaceId));
+    setLifecycleMessage(null);
+  },[workspaceId]);
   function addDefinition(definition: EvalDefinition) {
     const versions = appendEvalVersion(evalVersions, definition);
     setEvalDefinitions(items=>[definition,...items.filter(item=>item.id!==definition.id)]);
@@ -278,6 +314,44 @@ export function Evals({
     anchor.remove();
     URL.revokeObjectURL(url);
   }
+  async function testHistoricalTraces() {
+    if (!activeEvalDefinition||!activeVersion||!historicalSample.length||historicalRunState==="running") return;
+    setHistoricalRunState("running");
+    setLifecycleMessage(`Running version ${activeVersion.version} on ${historicalSample.length.toLocaleString()} historical traces…`);
+    try {
+      const response=await runEvalOnTraces({
+        workspaceId,
+        definition:activeEvalDefinition,
+        evalVersion:activeVersion.version,
+        mode:"historical_test",
+        traces:historicalSample,
+      });
+      onEvalResults(response.results);
+      const runs=saveEvalRunRecord(workspaceId,response.run);
+      setRunHistory(runs);
+      setLifecycleMessage(`${response.run.traceCount.toLocaleString()} traces scored · ${response.run.passed.toLocaleString()} passed${response.errors.length?` · ${response.errors.length} could not be scored`:""}`);
+    } catch(error) {
+      setLifecycleMessage(error instanceof Error?error.message:"Historical eval test failed.");
+    } finally {
+      setHistoricalRunState("idle");
+    }
+  }
+  function toggleNewTraceEvaluation(enabled: boolean) {
+    if (!activeEvalDefinition||!activeVersion) return;
+    const policy=configureNewTraceEvaluation({
+      workspaceId,
+      definition:activeEvalDefinition,
+      evalVersion:activeVersion.version,
+      enabled,
+      currentTraceIds:traces.map((trace)=>trace.id),
+    });
+    const policies=loadEvalAutomationPolicies(workspaceId);
+    setAutomationPolicies(policies);
+    onAutomationPoliciesChange(policies);
+    setLifecycleMessage(enabled
+      ? `Version ${policy.evalVersion} will score every trace ingested after this point.`
+      : "Automatic evaluation of new traces is off.");
+  }
 
   return (
     <>
@@ -304,7 +378,7 @@ export function Evals({
       <section className="eval-run-summary" aria-label="Latest eval run summary">
         <article className="panel eval-summary-card">
           <small>Latest run</small>
-          <b>{traceJudgeResults.length.toLocaleString()}</b>
+          <b>{activeTraceJudgeResults.length.toLocaleString()}</b>
           <span>trace scores</span>
         </article>
         <article className="panel eval-summary-card">
@@ -324,7 +398,7 @@ export function Evals({
         </button>
         <article className="panel eval-summary-card">
           <small>Trace coverage</small>
-          <b>{traces.length ? pct(traceJudgeResults.length / traces.length * 100) : "0.0%"}</b>
+          <b>{traces.length ? pct(activeTraceJudgeResults.length / traces.length * 100) : "0.0%"}</b>
           <span>of ingested traces</span>
         </article>
       </section>
@@ -340,6 +414,38 @@ export function Evals({
         {activeEvalDefinition.generation_basis && <p className="eval-generation-note">
           Generated from {Number(activeEvalDefinition.generation_basis.trace_count ?? 0).toLocaleString()} imported traces. Review and calibrate it against human labels before using it as a routing gate.
         </p>}
+        <section className="eval-lifecycle" aria-labelledby="eval-lifecycle-heading">
+          <div className="eval-lifecycle-head">
+            <div><p className="eyebrow">Eval lifecycle</p><h3 id="eval-lifecycle-heading">Create, test, then evaluate new traffic</h3></div>
+            <span>{automationPolicy?.runOnNewTraces?"Continuous evaluation on":"Historical test first"}</span>
+          </div>
+          <ol>
+            <li className="complete">
+              <span>1</span>
+              <div><b>Definition created</b><p>Version {activeVersion.version} is ready to test. No traces were scored when it was created.</p></div>
+              <strong>Complete</strong>
+            </li>
+            <li className={latestHistoricalRun?"complete":""}>
+              <span>2</span>
+              <div>
+                <b>Test on historical traces</b>
+                <p>Run the judge on a representative sample of up to {HISTORICAL_TEST_SAMPLE_SIZE} existing traces before a full backfill.</p>
+                {latestHistoricalRun&&<small>Last tested {new Date(latestHistoricalRun.completedAt).toLocaleString()} · {latestHistoricalRun.traceCount} scored · {pct(latestHistoricalRun.averageScore*100)} average</small>}
+              </div>
+              <button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces} title={!supportsLiveRuns?"Live historical tests currently require an LLM judge eval.":!historicalSample.length?"Import traces before testing this eval.":undefined}>{historicalRunState==="running"?"Running test…":latestHistoricalRun?"Test again":"Test historical traces"}</button>
+            </li>
+            <li className={automationPolicy?.runOnNewTraces?"complete":""}>
+              <span>3</span>
+              <div>
+                <b>Run on all new traces</b>
+                <p>After activation, each newly ingested trace is scored with this exact eval version. Existing traces remain unchanged.</p>
+                {automationPolicy?.runOnNewTraces&&<small>Enabled {automationPolicy.enabledAt?new Date(automationPolicy.enabledAt).toLocaleString():"now"} · version {automationPolicy.evalVersion}{latestContinuousRun?` · latest run ${latestContinuousRun.traceCount} traces`:""}</small>}
+              </div>
+              <label className="eval-automation-toggle"><input type="checkbox" checked={Boolean(automationPolicy?.runOnNewTraces)} disabled={!supportsLiveRuns} onChange={(event)=>toggleNewTraceEvaluation(event.target.checked)} /><span aria-hidden="true" /><b>{automationPolicy?.runOnNewTraces?"On":"Off"}</b></label>
+            </li>
+          </ol>
+          {lifecycleMessage&&<p className="eval-lifecycle-message" role="status">{lifecycleMessage}</p>}
+        </section>
         <section className="eval-prompt">
           <h3>Judge prompt</h3>
           <pre>{activeEvalDefinition.prompt}</pre>

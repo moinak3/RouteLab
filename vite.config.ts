@@ -17,6 +17,7 @@ import { routingPolicyWorkspaceId } from "./api/routing-policy/_config";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-grouping/_api";
 import taskGroupNamesHandler from "./src/server/taskGroupNames";
 import waitlistHandler from "./src/server/waitlist";
+import evalRunHandler from "./src/server/evalRuns";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -207,6 +208,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use("/api/llm-grouping/run", (req, res) => runApiHandler(handleLLMGroupingRun, req, res));
       server.middlewares.use("/api/task-group-names", (req, res) => runApiHandler(taskGroupNamesHandler, req, res));
       server.middlewares.use("/api/waitlist", (req, res) => runApiHandler(waitlistHandler, req, res));
+      server.middlewares.use("/api/evals/run", (req, res) => runApiHandler(evalRunHandler, req, res));
     },
   }],
   test: { environment: "node" },

@@ -123,6 +123,7 @@ export type TraceJudgeResult = {
   id: string; trace_id: string; evaluator_type: string;
   score: number; passed: boolean; rationale: string; severity?: "minor" | "major" | "critical";
   created_at: string;
+  eval_id?: string; eval_version?: number; run_id?: string; run_mode?: "historical_test" | "new_traces";
 };
 export type RoutingRule = {
   id: string; name: string; match: { distinct_task_bucket_id: string; risk_level: Risk };

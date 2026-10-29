@@ -13,6 +13,7 @@ import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./llm-grouping/_a
 import taskGroupNamesHandler from "../src/server/taskGroupNames.js";
 import waitlistHandler from "../src/server/waitlist.js";
 import reviewHandler from "../src/server/reviews.js";
+import evalRunHandler from "../src/server/evalRuns.js";
 
 export const maxDuration = 300;
 
@@ -100,6 +101,7 @@ export default async function handler(req: any, res: any) {
     if (action === "task-group-names") return taskGroupNamesHandler(req, res);
     if (action === "waitlist") return waitlistHandler(req, res);
     if (action === "reviews") return reviewHandler(req, res);
+    if (action === "eval-run") return evalRunHandler(req, res);
     if (action === "runtime-traces") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
       const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500));
