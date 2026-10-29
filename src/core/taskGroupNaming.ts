@@ -1,5 +1,5 @@
 import type { DistinctTaskBucket } from "../types";
-import { resolveAutomaticTaskGroupNames } from "./taskGroupDisplayNames";
+import { resolveAutomaticTaskGroupNames, type TaskGroupNamingFactors } from "./taskGroupDisplayNames";
 
 export type TaskGroupNamingInput = {
   bucketId: string;
@@ -13,6 +13,8 @@ export type TaskGroupNamingInput = {
     toolUse: string;
     outputUncertainty: string;
     outputFormat: string;
+    riskLevel?: string;
+    customerFacing?: boolean;
   };
   representativeRequests: string[];
 };
@@ -32,6 +34,8 @@ export function prepareTaskGroupNamingInput(groups: DistinctTaskBucket[]): TaskG
       toolUse: group.task.tool_use,
       outputUncertainty: group.task.output_uncertainty,
       outputFormat: group.task.output_format,
+      riskLevel: group.risk_level,
+      customerFacing: group.customer_facing,
     },
     representativeRequests: group.examples.slice(0, 3).map((example) => example.prompt_preview.slice(0, 500)),
   }));
@@ -46,8 +50,8 @@ export function validateTaskGroupNames(inputs: TaskGroupNamingInput[], names: Ta
   }
   names.forEach((item) => {
     const wordCount = item.name.trim().split(/\s+/).filter(Boolean).length;
-    if (wordCount < 2 || wordCount > 4 || item.name.trim().length > 48 || /[,;:|/\\()[\]{}]/.test(item.name) || item.name.includes("_")) {
-      throw new Error("Task group names must be plain, concise phrases between 2 and 4 words.");
+    if (wordCount < 2 || wordCount > 6 || item.name.trim().length > 64 || /[,;:|/\\[\]{}]/.test(item.name) || item.name.includes("_")) {
+      throw new Error("Task group names must be plain, concise phrases between 2 and 6 words.");
     }
   });
   const inputById = new Map(inputs.map((input) => [input.bucketId, input]));
@@ -63,7 +67,9 @@ export function validateTaskGroupNames(inputs: TaskGroupNamingInput[], names: Ta
         temporal_context: input.factors.temporalContext,
         tool_use: input.factors.toolUse,
         output_format: input.factors.outputFormat,
-      } as DistinctTaskBucket["task"],
+        risk_level: input.factors.riskLevel,
+        customer_facing: input.factors.customerFacing,
+      } as TaskGroupNamingFactors,
     };
   })).map((item) => ({ bucketId: item.id, name: item.name }));
 }

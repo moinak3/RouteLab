@@ -3,6 +3,7 @@ import { runTaskGroupNaming } from "../src/server/taskGroupNames";
 import { createDistinctTaskSeedTraces } from "../src/core/distinctTaskSeed";
 import { createDistinctTaskBuckets } from "../src/core/distinctTasks";
 import { applyTaskGroupNames, prepareTaskGroupNamingInput, validateTaskGroupNames } from "../src/core/taskGroupNaming";
+import { resolveAutomaticTaskGroupNames } from "../src/core/taskGroupDisplayNames";
 
 const groups = createDistinctTaskBuckets(createDistinctTaskSeedTraces()).slice(0, 2);
 
@@ -30,8 +31,54 @@ describe("task group naming", () => {
     const deduplicated = validateTaskGroupNames(input, groups.map((group) => ({ bucketId: group.bucket_id, name: "Duplicate Name" })));
     expect(new Set(deduplicated.map((item) => item.name.toLowerCase())).size).toBe(groups.length);
     expect(deduplicated.every((item) => item.name.split(/\s+/).length <= 4)).toBe(true);
-    expect(() => validateTaskGroupNames(input, groups.map((group, index) => ({ bucketId: group.bucket_id, name: index ? "A Name With Far Too Many Words To Accept" : "Ticket Summaries" })))).toThrow(/2 and 4 words/i);
+    expect(() => validateTaskGroupNames(input, groups.map((group, index) => ({ bucketId: group.bucket_id, name: index ? "A Name With Far Too Many Words To Ever Accept Here" : "Ticket Summaries" })))).toThrow(/2 and 6 words/i);
     expect(() => validateTaskGroupNames(input, groups.map((group, index) => ({ bucketId: group.bucket_id, name: index ? "Billing, High Complexity" : "Ticket Summaries" })))).toThrow(/plain, concise/i);
+  });
+
+  it("replaces numbered collisions with semantic qualifiers", () => {
+    const factors = {
+      task_type: "planning_strategy_recommendations" as const,
+      complexity: "medium" as const,
+      temporal_context: "single_turn" as const,
+      tool_use: "none" as const,
+      output_format: "natural_language" as const,
+    };
+    const names = resolveAutomaticTaskGroupNames([
+      { id: "general", name: "Strategic Planning", factors: { ...factors, domain: "general" } },
+      { id: "operations", name: "Strategic Planning 2", factors: { ...factors, domain: "operations" } },
+      { id: "finance", name: "Strategic Planning 3", factors: { ...factors, domain: "finance" } },
+    ]);
+
+    expect(names).toEqual([
+      { id: "general", name: "Strategic Planning (general)" },
+      { id: "operations", name: "Strategic Planning (operations)" },
+      { id: "finance", name: "Strategic Planning (finance)" },
+    ]);
+    expect(names.every((item) => !/\s\d+$/.test(item.name))).toBe(true);
+  });
+
+  it("uses additional true factors when colliding groups share a domain", () => {
+    const base = {
+      task_type: "question_answering" as const,
+      domain: "general" as const,
+      complexity: "medium" as const,
+      temporal_context: "single_turn" as const,
+      tool_use: "none" as const,
+      output_format: "natural_language" as const,
+    };
+    const names = resolveAutomaticTaskGroupNames([
+      { id: "first", name: "Question Answering", factors: base },
+      { id: "second", name: "Question Answering 2", factors: base },
+      { id: "third", name: "Question Answering 3", factors: base },
+    ]).map((item) => item.name);
+
+    expect(new Set(names).size).toBe(3);
+    expect(names).toEqual([
+      "Question Answering (general)",
+      "Question Answering (single-turn)",
+      "Question Answering (no-tools)",
+    ]);
+    expect(names.every((name) => !/\s\d+$/.test(name))).toBe(true);
   });
 
   it("requests structured names through OpenRouter", async () => {

@@ -1,11 +1,14 @@
-import type { DistinctTask, DistinctTaskBucket, TaskType } from "../types";
+import type { DistinctTask, DistinctTaskBucket, Risk, TaskType } from "../types";
 
-type NamingFactors = Pick<DistinctTask, "task_type" | "domain" | "complexity" | "temporal_context" | "tool_use" | "output_format">;
+export type TaskGroupNamingFactors = Pick<DistinctTask, "task_type" | "domain" | "complexity" | "temporal_context" | "tool_use" | "output_format"> & {
+  risk_level?: Risk;
+  customer_facing?: boolean;
+};
 
 export type AutomaticTaskGroupNameInput = {
   id: string;
   name: string;
-  factors: NamingFactors;
+  factors: TaskGroupNamingFactors;
   preserve?: boolean;
 };
 
@@ -25,7 +28,7 @@ const outcomeNames: Record<TaskType, string> = {
   sales_marketing_content: "Marketing Content",
   translation_localization: "Content Translation",
   document_review_legal_analysis: "Legal Review",
-  planning_strategy_recommendations: "Strategy Planning",
+  planning_strategy_recommendations: "Strategic Planning",
   tool_use_function_calling: "Tool Requests",
   agentic_workflow_execution: "Workflow Execution",
   moderation_safety_review: "Safety Review",
@@ -35,15 +38,8 @@ const outcomeNames: Record<TaskType, string> = {
 const normalized = (value: string) => value.trim().replace(/\s+/g, " ");
 const key = (value: string) => normalized(value).toLocaleLowerCase();
 const words = (value: string) => normalized(value).split(/\s+/).filter(Boolean);
-const listStylePunctuation = /[,;:|/\\()[\]{}]/;
-
-const titleCase = (value: string) => value
-  .split(/[\s_-]+/)
-  .filter(Boolean)
-  .map((part) => part.length <= 4 && part === part.toUpperCase()
-    ? part
-    : `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
-  .join(" ");
+const listStylePunctuation = /[,;:|/\\[\]{}]/;
+const numericSuffix = /\s+\d+$/;
 
 export function baseTaskGroupName(taskType: TaskType | string) {
   return outcomeNames[taskType as TaskType] ?? "General Requests";
@@ -52,32 +48,67 @@ export function baseTaskGroupName(taskType: TaskType | string) {
 export function isCompactTaskGroupName(name: string) {
   const compact = normalized(name);
   const count = words(compact).length;
-  return count >= 2 && count <= 4 && compact.length <= 48 && !listStylePunctuation.test(compact) && !compact.includes("_");
+  return count >= 2
+    && count <= 6
+    && compact.length <= 64
+    && !numericSuffix.test(compact)
+    && !listStylePunctuation.test(compact)
+    && !compact.includes("_")
+    && /^[-A-Za-z0-9&+.' ]+(?: \([-A-Za-z0-9&+.' ]+\))?$/.test(compact);
 }
 
-function qualifierCandidates(factors: NamingFactors) {
-  const candidates: string[] = [];
-  if (!["general", "customer_support", "unknown"].includes(factors.domain)) {
-    candidates.push(titleCase(factors.domain.replace(/_domain$/, "")));
+function factorLabels(factors: TaskGroupNamingFactors) {
+  const domain = factors.domain === "customer_support"
+    ? "support"
+    : factors.domain === "unknown"
+      ? "general"
+      : factors.domain.replace(/_domain$/, "").replaceAll("_", "-");
+  const temporal = factors.temporal_context === "single_turn"
+    ? "single-turn"
+    : factors.temporal_context === "early_multi_turn"
+      ? "multi-turn"
+      : "extended";
+  const tool = factors.tool_use === "none"
+    ? "no-tools"
+    : factors.tool_use === "success"
+      ? "tool-assisted"
+      : factors.tool_use === "recovered_failure"
+        ? "recovered-tool"
+        : "failed-tool";
+  const output = factors.output_format === "natural_language"
+    ? "narrative"
+    : factors.output_format.replaceAll("_", "-");
+  return [...new Set([
+    domain,
+    temporal,
+    tool,
+    output,
+    `${factors.complexity}-complexity`,
+    factors.customer_facing === undefined ? "" : factors.customer_facing ? "customer-facing" : "internal",
+    factors.risk_level ? `${factors.risk_level}-risk` : "",
+  ].filter(Boolean))];
+}
+
+function qualifierCombinations(labels: string[]) {
+  const combinations: string[] = [];
+  for (let size = 1; size <= Math.min(3, labels.length); size += 1) {
+    const visit = (start: number, selected: string[]) => {
+      if (selected.length === size) {
+        combinations.push(selected.join(" "));
+        return;
+      }
+      for (let index = start; index < labels.length; index += 1) visit(index + 1, [...selected, labels[index]]);
+    };
+    visit(0, []);
   }
-  if (factors.temporal_context === "early_multi_turn") candidates.push("Multi-Turn");
-  if (factors.temporal_context === "late_multi_turn") candidates.push("Extended");
-  if (factors.tool_use === "recovered_failure") candidates.push("Recovered");
-  if (factors.tool_use === "failed") candidates.push("Failed");
-  if (["json", "sql", "xml"].includes(factors.output_format)) candidates.push(factors.output_format.toUpperCase());
-  if (factors.complexity === "high") candidates.push("Complex");
-  if (factors.complexity === "low") candidates.push("Simple");
-  return [...new Set(candidates.filter(Boolean))];
+  return combinations;
 }
 
-function withQualifier(qualifier: string, base: string) {
-  const candidate = normalized(`${qualifier} ${base}`);
-  return words(candidate).length <= 4 ? candidate : "";
-}
-
-function semanticOptions(input: { factors: NamingFactors }) {
+function semanticOptions(input: { factors: TaskGroupNamingFactors }) {
   const base = baseTaskGroupName(input.factors.task_type);
-  return qualifierCandidates(input.factors).map((qualifier) => withQualifier(qualifier, base)).filter(Boolean);
+  return qualifierCombinations(factorLabels(input.factors))
+    .map((qualifier) => `${base} (${qualifier})`)
+    .filter((candidate) => candidate.length <= 64);
 }
 
 export function resolveAutomaticTaskGroupNames(inputs: AutomaticTaskGroupNameInput[]) {
@@ -85,8 +116,8 @@ export function resolveAutomaticTaskGroupNames(inputs: AutomaticTaskGroupNameInp
     ...input,
     candidate: input.preserve
       ? normalized(input.name)
-      : isCompactTaskGroupName(input.name)
-        ? normalized(input.name)
+      : isCompactTaskGroupName(normalized(input.name).replace(numericSuffix, ""))
+        ? normalized(input.name).replace(numericSuffix, "")
         : baseTaskGroupName(input.factors.task_type),
   }));
   const candidateCounts = new Map<string, number>();
@@ -100,11 +131,10 @@ export function resolveAutomaticTaskGroupNames(inputs: AutomaticTaskGroupNameInp
     const semanticBase = baseTaskGroupName(input.factors.task_type);
     const cohort = prepared.filter((peer) => !peer.preserve && key(peer.candidate) === key(input.candidate));
     const distinguishingOptions = semanticOptions(input).filter((option) => cohort.filter((peer) => semanticOptions(peer).includes(option)).length === 1);
-    const options = collision ? [...distinguishingOptions, semanticBase] : [input.candidate];
+    const options = collision ? [...distinguishingOptions, ...semanticOptions(input)] : [input.candidate];
     let chosen = options.find((candidate) => candidate && !used.has(key(candidate))) ?? "";
     if (!chosen) {
-      let suffix = 2;
-      do chosen = `${semanticBase} ${suffix++}`; while (used.has(key(chosen)));
+      chosen = `${semanticBase} (${factorLabels(input.factors).join(" ")})`;
     }
     used.add(key(chosen));
     return { id: input.id, name: chosen };
@@ -116,7 +146,7 @@ export function normalizeAutomaticTaskGroupNames(groups: DistinctTaskBucket[]) {
   const names = resolveAutomaticTaskGroupNames(validGroups.map((group) => ({
     id: group.bucket_id,
     name: group.bucket_name,
-    factors: group.task,
+    factors: { ...group.task, risk_level: group.risk_level, customer_facing: group.customer_facing },
     preserve: group.name_source === "user",
   })));
   const byId = new Map(names.map((item) => [item.id, item.name]));

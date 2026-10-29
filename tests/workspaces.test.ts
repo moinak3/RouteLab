@@ -57,7 +57,7 @@ describe("workspace persistence", () => {
       ] as never[],
     });
     const names = loadPersonalWorkspace().taskGroups.map((group) => group.bucket_name);
-    expect(names).toEqual(["Security Tool Requests", "Billing Tool Requests"]);
+    expect(names).toEqual(["Tool Requests (security)", "Tool Requests (billing)"]);
     expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(2);
   });
 
