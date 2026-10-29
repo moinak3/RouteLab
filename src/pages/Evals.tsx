@@ -6,6 +6,7 @@ import { ModelOptions } from "../components/ModelOptions";
 import {
   defaultEvalDefinitions,
   demoEvalDefinitions,
+  ensureRunnableJudgeModel,
   evalDefinitionFileName,
   formatEvalDefinitionJson,
   parseEvalDefinitionJson,
@@ -39,20 +40,24 @@ const EVAL_DEFINITIONS_STORAGE_PREFIX = "routelab-eval-definitions-v2:";
 const EVAL_VERSIONS_STORAGE_PREFIX = "routelab-eval-versions-v2:";
 const ACTIVE_EVAL_VERSION_STORAGE_PREFIX = "routelab-active-eval-version-v2:";
 
-function loadEvalDefinitions(workspaceId: string, defaults: EvalDefinition[]) {
+function loadEvalDefinitions(workspaceId: string, defaults: EvalDefinition[], fallbackJudgeModel: string) {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`) ?? "null") as EvalDefinition[] | null;
     if (Array.isArray(parsed)
       && parsed.every((item) => typeof item?.id === "string" && typeof item?.name === "string")
-      && (parsed.length > 0 || defaults.length === 0)) return parsed;
+      && (parsed.length > 0 || defaults.length === 0)) {
+      return parsed.map((definition) => ensureRunnableJudgeModel(definition, fallbackJudgeModel));
+    }
   } catch { /* Use workspace-specific defaults when local definitions are unavailable. */ }
   return defaults;
 }
 
-function loadEvalVersions(workspaceId: string, defaults: EvalDefinition[]) {
+function loadEvalVersions(workspaceId: string, defaults: EvalDefinition[], fallbackJudgeModel: string) {
   try {
     const parsed=JSON.parse(window.localStorage.getItem(`${EVAL_VERSIONS_STORAGE_PREFIX}${workspaceId}`)??"null") as EvalVersion[]|null;
-    if(Array.isArray(parsed)&&parsed.length&&parsed.every(item=>Number.isInteger(item?.version)&&typeof item?.createdAt==="string"&&typeof item?.definition?.id==="string")) return parsed;
+    if(Array.isArray(parsed)&&parsed.length&&parsed.every(item=>Number.isInteger(item?.version)&&typeof item?.createdAt==="string"&&typeof item?.definition?.id==="string")) {
+      return parsed.map((item) => ({ ...item, definition: ensureRunnableJudgeModel(item.definition, fallbackJudgeModel) }));
+    }
   } catch { /* Start from workspace-specific definitions when local history is unavailable. */ }
   return defaults.length ? [{ version: 1, createdAt: "2026-10-01T17:00:00.000Z", definition: defaults[0] }] : [];
 }
@@ -133,11 +138,13 @@ export function Evals({
   onEvalResults: (results: TraceJudgeResult[]) => void;
   onAutomationPoliciesChange: (policies: EvalAutomationPolicy[]) => void;
 }) {
-  const workspaceDefaults = defaultEvalDefinitions(workspace, traces);
   const judgeModels = models.filter((model) => model.pricing_source === "OpenRouter" && model.family !== "Router");
   const defaultJudgeModel = judgeModels[0] ? openRouterJudgeModelValue(judgeModels[0]) : "gpt-5.5-pro";
-  const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(() => loadEvalDefinitions(workspaceId, workspaceDefaults));
-  const [evalVersions,setEvalVersions]=useState<EvalVersion[]>(() => loadEvalVersions(workspaceId, workspaceDefaults));
+  const liveJudgeModel = judgeModels.some((model) => model.id.startsWith("openrouter:")) ? defaultJudgeModel : "";
+  const workspaceDefaults = defaultEvalDefinitions(workspace, traces)
+    .map((definition) => ensureRunnableJudgeModel(definition, liveJudgeModel));
+  const [evalDefinitions,setEvalDefinitions]=useState<EvalDefinition[]>(() => loadEvalDefinitions(workspaceId, workspaceDefaults, liveJudgeModel));
+  const [evalVersions,setEvalVersions]=useState<EvalVersion[]>(() => loadEvalVersions(workspaceId, workspaceDefaults, liveJudgeModel));
   const [activeEvalVersion,setActiveEvalVersion]=useState(() => loadActiveEvalVersion(workspaceId));
   const activeVersion=evalVersions.find(item=>item.version===activeEvalVersion)??evalVersions[evalVersions.length-1];
   const activeEvalDefinition=activeVersion?.definition;
@@ -167,7 +174,7 @@ export function Evals({
     ? runHistory.find((run)=>run.evalId===activeEvalDefinition.id&&run.mode==="new_traces")
     : undefined;
   const historicalSample=selectHistoricalTestSample(traces,HISTORICAL_TEST_SAMPLE_SIZE);
-  const supportsLiveRuns=Boolean(activeEvalDefinition&&evaluatorUsesJudgeModel(activeEvalDefinition.evaluator_type));
+  const supportsLiveRuns=Boolean(activeEvalDefinition&&evaluatorUsesJudgeModel(activeEvalDefinition.evaluator_type)&&liveJudgeModel);
   useEffect(()=>{
     try {
       window.localStorage.setItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalDefinitions));
@@ -180,6 +187,14 @@ export function Evals({
     setRunHistory(loadEvalRunHistory(workspaceId));
     setLifecycleMessage(null);
   },[workspaceId]);
+  useEffect(()=>{
+    if (!liveJudgeModel) return;
+    setEvalDefinitions((items) => items.map((definition) => ensureRunnableJudgeModel(definition, liveJudgeModel)));
+    setEvalVersions((items) => items.map((item) => ({
+      ...item,
+      definition: ensureRunnableJudgeModel(item.definition, liveJudgeModel),
+    })));
+  },[liveJudgeModel]);
   function addDefinition(definition: EvalDefinition) {
     const versions = appendEvalVersion(evalVersions, definition);
     setEvalDefinitions(items=>[definition,...items.filter(item=>item.id!==definition.id)]);
@@ -316,12 +331,17 @@ export function Evals({
   }
   async function testHistoricalTraces() {
     if (!activeEvalDefinition||!activeVersion||!historicalSample.length||historicalRunState==="running") return;
+    if (!liveJudgeModel) {
+      setLifecycleMessage("The current OpenRouter judge catalog is still loading. Try again in a moment.");
+      return;
+    }
+    const definition=ensureRunnableJudgeModel(activeEvalDefinition,liveJudgeModel);
     setHistoricalRunState("running");
     setLifecycleMessage(`Running version ${activeVersion.version} on ${historicalSample.length.toLocaleString()} historical traces…`);
     try {
       const response=await runEvalOnTraces({
         workspaceId,
-        definition:activeEvalDefinition,
+        definition,
         evalVersion:activeVersion.version,
         mode:"historical_test",
         traces:historicalSample,
@@ -432,7 +452,7 @@ export function Evals({
                 <p>Run the judge on a representative sample of up to {HISTORICAL_TEST_SAMPLE_SIZE} existing traces before a full backfill.</p>
                 {latestHistoricalRun&&<small>Last tested {new Date(latestHistoricalRun.completedAt).toLocaleString()} · {latestHistoricalRun.traceCount} scored · {pct(latestHistoricalRun.averageScore*100)} average</small>}
               </div>
-              <button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces} title={!supportsLiveRuns?"Live historical tests currently require an LLM judge eval.":!historicalSample.length?"Import traces before testing this eval.":undefined}>{historicalRunState==="running"?"Running test…":latestHistoricalRun?"Test again":"Test historical traces"}</button>
+              <button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces} title={!liveJudgeModel?"Loading the current OpenRouter judge catalog.":!supportsLiveRuns?"Live historical tests currently require an LLM judge eval.":!historicalSample.length?"Import traces before testing this eval.":undefined}>{historicalRunState==="running"?"Running test…":latestHistoricalRun?"Test again":"Test historical traces"}</button>
             </li>
             <li className={automationPolicy?.runOnNewTraces?"complete":""}>
               <span>3</span>

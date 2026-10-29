@@ -40,6 +40,11 @@ const runApiHandler = async (handler: (req: any, res: any) => unknown, req: any,
   if (["POST", "PUT", "PATCH"].includes(String(req.method))) req.body = await readJsonBody(req);
   res.status = (status: number) => { res.statusCode = status; return res; };
   res.send = (payload: unknown) => { res.end(payload); return res; };
+  res.json = (payload: unknown) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(payload));
+    return res;
+  };
   return handler(req, res);
 };
 

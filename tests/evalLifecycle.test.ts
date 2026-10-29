@@ -36,7 +36,10 @@ function trace(index: number): Trace {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe("eval lifecycle", () => {
   it("selects a bounded historical sample spanning the full time range", () => {
@@ -109,5 +112,27 @@ describe("eval lifecycle", () => {
     });
 
     expect(result).toMatchObject({ eval_id: definition.id, eval_version: 3, run_id: "run_1", score: .9, passed: true });
+  });
+
+  it("returns the provider error when an entire historical run fails", async () => {
+    vi.stubEnv("ROUTELAB_OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: { message: "calibrated judge model is not a valid model ID" },
+    }), { status: 400 })));
+    const { default: evalRunHandler } = await import("../src/server/evalRuns");
+    const response = {
+      statusCode: 200,
+      payload: undefined as unknown,
+      status(code: number) { this.statusCode = code; return this; },
+      json(payload: unknown) { this.payload = payload; return payload; },
+    };
+
+    await evalRunHandler({
+      method: "POST",
+      body: { definition, evalVersion: 1, mode: "historical_test", traces: [trace(1)] },
+    }, response);
+
+    expect(response.statusCode).toBe(502);
+    expect(response.payload).toMatchObject({ error: "calibrated judge model is not a valid model ID" });
   });
 });

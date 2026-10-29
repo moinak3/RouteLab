@@ -18,6 +18,20 @@ export type EvalDefinition = {
   calibration?: Record<string, unknown>;
 };
 
+const PLACEHOLDER_JUDGE_MODELS = new Set([
+  "",
+  "calibrated judge model",
+  "calibrated_judge_model",
+  "judge model",
+]);
+
+export function ensureRunnableJudgeModel(definition: EvalDefinition, fallbackModel: string) {
+  const usesJudge = definition.evaluator_type.toLowerCase().includes("judge");
+  const normalizedModel = definition.model.trim().toLowerCase();
+  if (!usesJudge || !fallbackModel || !PLACEHOLDER_JUDGE_MODELS.has(normalizedModel)) return definition;
+  return { ...definition, model: fallbackModel };
+}
+
 export const traceQualityEvalDefinition: EvalDefinition = {
   id: "trace_quality_llm_judge",
   name: "Trace quality LLM judge",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPersonalAgentEvalDefinition,
   defaultEvalDefinitions,
+  ensureRunnableJudgeModel,
   evalDefinitionFileName,
   formatEvalDefinitionJson,
   parseEvalDefinitionJson,
@@ -111,5 +112,16 @@ describe("workspace eval definitions", () => {
     expect(evaluatorUsesJudgeModel("schema_check")).toBe(false);
     expect(resolveJudgeModelValue("openrouter:openai/gpt-5.5-pro", models)).toBe("openai/gpt-5.5-pro");
     expect(resolveJudgeModelValue("custom/judge-v1", models)).toBe("custom/judge-v1");
+  });
+
+  it("replaces a generated judge placeholder with a runnable OpenRouter model", () => {
+    const generated = buildPersonalAgentEvalDefinition([
+      personalAgentTrace("trace-1", "Email drafting and sending"),
+    ]);
+
+    expect(ensureRunnableJudgeModel(generated, "openai/gpt-6.1-terra-pro").model)
+      .toBe("openai/gpt-6.1-terra-pro");
+    expect(ensureRunnableJudgeModel({ ...generated, model: "custom/judge-v1" }, "openai/gpt-6.1-terra-pro").model)
+      .toBe("custom/judge-v1");
   });
 });

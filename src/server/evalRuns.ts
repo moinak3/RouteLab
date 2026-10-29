@@ -163,7 +163,9 @@ export default async function evalRunHandler(req: any, res: any) {
   const passed = results.filter((result) => result.passed).length;
   const completedAt = new Date().toISOString();
   const averageScore = results.length ? results.reduce((sum, result) => sum + result.score, 0) / results.length : 0;
+  const runError = results.length ? undefined : errors[0]?.error ?? "No trace was scored.";
   return sendJson(res, results.length ? 200 : 502, {
+    ...(runError ? { error: runError } : {}),
     run: {
       id: runId,
       evalId: definition.id,
@@ -177,7 +179,7 @@ export default async function evalRunHandler(req: any, res: any) {
       averageScore,
       startedAt,
       completedAt,
-      ...(results.length ? {} : { error: errors[0]?.error ?? "No trace was scored." }),
+      ...(runError ? { error: runError } : {}),
     },
     results,
     errors,
