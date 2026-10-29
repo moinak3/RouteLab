@@ -13,6 +13,7 @@ import { assessRouteCandidate, DEFAULT_ROUTE_GUARDRAILS, reviseDraftRoutingPolic
 import { useRoutingPolicyDraft, type RoutingPolicySaveState } from "../core/useRoutingPolicyDraft";
 import { taskGroupIdFromSearch } from "../core/taskGroupActions";
 import { simulationScopeKey } from "../core/simulationScope";
+import { mostCommonModelForTaskGroup } from "../core/distinctTasks";
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
     buckets: DistinctTaskBucket[];
     selectedIds: string[];
@@ -78,6 +79,18 @@ const compactMoney = (value: number) => value < .01 ? `$${value.toFixed(5)}` : m
 const scoreLabel = (value?: number) => Number.isFinite(value) ? pct((value ?? 0) * 100) : "Not scored";
 const changeLabel = (value: number) => `${value > 0 ? "+" : ""}${pct(value)}`;
 const pointChangeLabel = (value?: number) => value === undefined ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(1)} pts`;
+function TaskImpactValues({ before, after, impact, tone }: {
+    before: string;
+    after: string;
+    impact: string;
+    tone: "good" | "warn";
+}) {
+    return <div className="task-impact-values">
+        <span><small>Before</small>{before}</span>
+        <span><small>After</small><strong>{after}</strong></span>
+        <span><small>Impact</small><em className={tone}>{impact}</em></span>
+    </div>;
+}
 const policySaveLabel = (state: RoutingPolicySaveState) => ({
     loading: "Loading saved draft",
     saving: "Saving to cloud",
@@ -288,6 +301,10 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const scenarioTraces = strategy === "direct" && liveDirect ? liveDirect.traces : selectedTraces;
     const simulation = useMemo(() => hasActiveModels ? (strategy === "direct" ? (liveDirect?.result ?? direct!) : familyCascade(selectedTraces, candidate)) : undefined, [strategy, direct, liveDirect, selectedTraces, candidate, catalogVersion, hasActiveModels]);
     const distinctTaskImpact = useMemo(() => simulation ? distinctTaskImpactBreakdown(scenarioTraces, selectedDistinctTasks, simulation, traceJudgeResults) : [], [simulation, scenarioTraces, selectedDistinctTasks, traceJudgeResults]);
+    const currentModelByTaskGroup = useMemo(() => new Map(distinctTaskBuckets.map(bucket => {
+        const modelId = mostCommonModelForTaskGroup(bucket, traces);
+        return [bucket.bucket_id, modelId ? getModel(modelId)?.display_name ?? modelId : "Not recorded"];
+    })), [distinctTaskBuckets, traces]);
     if (!hasActiveModels)
         return <section className="panel"><p className="eyebrow">Simulations</p><h2>No enabled models</h2><p>Enable at least one model in Model Catalog before running simulations.</p></section>;
     if (!simulation)
@@ -395,7 +412,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div className="panelhead">
 <div>
 <p className="eyebrow">Impact by Task Group</p>
-<h2>Before and after by task signature</h2>
+<h2>Before and after by Task Group</h2>
 <p className="impact-explainer">Cost is the projected monthly run rate. Latency is the average per request. Quality is the eval pass rate; its impact is shown in percentage points.</p>
 </div>
 <span>{scopeName} → {strategy === "family_cascade" ? `${candidateFamily} enabled cascade` : candidateRouteName}</span>
@@ -404,22 +421,11 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <table className="task-impact-table">
 <thead>
 <tr>
-<th rowSpan={2}>Task Group</th>
-<th colSpan={3}>Cost / month</th>
-<th colSpan={3}>Average latency</th>
-<th colSpan={3}>Quality / accuracy</th>
-<th rowSpan={2}>Policy action</th>
-</tr>
-<tr>
-<th>Before</th>
-<th>After</th>
-<th>Impact</th>
-<th>Before</th>
-<th>After</th>
-<th>Impact</th>
-<th>Before</th>
-<th>After</th>
-<th>Impact</th>
+<th>Task Group</th>
+<th>Cost / month</th>
+<th>Average latency</th>
+<th>Quality / accuracy</th>
+<th>Policy action</th>
 </tr>
 </thead>
 <tbody>{distinctTaskImpact.map(row => {
@@ -431,28 +437,11 @@ return <tr key={row.distinct_task_bucket_id}>
 <td>
 <b>{row.name}</b>
 <small>{row.trace_count.toLocaleString()} replayed trace{row.trace_count === 1 ? "" : "s"}</small>
+<small className="current-task-model">Current model: {currentModelByTaskGroup.get(row.distinct_task_bucket_id) ?? "Not recorded"}</small>
 </td>
-<td>{money(row.cost.before_monthly_usd)}</td>
-<td>
-<strong>{money(row.cost.after_monthly_usd)}</strong>
-</td>
-<td>
-<em className={row.cost.delta_pct <= 0 ? "good" : "warn"}>{changeLabel(row.cost.delta_pct)}</em>
-</td>
-<td>{row.latency.before_ms.toFixed(0)}ms</td>
-<td>
-<strong>{row.latency.after_ms.toFixed(0)}ms</strong>
-</td>
-<td>
-<em className={row.latency.delta_pct <= 0 ? "good" : "warn"}>{changeLabel(row.latency.delta_pct)}</em>
-</td>
-<td>{row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)}</td>
-<td>
-<strong>{pct(row.quality.after_pass_rate * 100)}</strong>
-</td>
-<td>
-<em className={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"}>{pointChangeLabel(row.quality.delta_points)}</em>
-</td>
+<td><TaskImpactValues before={money(row.cost.before_monthly_usd)} after={money(row.cost.after_monthly_usd)} impact={changeLabel(row.cost.delta_pct)} tone={row.cost.delta_pct <= 0 ? "good" : "warn"}/></td>
+<td><TaskImpactValues before={`${row.latency.before_ms.toFixed(0)}ms`} after={`${row.latency.after_ms.toFixed(0)}ms`} impact={changeLabel(row.latency.delta_pct)} tone={row.latency.delta_pct <= 0 ? "good" : "warn"}/></td>
+<td><TaskImpactValues before={row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)} after={pct(row.quality.after_pass_rate * 100)} impact={pointChangeLabel(row.quality.delta_points)} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"}/></td>
 <td className="route-action">{isAutoRouter ? <><span className="route-ineligible">Default strategy only</span><small>Auto Router results are measured live but are not promoted as a fixed task override.</small></> : strategy !== "direct" ? <><span className="route-ineligible">Direct replay required</span><small>Cascades need a separate policy rule.</small></> : assessment.eligible ? <button type="button" className={candidateIsActive ? "active" : ""} disabled={candidateIsActive} onClick={() => setTaskOverride(row)}>{candidateIsActive ? "Override active" : activeOverride ? `Replace ${activeOverride.modelName}` : `Use ${candidateName}`}</button> : <><span className="route-ineligible" title={failedChecks.map(check => check.detail).join("; ")}>Does not clear guardrails</span><small>{failedChecks[0]?.detail}</small></>}</td>
 </tr>;
 })}</tbody>
