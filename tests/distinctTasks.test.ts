@@ -78,6 +78,7 @@ describe("task eval plans",()=>{
   it("requires human review for high risk but not internal summarization",()=>{
     expect(planFor("rag_grounded_answers").human_review_required).toBe(true);
     expect(planFor("summarization").human_review_required).toBe(false);
+    expect(planFor("summarization").plan_name).toMatch(/^Proposed eval plan for /);
   });
   it("adds specialized evals for multi-turn, tool recovery, and confident consequential answers",()=>{
     const base=by("customer_support_responses");
