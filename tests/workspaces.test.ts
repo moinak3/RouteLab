@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearWorkspaceTraces, emptyPersonalWorkspace, inferTaskGroupingMethod, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace } from "../src/core/workspaces";
+import { clearWorkspaceBrowserState, clearWorkspaceTraces, emptyPersonalWorkspace, inferTaskGroupingMethod, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, resetPersonalCloudWorkspaceId, saveActiveWorkspace, savePersonalWorkspace, workspaceStorageKeys } from "../src/core/workspaces";
 
 function useMemoryStorage() {
   const values = new Map<string, string>();
@@ -7,8 +7,10 @@ function useMemoryStorage() {
     localStorage: {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
     },
   });
+  return values;
 }
 
 describe("workspace persistence", () => {
@@ -26,6 +28,15 @@ describe("workspace persistence", () => {
     expect(first).toMatch(/^personal_[a-z0-9]+$/);
     expect(loadCloudWorkspaceId("personal")).toBe(first);
     expect(loadCloudWorkspaceId("demo")).toBe("demo");
+  });
+
+  it("rotates the personal cloud identity when the workspace is reset", () => {
+    useMemoryStorage();
+    const previous = loadCloudWorkspaceId("personal");
+    const next = resetPersonalCloudWorkspaceId();
+
+    expect(next).not.toBe(previous);
+    expect(loadCloudWorkspaceId("personal")).toBe(next);
   });
 
   it("keeps the selected workspace and personal evidence across reloads", () => {
@@ -86,7 +97,7 @@ describe("workspace persistence", () => {
     expect(imported.goldenDatasets).toEqual([{ id: "golden" }]);
   });
 
-  it("clears traces and derived state without deleting golden datasets", () => {
+  it("clears every trace-derived workspace artifact including golden datasets", () => {
     const workspace = {
       ...emptyPersonalWorkspace(),
       traces: [{ id: "trace_1" }] as never[],
@@ -94,12 +105,20 @@ describe("workspace persistence", () => {
       taskGroups: [{ bucket_id: "group_1" }] as never[],
       goldenDatasets: [{ id: "golden" }] as never[],
     };
-    expect(clearWorkspaceTraces(workspace)).toEqual({
-      traces: [],
-      traceJudgeResults: [],
-      taskGroups: [],
-      taskGroupingMethod: undefined,
-      goldenDatasets: [{ id: "golden" }],
-    });
+    expect(clearWorkspaceTraces(workspace)).toEqual(emptyPersonalWorkspace());
   });
+
+  it("removes eval, automation, run, and routing state for the cleared workspace", () => {
+    const values = useMemoryStorage();
+    const workspaceId = "personal_previous";
+    const keys = workspaceStorageKeys(workspaceId);
+    keys.forEach((key) => values.set(key, "saved"));
+    values.set("unrelated-account-setting", "keep");
+
+    clearWorkspaceBrowserState(workspaceId);
+
+    expect(keys.every((key) => !values.has(key))).toBe(true);
+    expect(values.get("unrelated-account-setting")).toBe("keep");
+  });
+
 });

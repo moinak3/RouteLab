@@ -31,7 +31,7 @@ import {
   saveEvalRunRecord,
   type EvalAutomationPolicy,
 } from "./core/evalLifecycle";
-import { clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, saveActiveWorkspace, savePersonalWorkspace, type TaskGroupingMethod, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
+import { clearWorkspaceBrowserState, clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, resetPersonalCloudWorkspaceId, saveActiveWorkspace, savePersonalWorkspace, type TaskGroupingMethod, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
@@ -92,12 +92,13 @@ export default function App() {
     personal: loadPersonalWorkspace(),
     demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets, taskGroups: createDistinctTaskBuckets(initialTraces), taskGroupingMethod: "rules" },
   }));
+  const [personalCloudWorkspaceId, setPersonalCloudWorkspaceId] = useState(() => loadCloudWorkspaceId("personal"));
   const traces = workspaceData[activeWorkspace].traces;
   const traceJudgeResults = workspaceData[activeWorkspace].traceJudgeResults;
   const goldenDatasets = workspaceData[activeWorkspace].goldenDatasets;
   const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
   const taskGroupingMethod = workspaceData[activeWorkspace].taskGroupingMethod;
-  const cloudWorkspaceId = useMemo(() => loadCloudWorkspaceId(activeWorkspace), [activeWorkspace]);
+  const cloudWorkspaceId = activeWorkspace === "demo" ? "demo" : personalCloudWorkspaceId;
   const [evalAutomationPolicies, setEvalAutomationPolicies] = useState<EvalAutomationPolicy[]>(() => loadEvalAutomationPolicies(cloudWorkspaceId));
   const activeEvalRuns = useRef(new Set<string>());
   const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
@@ -405,12 +406,24 @@ export default function App() {
 
   function clearPersonalTraces() {
     if (activeWorkspace !== "personal") return;
+    const previousCloudWorkspaceId = personalCloudWorkspaceId;
+    clearWorkspaceBrowserState(previousCloudWorkspaceId);
+    const nextCloudWorkspaceId = resetPersonalCloudWorkspaceId();
+    activeEvalRuns.current.clear();
     setWorkspaceData((current) => ({
       ...current,
       personal: clearWorkspaceTraces(current.personal),
     }));
+    setPersonalCloudWorkspaceId(nextCloudWorkspaceId);
+    setEvalAutomationPolicies([]);
+    setWeeklyReviewBudget(DEFAULT_WEEKLY_REVIEW_BUDGET);
+    setPersistedReviews([]);
+    setReviewPersistenceState("ready");
+    setReviewPersistenceError(null);
+    setReviewQueueFilter("representative");
+    setFineTuneJobs([]);
     navigateTo("Overview");
-    setNotice("All traces cleared from My workspace");
+    setNotice("My workspace reset · traces, task groups, evals, reviews, and routing settings cleared");
   }
 
   function enterApp(password: string) {

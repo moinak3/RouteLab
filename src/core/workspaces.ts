@@ -15,6 +15,14 @@ export type WorkspaceData = {
 const ACTIVE_WORKSPACE_KEY = "routelab-active-workspace-v1";
 const PERSONAL_WORKSPACE_KEY = "routelab-personal-workspace-v1";
 const PERSONAL_CLOUD_WORKSPACE_KEY = "routelab-personal-cloud-workspace-v1";
+const WORKSPACE_STORAGE_PREFIXES = [
+  "routelab-eval-definitions-v2:",
+  "routelab-eval-versions-v2:",
+  "routelab-active-eval-version-v2:",
+  "routelab-eval-automation-v1:",
+  "routelab-eval-runs-v1:",
+  "routelab-routing-policy-draft-v2:",
+] as const;
 let inMemoryPersonalCloudWorkspaceId: string | null = null;
 
 export const emptyPersonalWorkspace = (): WorkspaceData => ({ traces: [], traceJudgeResults: [], goldenDatasets: [], taskGroups: [] });
@@ -29,7 +37,8 @@ export function replaceWorkspaceTraces(workspace: WorkspaceData, traces: Trace[]
 }
 
 export function clearWorkspaceTraces(workspace: WorkspaceData): WorkspaceData {
-  return replaceWorkspaceTraces(workspace, []);
+  void workspace;
+  return emptyPersonalWorkspace();
 }
 
 export function loadActiveWorkspace(): WorkspaceId {
@@ -67,6 +76,36 @@ export function loadCloudWorkspaceId(workspace: WorkspaceId) {
     inMemoryPersonalCloudWorkspaceId ??= createPersonalCloudWorkspaceId();
     return inMemoryPersonalCloudWorkspaceId;
   }
+}
+
+export function resetPersonalCloudWorkspaceId() {
+  const created = createPersonalCloudWorkspaceId();
+  inMemoryPersonalCloudWorkspaceId = created;
+  try {
+    window.localStorage.setItem(PERSONAL_CLOUD_WORKSPACE_KEY, created);
+  } catch {
+    // Keep the new in-memory identity when browser storage is unavailable.
+  }
+  return created;
+}
+
+export function workspaceStorageKeys(workspaceId: string) {
+  return WORKSPACE_STORAGE_PREFIXES.map((prefix) => `${prefix}${workspaceId}`);
+}
+
+export function clearWorkspaceBrowserState(
+  workspaceId: string,
+  storage?: Pick<Storage, "removeItem">,
+) {
+  let target = storage;
+  if (!target) {
+    try {
+      target = window.localStorage;
+    } catch {
+      return;
+    }
+  }
+  workspaceStorageKeys(workspaceId).forEach((key) => target?.removeItem(key));
 }
 
 export function loadPersonalWorkspace(): WorkspaceData {
