@@ -323,7 +323,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <DistinctTaskScopePicker buckets={distinctTaskBuckets} selectedIds={distinctTaskBucketIds} onChange={setDistinctTaskBucketIds} callCounts={callCounts} totalCalls={dateTraces.length}/>
 <div className="range-control">
 <label>Simulation date range</label>
-<div className="range-tabs" role="group" aria-label="Simulation date range">{([["7d", "L7d"], ["30d", "L30d"], ["6m", "L6M"]] as Array<[
+<div className="range-tabs" role="group" aria-label="Simulation date range">{([["7d", "L7D"], ["30d", "L30D"], ["6m", "L6M"]] as Array<[
         DateRange,
         string
     ]>).map(([value, label]) => <button type="button" aria-pressed={dateRange === value} className={dateRange === value ? "active" : ""} onClick={() => setDateRange(value)} key={value}>{label}</button>)}</div>
