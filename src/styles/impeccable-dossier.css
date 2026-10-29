@@ -607,6 +607,9 @@ body:before{
 .shell>main .drawer-layer{background:rgba(17,27,51,.4)}
 .shell>main .trace-drawer,.trace-drawer{background:var(--dossier-paper);color:var(--dossier-ink);box-shadow:-12px 0 0 rgba(17,27,51,.2)}
 .drawer-head{background:var(--dossier-ink);color:#fff}.drawer-head h2{color:#fff}.drawer-section,.drawer-facts div{border-color:var(--dossier-rule);border-radius:1px;background:var(--dossier-sheet)}
+.trace-drawer .drawer-facts b,.trace-drawer .workflow-path b,.trace-drawer .message b{color:var(--dossier-ink)}
+.trace-drawer .drawer-facts small,.trace-drawer .workflow-path small{color:#526075}
+.trace-drawer .workflow-filter-link{color:#216437}
 .shell>main .task-detail-layer{background:rgba(17,27,51,.4)}
 .shell>main .task-detail{
   display:block;
