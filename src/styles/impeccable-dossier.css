@@ -790,3 +790,77 @@ body:before{
   .home-section-head,.home-comparison-intro{grid-template-columns:1fr;gap:20px}.home-section-head>*{min-width:0}.home-section-head h2,.home-coming-next h2,.home-final h2,.home-comparison-intro h2{font-size:36px}
   .home-why-now-card{margin-right:10px}.home-section{padding-block:64px}.home-waitlist-copy h2{font-size:36px}
 }
+
+/* Keep simulation and policy form controls on one shared sizing system. */
+.shell>main .scenario-controls{
+  --simulation-control-height:48px;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  align-items:start;
+}
+.shell>main .scenario-controls>:not(.scenario-note){min-width:0}
+.shell>main .scenario-controls :is(.model-picker,.scope-picker details){
+  width:100%;
+  min-width:0;
+  max-width:100%;
+}
+.shell>main .scenario-controls :is(.compact-select,.scope-picker,.range-control,.request-limit){
+  display:grid;
+  grid-template-rows:auto var(--simulation-control-height);
+  align-content:start;
+}
+.shell>main .scenario-controls :is(.compact-select,.scope-picker,.range-control,.request-limit)>label{
+  min-height:16px;
+  margin:0 0 7px;
+}
+.shell>main .scenario-controls :is(.model-picker>summary,.scope-picker summary,.range-tabs,.request-limit select,.request-limit input){
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  height:var(--simulation-control-height);
+  min-height:var(--simulation-control-height);
+}
+.shell>main .scenario-controls .range-tabs{padding:3px}
+.shell>main .scenario-controls .range-tabs button{height:40px}
+.shell>main .scenario-controls .request-limit>div{
+  grid-template-columns:minmax(0,1fr) minmax(76px,.62fr);
+  min-width:0;
+  height:var(--simulation-control-height);
+}
+.shell>main .scenario-controls .request-limit small{grid-row:3;margin-top:7px}
+
+.shell>main .routing-policy-controls{
+  --policy-control-height:42px;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:stretch;
+}
+.shell>main .routing-policy-controls>label{
+  min-width:0;
+  min-height:144px;
+  display:grid;
+  grid-template-rows:auto var(--policy-control-height) minmax(38px,1fr);
+  align-content:start;
+  gap:8px;
+}
+.shell>main .routing-policy-controls :is(select,input,.policy-threshold){
+  width:100%;
+  min-width:0;
+  height:var(--policy-control-height);
+  min-height:var(--policy-control-height);
+}
+.shell>main .routing-policy-controls .policy-threshold{
+  grid-template-columns:minmax(0,1fr) 18px;
+}
+.shell>main .routing-policy-controls .policy-threshold input{height:100%}
+.shell>main .routing-policy-controls em{align-self:start}
+
+@media(max-width:1500px){
+  .shell>main .scenario-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .shell>main .routing-policy-controls{grid-template-columns:1fr}
+  .shell>main .routing-policy-controls>label{min-height:0}
+}
+@media(max-width:760px){
+  .shell>main .scenario-controls{grid-template-columns:1fr}
+}
