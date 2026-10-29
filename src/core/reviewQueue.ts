@@ -115,7 +115,7 @@ export function buildReviewQueue(
   }));
   const requested = Math.min(Math.max(0, Math.floor(maxItems)), items.length);
   const third = Math.floor(requested / 3);
-  let laneTargets: Record<ReviewLane, number> = {
+  const laneTargets: Record<ReviewLane, number> = {
     representative: third + requested % 3, unusual: third, uncovered: third,
   };
   const itemByTrace = new Map(items.map((item) => [item.trace.id, item]));
@@ -210,33 +210,17 @@ export function buildReviewQueue(
     return reasons.length ? [{ ...item, lane: "unusual" as const, reviewReason: reasons.join(" "), priority }] : [];
   }).sort((a, b) => b.priority - a.priority || observedAt(b.trace) - observedAt(a.trace) || a.trace.id.localeCompare(b.trace.id));
 
-  let selected: ReviewQueueItem[] = [];
-  const balancedQuota = Math.min(third, unusualCandidates.length, uncoveredCandidates.length);
-  if (balancedQuota >= 5) {
-    const unusual = unusualCandidates.slice(0, balancedQuota);
-    const selectedIds = new Set(unusual.map((item) => item.trace.id));
-    const representative = stratifiedSample(items, balancedQuota, selectedIds);
-    representative.forEach((item) => selectedIds.add(item.trace.id));
-    const uncovered = stratifiedSample(uncoveredCandidates, balancedQuota, selectedIds, "uncovered");
-    const actualQuota = Math.min(representative.length, unusual.length, uncovered.length);
-    if (actualQuota >= 5) {
-      selected = [...representative.slice(0, actualQuota), ...unusual.slice(0, actualQuota), ...uncovered.slice(0, actualQuota)];
-      laneTargets = { representative: actualQuota, unusual: actualQuota, uncovered: actualQuota };
-    }
+  const selected: ReviewQueueItem[] = [];
+  const selectedIds = new Set<string>();
+  const add = (item: ReviewQueueItem) => { selected.push(item); selectedIds.add(item.trace.id); };
+  let unusualCount = 0;
+  for (const item of unusualCandidates) {
+    if (unusualCount >= laneTargets.unusual) break;
+    if (!selectedIds.has(item.trace.id)) { add(item); unusualCount += 1; }
   }
-  if (!selected.length) {
-    const selectedIds = new Set<string>();
-    const add = (item: ReviewQueueItem) => { selected.push(item); selectedIds.add(item.trace.id); };
-    stratifiedSample(items, laneTargets.representative, selectedIds).forEach(add);
-    let unusualCount = 0;
-    for (const item of unusualCandidates) {
-      if (unusualCount >= laneTargets.unusual) break;
-      if (!selectedIds.has(item.trace.id)) { add(item); unusualCount += 1; }
-    }
-    stratifiedSample(uncoveredCandidates, laneTargets.uncovered, selectedIds, "uncovered").forEach(add);
-    // Sparse lanes leave capacity with representative coverage, never invented findings.
-    if (selected.length < requested) stratifiedSample(items, requested - selected.length, selectedIds).forEach(add);
-  }
+  stratifiedSample(uncoveredCandidates, laneTargets.uncovered, selectedIds, "uncovered").forEach(add);
+  stratifiedSample(items, laneTargets.representative, selectedIds).forEach(add);
+  // Sparse lanes stay below target instead of shifting unused capacity to another lane.
   const laneCounts: Record<ReviewLane, number> = { representative: 0, unusual: 0, uncovered: 0 };
   selected.forEach((item) => { laneCounts[item.lane] += 1; });
   const byLane: Record<ReviewLane, ReviewQueueItem[]> = { representative: [], unusual: [], uncovered: [] };

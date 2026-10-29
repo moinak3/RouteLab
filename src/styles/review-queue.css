@@ -8,22 +8,17 @@
 .review-budget input{min-width:0;width:100%}
 .review-budget form>small{font-size:12px}
 .review-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.review-tabs a{min-width:0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.035);color:inherit;text-decoration:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center}
+.review-tabs a{min-width:0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.035);color:inherit;text-decoration:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:start}
 .review-tabs a span{font-weight:600}
-.review-tabs a b{font-size:22px;line-height:1}
-.review-tabs a small{grid-column:1/-1;font-size:12px}
+.review-tabs a b{font-size:22px;line-height:1;white-space:nowrap}
+.review-tabs a b small{font-size:12px;font-weight:600;color:#a9bab2}
+.review-tabs a p{grid-column:1/-1;margin:0;color:#c7d8d0;font-size:13px;line-height:1.45}
 .review-tabs a.active{border-color:rgba(88,240,132,.58);background:rgba(88,240,132,.09)}
 .review-method{padding:18px;display:grid;gap:10px}
 .review-method-head{display:flex;align-items:end;justify-content:space-between;gap:16px}
 .review-method-head h2{margin:4px 0 0;font-size:28px;letter-spacing:-.02em;color:#fff}
 .review-method-head>span{white-space:nowrap;color:#b9ffd0;font-weight:600}
 .review-method>p{margin:0;color:#d3e1d9;line-height:1.5}
-.review-lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.review-lane{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.035);display:grid;gap:5px}
-.review-lane>span{color:#9fb0a8;text-transform:uppercase;letter-spacing:.06em;font-size:12px;font-weight:600}
-.review-lane>b{color:#b7ff6d;font-size:28px;line-height:1.1}
-.review-lane>b small{font-size:12px;font-weight:600;color:#a9bab2}
-.review-lane p{margin:0;color:#c7d8d0;font-size:13px;line-height:1.45}
 .review-shortfall,.review-method-note{color:#afc0b8;line-height:1.45}
 .review-shortfall{color:#f4d9aa}
 .review-page .review-shell{width:100%;max-width:980px}
@@ -64,7 +59,5 @@
   .review-method{padding:16px}
   .review-method-head{align-items:start}
   .review-method-head h2{font-size:18px}
-  .review-lanes{grid-template-columns:1fr}
-  .review-lane{padding:12px}
   .review-page .review-top{grid-template-columns:1fr;align-items:start}
 }

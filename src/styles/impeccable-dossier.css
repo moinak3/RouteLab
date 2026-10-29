@@ -417,14 +417,10 @@ body:before{
 .shell>main .review-method-note{color:var(--dossier-muted)}
 .shell>main .review-budget form>small{color:#476653}
 .shell>main .review-tabs a{border-color:var(--dossier-rule);border-radius:2px;background:rgba(251,248,240,.65);color:var(--dossier-ink)}
-.shell>main .review-tabs a small{color:var(--dossier-muted)}
+.shell>main .review-tabs a b small,
+.shell>main .review-tabs a p{color:var(--dossier-muted)}
 .shell>main .review-tabs a.active{border-color:#4c8f5d;background:#e5f2e5;color:#173923}
 .shell>main .review-method-head>span{color:#2f6640}
-.shell>main .review-lane{border-color:var(--dossier-rule);border-radius:2px;background:rgba(255,255,255,.4)}
-.shell>main .review-lane>span,
-.shell>main .review-lane>b small,
-.shell>main .review-lane p{color:var(--dossier-muted)}
-.shell>main .review-lane>b{color:var(--dossier-blue)}
 .shell>main .review-error{border-color:#b25a49;background:#f4dfda;color:#7b2d22}
 
 /* The review workspace stays dark so long-form traces remain visually contained. */

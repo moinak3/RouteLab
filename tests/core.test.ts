@@ -391,9 +391,10 @@ describe("simulation and recommendations", () => {
     expect(queue.reviewItems.length).toBeGreaterThan(0);
     expect(new Set(queue.reviewItems.map((item) => item.trace.id)).size).toBe(queue.reviewItems.length);
     expect(Object.values(queue.laneCounts).reduce((sum, count) => sum + count, 0)).toBe(queue.reviewItems.length);
+    expect(Object.entries(queue.laneCounts).every(([lane, count]) => count <= queue.laneTargets[lane as keyof typeof queue.laneTargets])).toBe(true);
     expect(queue.reviewItems.every((item) => item.reviewReason.length > 20)).toBe(true);
-    expect(queue.laneCounts.representative).toBe(queue.laneCounts.unusual);
-    expect(queue.laneCounts.unusual).toBe(queue.laneCounts.uncovered);
+    expect(queue.laneCounts.representative).toBeGreaterThan(0);
+    expect(queue.laneCounts.unusual).toBeGreaterThan(0);
     expect(queue.laneCounts.uncovered).toBeGreaterThan(0);
     expect(queue.reviewItems.slice(0, 6).map((item) => item.lane)).toEqual([
       "representative", "unusual", "uncovered", "representative", "unusual", "uncovered",
@@ -414,10 +415,12 @@ describe("simulation and recommendations", () => {
   });
   it("can build a review queue before any full rubric has run", () => {
     const queue = buildReviewQueue(traces, [], distinctTaskBuckets, []);
-    expect(queue.reviewItems).toHaveLength(REVIEW_QUEUE_MAX);
+    expect(queue.reviewItems).toHaveLength(40);
     expect(queue.reviewItems.every((item) => item.judge === undefined)).toBe(true);
     expect(queue.available.uncovered).toBe(traces.length);
     expect(queue.available.unusual).toBe(0);
+    expect(queue.laneCounts).toEqual({ representative: 20, unusual: 0, uncovered: 20 });
+    expect(Object.entries(queue.laneCounts).every(([lane, count]) => count <= queue.laneTargets[lane as keyof typeof queue.laneTargets])).toBe(true);
   });
   it("detects observed negative feedback and peer latency outliers", () => {
     const peers = Array.from({ length: 30 }, (_, index) => ({

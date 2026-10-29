@@ -61,6 +61,7 @@ export function ReviewQueue({
     [traces, traceJudgeResults, distinctTaskBuckets, goldenDatasets, weeklyBudget],
   );
   const reviewItems = useMemo(() => (selection.reviewItems ?? []).filter((item) => item.lane === filter), [selection, filter]);
+  const unusedSlots = selection.capacity - selection.reviewItems.length;
   const reviewByTrace = useMemo(() => new Map(persistedReviews.map((review) => [review.traceId, review])), [persistedReviews]);
   const reviewed = reviewItems.filter((item) => reviewByTrace.has(item.trace.id)).length;
 
@@ -152,14 +153,16 @@ export function ReviewQueue({
       </form>
     </section>
 
-    <nav className="review-tabs" aria-label="Review lanes">
-      {laneOrder.map((lane) => <a href={reviewLaneHref(lane)} className={filter === lane ? "active" : ""} aria-current={filter === lane ? "page" : undefined} onClick={selectLane(lane)} key={lane}><span>{laneLabels[lane]}</span><b>{selection.laneCounts[lane].toLocaleString()}</b><small>{selection.laneTargets[lane].toLocaleString()} target</small></a>)}
-    </nav>
-
     <section className="review-method panel">
       <div className="review-method-head"><div><p className="eyebrow">How this queue is built</p><h2>{weeklyBudget.toLocaleString()} conversation weekly budget</h2></div><span>{selection.reviewItems.length.toLocaleString()} selected</span></div>
-      <div className="review-lanes">{laneOrder.map((lane) => <div className="review-lane" key={lane}><span>{laneLabels[lane]}</span><b>{selection.laneCounts[lane].toLocaleString()} <small>/ {selection.laneTargets[lane].toLocaleString()} target</small></b><p>{laneDescriptions[lane]}</p></div>)}</div>
-      {selection.reviewItems.length < selection.capacity && <small className="review-shortfall">{(selection.capacity - selection.reviewItems.length).toLocaleString()} slots are unused because the current trace set does not have enough eligible conversations to fill every lane without inventing findings.</small>}
+      <nav className="review-tabs" aria-label="Review lanes">
+        {laneOrder.map((lane) => <a href={reviewLaneHref(lane)} className={filter === lane ? "active" : ""} aria-current={filter === lane ? "page" : undefined} onClick={selectLane(lane)} key={lane}>
+          <span>{laneLabels[lane]}</span>
+          <b>{selection.laneCounts[lane].toLocaleString()} <small>/ {selection.laneTargets[lane].toLocaleString()} target</small></b>
+          <p>{laneDescriptions[lane]}</p>
+        </a>)}
+      </nav>
+      {unusedSlots > 0 && <small className="review-shortfall">{unusedSlots.toLocaleString()} {unusedSlots === 1 ? "slot is" : "slots are"} unused because the current trace set does not have enough eligible conversations to fill every lane without inventing findings.</small>}
       <small className="review-method-note">Golden eval coverage: {selection.coverage.coveredSignatures}/{selection.coverage.totalSignatures} task groups across {selection.coverage.goldenDatasets} dataset{selection.coverage.goldenDatasets === 1 ? "" : "s"}. A judge score alone is not coverage. Safety alerts come from recorded trace metadata. Latency outliers are compared with the same task group and model.</small>
     </section>
 
