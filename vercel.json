@@ -12,6 +12,7 @@
     { "source": "/api/task-group-names", "destination": "/api/runtime?action=task-group-names" },
     { "source": "/api/waitlist", "destination": "/api/runtime?action=waitlist" },
     { "source": "/api/reviews", "destination": "/api/runtime?action=reviews" },
+    { "source": "/api/evals/run", "destination": "/api/openrouter/models?action=eval-run" },
     { "source": "/overview", "destination": "/index.html" },
     { "source": "/workloads/traces", "destination": "/index.html" },
     { "source": "/workloads/task-groups", "destination": "/index.html" },

@@ -1,9 +1,13 @@
 import { latestOpenRouterModels } from "../../src/core/openRouterModels.js";
+import evalRunHandler from "../../src/server/evalRuns.js";
 import { sendJson, serverOpenRouterKey } from "../live/_shared.js";
 
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models?sort=newest&output_modalities=text";
 
+export const maxDuration = 300;
+
 export default async function handler(req: any, res: any) {
+  if (req.query?.action === "eval-run") return evalRunHandler(req, res);
   if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
 
   try {
