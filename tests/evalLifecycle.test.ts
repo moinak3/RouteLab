@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   configureNewTraceEvaluation,
+  evalRunBatches,
   loadEvalAutomationPolicies,
   loadEvalRunHistory,
   mergeEvalResults,
   monthlyEvalHistory,
   removeEvalLifecycleState,
   saveEvalRunRecord,
-  selectHistoricalTestSample,
 } from "../src/core/evalLifecycle";
 import { evaluateTraceWithDefinition } from "../src/server/evalRuns";
 import type { Trace, TraceJudgeResult } from "../src/types";
@@ -66,14 +66,17 @@ describe("eval lifecycle", () => {
     })]);
   });
 
-  it("selects a bounded historical sample spanning the full time range", () => {
+  it("partitions the complete historical trace library without sampling", () => {
     const traces = Array.from({ length: 100 }, (_, index) => trace(index));
-    const sample = selectHistoricalTestSample(traces, 25);
+    const batches = evalRunBatches(traces, 25);
+    const population = batches.flat();
 
-    expect(sample).toHaveLength(25);
-    expect(sample[0].id).toBe("trace_000");
-    expect(sample.at(-1)?.id).toBe("trace_099");
-    expect(new Set(sample.map((item) => item.id)).size).toBe(25);
+    expect(batches).toHaveLength(4);
+    expect(batches.every((batch) => batch.length === 25)).toBe(true);
+    expect(population).toHaveLength(100);
+    expect(population[0].id).toBe("trace_000");
+    expect(population.at(-1)?.id).toBe("trace_099");
+    expect(new Set(population.map((item) => item.id)).size).toBe(100);
   });
 
   it("starts continuous evaluation after the current trace population", () => {

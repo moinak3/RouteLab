@@ -309,10 +309,11 @@
 .shell>main .eval-lifecycle-message{
   margin:0;
   padding:10px 12px;
-  border-left:3px solid #58f084;
-  background:rgba(88,240,132,.08);
-  color:#dff8e5;
+  border-left:3px solid #4aa765;
+  background:#e8f4e6;
+  color:#173d2b;
   font-size:13px;
+  font-weight:600;
   line-height:1.45;
 }
 .eval-meta-grid,.eval-stats{
@@ -555,16 +556,19 @@
   display:grid;
   justify-items:start;
   gap:4px;
+  width:100%;
   min-width:0;
   padding:0;
   border:0;
   background:transparent;
   text-align:left;
+  white-space:normal;
 }
 .shell>main .eval-name-button b{
   color:#17251e;
   font-size:14px;
   line-height:1.35;
+  overflow-wrap:anywhere;
 }
 .shell>main .eval-name-button small{
   color:#75877e;

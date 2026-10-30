@@ -37,7 +37,7 @@ export type EvalRunResponse = {
 
 const POLICY_PREFIX = "routelab-eval-automation-v1:";
 const RUN_PREFIX = "routelab-eval-runs-v1:";
-export const HISTORICAL_TEST_SAMPLE_SIZE = 25;
+export const EVAL_RUN_BATCH_SIZE = 25;
 
 const monthLabel = (date: Date) => date.toLocaleString("en-US", { month: "short" });
 
@@ -170,19 +170,13 @@ export function removeEvalLifecycleState(workspaceId: string, evalId: string) {
   return { policies, runs };
 }
 
-export function selectHistoricalTestSample(traces: Trace[], limit = HISTORICAL_TEST_SAMPLE_SIZE) {
-  if (traces.length <= limit) return [...traces];
-  const ordered = [...traces].sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id));
-  const selected: Trace[] = [];
-  const used = new Set<number>();
-  for (let index = 0; index < limit; index += 1) {
-    const position = Math.min(ordered.length - 1, Math.round(index * (ordered.length - 1) / Math.max(1, limit - 1)));
-    if (!used.has(position)) {
-      used.add(position);
-      selected.push(ordered[position]);
-    }
+export function evalRunBatches(traces: Trace[], batchSize = EVAL_RUN_BATCH_SIZE) {
+  const size = Math.max(1, Math.floor(batchSize));
+  const batches: Trace[][] = [];
+  for (let offset = 0; offset < traces.length; offset += size) {
+    batches.push(traces.slice(offset, offset + size));
   }
-  return selected;
+  return batches;
 }
 
 export async function runEvalOnTraces({
