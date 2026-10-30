@@ -88,6 +88,7 @@ describe("analysis and risk inference", () => {
 
   it("versions every routing policy edit", () => {
     const initial = createDraftRoutingPolicy("gpt-5.5-pro");
+    expect(initial.defaultStrategyType).toBe("openrouter_auto");
     const revised = reviseDraftRoutingPolicy(initial, { defaultModelId: "deepseek-r1" });
     expect(revised.version).toBe(initial.version + 1);
     expect(revised.defaultModelId).toBe("deepseek-r1");

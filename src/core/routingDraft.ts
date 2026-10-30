@@ -46,7 +46,7 @@ const routingDraftStorageKey = (workspaceId: string) => `${ROUTING_DRAFT_STORAGE
 
 export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
   return {
-    defaultStrategyType: "fixed_model",
+    defaultStrategyType: "openrouter_auto",
     defaultModelId: fallbackModelId,
     autoRouterCostTier: "medium",
     overrides: {},
@@ -69,7 +69,7 @@ export function loadDraftRoutingPolicy(fallbackModelId: string, workspaceId = "d
 export function normalizeDraftRoutingPolicy(value: Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string }, fallbackModelId = ""): DraftRoutingPolicy {
   const initial = createDraftRoutingPolicy(value.fallbackModelId || fallbackModelId);
   return {
-    defaultStrategyType: value.defaultStrategyType === "openrouter_auto" ? "openrouter_auto" : "fixed_model",
+    defaultStrategyType: value.defaultStrategyType === "fixed_model" ? "fixed_model" : "openrouter_auto",
     defaultModelId: value.defaultModelId || value.fallbackModelId || fallbackModelId,
     defaultOpenRouterModelId: value.defaultOpenRouterModelId || value.fallbackOpenRouterModelId,
     autoRouterCostTier: ["low", "medium", "high", "xhigh", "max"].includes(String(value.autoRouterCostTier)) ? value.autoRouterCostTier! : "medium",
