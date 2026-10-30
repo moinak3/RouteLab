@@ -85,8 +85,8 @@ async function classifyOne(
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
     const reason = timedOut
-      ? `Jev exceeded the ${serverJevTimeoutMs()}ms routing budget. Route through the broadly capable fallback model.`
-      : `${error instanceof Error ? error.message : "Jev classification failed."} Route through the broadly capable fallback model.`;
+      ? `Jev exceeded the ${serverJevTimeoutMs()}ms routing budget. Use the configured default strategy.`
+      : `${error instanceof Error ? error.message : "Jev classification failed."} Use the configured default strategy.`;
     return {
       trace_id: trace.id,
       decision: failedJevSignatureDecision(timedOut ? "timeout" : "error", reason, Date.now() - started, serverJevModel()),
@@ -106,7 +106,7 @@ export async function runJevSignatureGate(input: {
   if (!apiKey) {
     const decisions = traces.map((trace) => ({
       trace_id: trace.id,
-      decision: failedJevSignatureDecision("provider_unavailable", "The server-side OpenRouter key is not configured. Route through the broadly capable fallback model.", 0, serverJevModel()),
+      decision: failedJevSignatureDecision("provider_unavailable", "The server-side OpenRouter key is not configured. Use the configured default strategy.", 0, serverJevModel()),
     }));
     return { decisions, summary: summarize(decisions) };
   }

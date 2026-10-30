@@ -30,8 +30,6 @@ export type DraftRoutingPolicy = {
   defaultModelId: string;
   defaultOpenRouterModelId?: string;
   autoRouterCostTier: "low" | "medium" | "high" | "xhigh" | "max";
-  emergencyFallbackModelId: string;
-  emergencyFallbackOpenRouterModelId?: string;
   overrides: Record<string, DraftTaskOverride>;
   version: number;
   updatedAt: string;
@@ -51,7 +49,6 @@ export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingP
     defaultStrategyType: "fixed_model",
     defaultModelId: fallbackModelId,
     autoRouterCostTier: "medium",
-    emergencyFallbackModelId: fallbackModelId,
     overrides: {},
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -72,15 +69,13 @@ export function loadDraftRoutingPolicy(fallbackModelId: string, workspaceId = "d
 export function normalizeDraftRoutingPolicy(value: Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string }, fallbackModelId = ""): DraftRoutingPolicy {
   const initial = createDraftRoutingPolicy(value.fallbackModelId || fallbackModelId);
   return {
-    ...initial,
-    ...value,
     defaultStrategyType: value.defaultStrategyType === "openrouter_auto" ? "openrouter_auto" : "fixed_model",
     defaultModelId: value.defaultModelId || value.fallbackModelId || fallbackModelId,
     defaultOpenRouterModelId: value.defaultOpenRouterModelId || value.fallbackOpenRouterModelId,
     autoRouterCostTier: ["low", "medium", "high", "xhigh", "max"].includes(String(value.autoRouterCostTier)) ? value.autoRouterCostTier! : "medium",
-    emergencyFallbackModelId: value.emergencyFallbackModelId || value.fallbackModelId || fallbackModelId,
-    emergencyFallbackOpenRouterModelId: value.emergencyFallbackOpenRouterModelId || value.fallbackOpenRouterModelId,
     overrides: value.overrides ?? {},
+    version: Number.isFinite(value.version) ? value.version! : initial.version,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : initial.updatedAt,
   };
 }
 
@@ -121,8 +116,6 @@ export function isDraftRoutingPolicy(value: unknown): value is DraftRoutingPolic
     || typeof policy.defaultModelId !== "string"
     || (policy.defaultOpenRouterModelId !== undefined && typeof policy.defaultOpenRouterModelId !== "string")
     || !["low", "medium", "high", "xhigh", "max"].includes(String(policy.autoRouterCostTier))
-    || typeof policy.emergencyFallbackModelId !== "string"
-    || (policy.emergencyFallbackOpenRouterModelId !== undefined && typeof policy.emergencyFallbackOpenRouterModelId !== "string")
     || !isFiniteNumber(policy.version)
     || typeof policy.updatedAt !== "string"
     || !policy.overrides

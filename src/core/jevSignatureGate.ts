@@ -41,7 +41,7 @@ export function interpretJevSignatureChoice(
   const reason = isUnknown
     ? "Jev did not find a reliable match in the known signature catalog. Use the configured default strategy and review for new coverage."
     : lowConfidence
-      ? `Jev's ${(answer.confidence * 100).toFixed(1)}% confidence is below the ${(threshold * 100).toFixed(0)}% ${selected.risk_level}-risk routing threshold. Use the default strategy unless the request requires the high-risk emergency route.`
+      ? `Jev's ${(answer.confidence * 100).toFixed(1)}% confidence is below the ${(threshold * 100).toFixed(0)}% ${selected.risk_level}-risk routing threshold. Use the configured default strategy.`
       : `Jev cleared the ${(threshold * 100).toFixed(0)}% ${selected.risk_level}-risk threshold for ${selected.label}.`;
   return {
     provider: "jev", model, signature_id: selected?.id ?? JEV_UNKNOWN_SIGNATURE_ID, signature_label: signatureLabel,

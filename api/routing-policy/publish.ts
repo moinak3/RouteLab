@@ -54,9 +54,7 @@ export default async function handler(req: any, res: any) {
     const defaultOpenRouterModelId = current.draft.defaultStrategyType === "fixed_model"
       ? openRouterModelId(current.draft.defaultModelId, current.draft.defaultOpenRouterModelId)
       : "openrouter/auto";
-    const emergencyOpenRouterModelId = openRouterModelId(current.draft.emergencyFallbackModelId, current.draft.emergencyFallbackOpenRouterModelId);
     if (!defaultOpenRouterModelId) errors.push("The fixed default model does not have an OpenRouter runtime target.");
-    if (!emergencyOpenRouterModelId) errors.push("The emergency fallback model does not have an OpenRouter runtime target.");
     for (const override of Object.values(current.draft.overrides)) {
       if (!openRouterModelId(override.modelId, override.openRouterModelId)) errors.push(`${override.taskName} does not have an OpenRouter runtime target.`);
     }
@@ -83,7 +81,6 @@ export default async function handler(req: any, res: any) {
       defaultStrategy: current.draft.defaultStrategyType === "openrouter_auto"
         ? { type: "openrouter_auto", openRouterModelId: "openrouter/auto", costTier: current.draft.autoRouterCostTier }
         : { type: "fixed_model", target: { modelId: current.draft.defaultModelId, openRouterModelId: defaultOpenRouterModelId } },
-      emergencyFallback: { modelId: current.draft.emergencyFallbackModelId, openRouterModelId: emergencyOpenRouterModelId },
       signatures,
       overrides: Object.values(current.draft.overrides).map((override) => ({
         taskId: override.taskId,

@@ -244,9 +244,8 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     useEffect(() => {
         const changes: Partial<typeof draftPolicy> = {};
         if (!activeModels.some(model => model.id === draftPolicy.defaultModelId) && defaultFallbackModelId) changes.defaultModelId = defaultFallbackModelId;
-        if (!activeModels.some(model => model.id === draftPolicy.emergencyFallbackModelId) && defaultFallbackModelId) changes.emergencyFallbackModelId = defaultFallbackModelId;
         if (Object.keys(changes).length) setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, changes));
-    }, [activeModels, defaultFallbackModelId, draftPolicy.defaultModelId, draftPolicy.emergencyFallbackModelId]);
+    }, [activeModels, defaultFallbackModelId, draftPolicy.defaultModelId]);
     useEffect(() => { liveAbortRef.current?.abort(); liveAbortRef.current = null; setLiveDirect(null); setPendingLiveReplay(null); setLiveStatus({ state: "idle", message: "" }); }, [activeScopeKey]);
     const runDirect = async () => {
         const runScopeKey = activeScopeKey;
@@ -320,7 +319,19 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const isAutoRouter = candidate === "openrouter-auto";
     const autoNeedsLiveReplay = isAutoRouter && !liveDirect;
     const defaultModel = activeModels.find(model => model.id === draftPolicy.defaultModelId);
-    const emergencyFallbackModel = activeModels.find(model => model.id === draftPolicy.emergencyFallbackModelId);
+    const defaultStrategyValue = draftPolicy.defaultStrategyType === "openrouter_auto" ? "openrouter-auto" : draftPolicy.defaultModelId;
+    const setDefaultStrategy = (value: string) => {
+        if (value === "openrouter-auto") {
+            setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { defaultStrategyType: "openrouter_auto" }));
+            return;
+        }
+        const model = getModel(value);
+        setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, {
+            defaultStrategyType: "fixed_model",
+            defaultModelId: value,
+            defaultOpenRouterModelId: model?.pricing_source_model_id,
+        }));
+    };
     const setTaskOverride = (row: (typeof distinctTaskImpact)[number]) => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { overrides: { ...policy.overrides, [row.distinct_task_bucket_id]: { taskId: row.distinct_task_bucket_id, taskName: row.name, modelId: candidate, modelName: candidateName, openRouterModelId: getModel(candidate)?.pricing_source_model_id, provider: providerName, providerId, passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count, updatedAt: new Date().toISOString() } } }));
     const removeTaskOverride = (taskId: string) => setDraftPolicy(policy => { const overrides = { ...policy.overrides }; delete overrides[taskId]; return reviseDraftRoutingPolicy(policy, { overrides }); });
     const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Task Group" : `${distinctTaskBucketIds.length} selected Task Groups`;
@@ -382,12 +393,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 {liveReplayPending?<span>Waiting for completed candidate responses and eval scores.</span>:autoNeedsLiveReplay?<span>Actual quality, cost, latency, and selected models will be measured live.</span>:<><span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span><span>Candidate pass rate: {pct(simulation.summary.pass_rate * 100)}</span></>}{strategy === "family_cascade" && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
 <section className="panel routing-policy-builder">
 <div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Choose task overrides and configure the unmatched path</h2><p className="impact-explainer">Review the measured quality, cost, and latency for each Task Group, then decide whether to use the candidate model. Unselected tasks continue using the configured default strategy.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
-<div className="routing-policy-controls">
-<label><small>Default strategy</small><select value={draftPolicy.defaultStrategyType} onChange={event => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { defaultStrategyType: event.target.value as "fixed_model"|"openrouter_auto" }))}><option value="fixed_model">Specific model</option><option value="openrouter_auto">OpenRouter Auto Router</option></select><em>Used for unmatched, low-confidence, and tasks without a selected override.</em></label>
-{draftPolicy.defaultStrategyType==="fixed_model"?<label><small>Default model</small><select value={draftPolicy.defaultModelId} onChange={event => { const model = getModel(event.target.value); setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { defaultModelId: event.target.value, defaultOpenRouterModelId: model?.pricing_source_model_id })); }}><ModelOptions models={activeModels}/></select><em>Predictable fixed-model behavior for the everyday default path.</em></label>:<label><small>Auto Router policy</small><input value="openrouter/auto" readOnly/><em>OpenRouter chooses per request; simulations must measure its actual selections.</em></label>}
-<label><small>Emergency fallback model</small><select value={draftPolicy.emergencyFallbackModelId} onChange={event => { const model = getModel(event.target.value); setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { emergencyFallbackModelId: event.target.value, emergencyFallbackOpenRouterModelId: model?.pricing_source_model_id })); }}><ModelOptions models={activeModels}/></select><em>Configured model for classifier failure, invalid routes, or constrained high-risk work.</em></label>
-</div>
-<div className="policy-flow"><div><small>Matched task override</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Measured in simulation and explicitly chosen by you</span></div><i>else</i><div><small>Everyday default</small><b>{draftPolicy.defaultStrategyType==="openrouter_auto"?"OpenRouter Auto Router":defaultModel?.display_name??"Select a model"}</b><span>Unknown, low-confidence, and uncovered tasks</span></div><i>failure</i><div><small>Emergency fallback</small><b>{emergencyFallbackModel?.display_name??"Select a model"}</b><span>Classifier failure and constrained high-risk work</span></div></div>
+<div className="policy-flow"><div><small>Matched task override</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Use the model explicitly chosen for that Task Group</span></div><i>else</i><label className="policy-default-route"><small>Default strategy</small><select aria-label="Default strategy" value={defaultStrategyValue} onChange={event => setDefaultStrategy(event.target.value)}><option value="openrouter-auto">OpenRouter Auto Router</option><ModelOptions models={activeModels}/></select><b>{draftPolicy.defaultStrategyType==="openrouter_auto"?"OpenRouter Auto Router":defaultModel?.display_name??"Select a model"}</b><span>Used for every request without a matched task override</span></label></div>
 {Object.values(draftPolicy.overrides).length > 0 && <div className="policy-overrides"><h3>Current task overrides</h3>{Object.values(draftPolicy.overrides).map(override => <article key={override.taskId}><div><small>{override.taskName}</small><b>{override.modelName}{override.provider ? ` via ${override.provider}` : ""}</b></div><p>{pct(override.passRate * 100)} pass · {changeLabel(override.costDeltaPct)} cost · {changeLabel(override.latencyDeltaPct)} latency · {override.replayCount} traces</p><button type="button" onClick={() => removeTaskOverride(override.taskId)}>Remove override</button></article>)}</div>}
 <RoutingPolicyPublisher
   workspaceId={workspaceId}

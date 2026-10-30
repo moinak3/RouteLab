@@ -94,7 +94,7 @@ describe("analysis and risk inference", () => {
   });
   it("imports a browser draft only when cloud storage has no draft", () => {
     const local = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { defaultModelId: "deepseek-r1" });
-    const cloud = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { emergencyFallbackModelId: "claude-opus-4.8" });
+    const cloud = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { defaultModelId: "claude-opus-4.8" });
     expect(initialDraftSync(local, null)).toEqual({ draft: local, shouldImportLocal: true });
     expect(initialDraftSync(local, cloud)).toEqual({ draft: cloud, shouldImportLocal: false });
   });

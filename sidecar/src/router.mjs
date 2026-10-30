@@ -64,7 +64,7 @@ const failedDecision = (status, reason, latencyMs = 0) => ({
 });
 
 export async function classifyConversation({ request, bundle, apiKey, fetchImpl = fetch }) {
-  if (!apiKey) return failedDecision("provider_unavailable", "OPENROUTER_API_KEY is not configured; classifier failure requires the emergency fallback.");
+  if (!apiKey) return failedDecision("provider_unavailable", "OPENROUTER_API_KEY is not configured; using the configured default strategy.");
   const started = Date.now();
   const controller = new AbortController();
   const timeoutMs = Math.max(250, Math.min(10_000, Number(bundle.classifier.timeoutMs) || 1_500));
@@ -110,34 +110,29 @@ export async function classifyConversation({ request, bundle, apiKey, fetchImpl 
       reason: isUnknown
         ? "No published trace bucket matched reliably; using the configured default strategy."
         : lowConfidence
-          ? `Classification confidence ${confidence.toFixed(3)} is below the ${threshold.toFixed(3)} ${signature.riskLevel}-risk threshold; using the configured default strategy unless the task requires the high-risk emergency route.`
+          ? `Classification confidence ${confidence.toFixed(3)} is below the ${threshold.toFixed(3)} ${signature.riskLevel}-risk threshold; using the configured default strategy.`
           : `Matched ${signature.label} above its ${threshold.toFixed(3)} routing threshold.`,
     };
   } catch (error) {
     const timeout = error instanceof Error && error.name === "AbortError";
-    return failedDecision(timeout ? "timeout" : "error", `${timeout ? `Classification exceeded ${timeoutMs}ms` : error instanceof Error ? error.message : "Classification failed"}; using the emergency fallback.`, Date.now() - started);
+    return failedDecision(timeout ? "timeout" : "error", `${timeout ? `Classification exceeded ${timeoutMs}ms` : error instanceof Error ? error.message : "Classification failed"}; using the configured default strategy.`, Date.now() - started);
   } finally {
     clearTimeout(timer);
   }
 }
 
 export function selectRoute(bundle, decision) {
-  const signature = bundle.signatures.find((item) => item.id === decision.signatureId);
   const override = decision.status === "matched"
     ? bundle.overrides.find((item) => item.taskId === decision.signatureId)
     : undefined;
-  const classifierFailed = ["provider_unavailable", "timeout", "error"].includes(decision.status);
-  const constrainedHighRisk = decision.status === "low_confidence" && signature?.riskLevel === "high";
-  const emergency = classifierFailed || constrainedHighRisk;
   const legacyFallback = bundle.fallback;
   const defaultStrategy = bundle.defaultStrategy ?? (legacyFallback ? { type: "fixed_model", target: legacyFallback } : undefined);
-  const emergencyFallback = bundle.emergencyFallback ?? legacyFallback;
   const defaultTarget = defaultStrategy?.type === "openrouter_auto"
     ? { modelId: "openrouter-auto", openRouterModelId: defaultStrategy.openRouterModelId }
     : defaultStrategy?.target;
-  const target = override ?? (emergency ? emergencyFallback : defaultTarget);
+  const target = override ?? defaultTarget;
   if (!target) throw new Error("The policy has no usable route target.");
-  const source = override ? "task_override" : emergency ? "emergency_fallback" : "default_strategy";
+  const source = override ? "task_override" : "default_strategy";
   const openRouterModelId = String(target.openRouterModelId ?? target.modelId).replace(/^openrouter:/, "");
   return {
     source,
@@ -152,9 +147,7 @@ export function selectRoute(bundle, decision) {
     decision,
     reason: override
       ? `${decision.reason} Applying the published override for ${decision.signatureLabel}.`
-      : emergency
-        ? `${decision.reason} Applying the fixed emergency fallback.`
-        : `${decision.reason}${decision.status === "matched" ? " This bucket has no approved override." : ""} Applying the configured default strategy.`,
+      : `${decision.reason}${decision.status === "matched" ? " This bucket has no approved override." : ""} Applying the configured default strategy.`,
   };
 }
 

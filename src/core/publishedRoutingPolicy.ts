@@ -1,8 +1,8 @@
 import type { DraftRoutingPolicy } from "./routingDraft.js";
 import type { DistinctTask, Risk } from "../types.js";
 
-export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v3" as const;
-export const LEGACY_ROUTING_POLICY_SCHEMA_VERSIONS = ["routelab.policy.v1", "routelab.policy.v2"] as const;
+export const ROUTING_POLICY_SCHEMA_VERSION = "routelab.policy.v4" as const;
+export const LEGACY_ROUTING_POLICY_SCHEMA_VERSIONS = ["routelab.policy.v1", "routelab.policy.v2", "routelab.policy.v3"] as const;
 
 export type PublishedTaskSignature = {
   id: string;
@@ -40,6 +40,7 @@ export type RoutingPolicyBundle = {
     riskThresholds: Record<Risk, number>;
   };
   defaultStrategy?: PublishedDefaultStrategy;
+  /** Retained only so previously signed v3 bundles remain readable. */
   emergencyFallback?: PublishedModelTarget;
   fallback?: PublishedModelTarget;
   guardrails?: {
@@ -81,7 +82,6 @@ export type PublishedPolicySummary = {
   activatedAt: string | null;
   active: boolean;
   defaultStrategyLabel: string;
-  emergencyFallbackModelId: string;
   overrideCount: number;
   signatureCount: number;
   expiresAt: string;
@@ -105,7 +105,6 @@ export function stableStringify(value: unknown): string {
 export function validatePublishableDraft(draft: DraftRoutingPolicy, signatures: PublishedTaskSignature[]) {
   const errors: string[] = [];
   if (draft.defaultStrategyType === "fixed_model" && !draft.defaultModelId) errors.push("Select a fixed default model.");
-  if (!draft.emergencyFallbackModelId) errors.push("Select an emergency fallback model.");
   if (!signatures.length) errors.push("At least one known task signature is required.");
   const signatureIds = new Set(signatures.map((signature) => signature.id));
   if (signatureIds.size !== signatures.length) errors.push("Task signature IDs must be unique.");
@@ -151,8 +150,10 @@ export function isRoutingPolicyBundle(value: unknown): value is RoutingPolicyBun
   const supportedSchema = bundle.schemaVersion === ROUTING_POLICY_SCHEMA_VERSION || LEGACY_ROUTING_POLICY_SCHEMA_VERSIONS.includes(bundle.schemaVersion as any);
   const requireRuntimeTarget = bundle.schemaVersion !== "routelab.policy.v1";
   const routesValid = bundle.schemaVersion === ROUTING_POLICY_SCHEMA_VERSION
-    ? isPublishedDefaultStrategy(bundle.defaultStrategy) && isPublishedModelTarget(bundle.emergencyFallback, true)
-    : isPublishedModelTarget(bundle.fallback, requireRuntimeTarget);
+    ? isPublishedDefaultStrategy(bundle.defaultStrategy)
+    : bundle.schemaVersion === "routelab.policy.v3"
+      ? isPublishedDefaultStrategy(bundle.defaultStrategy) && isPublishedModelTarget(bundle.emergencyFallback, true)
+      : isPublishedModelTarget(bundle.fallback, requireRuntimeTarget);
   return supportedSchema
     && typeof bundle.workspaceId === "string"
     && typeof bundle.policyId === "string"

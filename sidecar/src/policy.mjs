@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 
 const subtle = globalThis.crypto?.subtle ?? webcrypto.subtle;
-const supportedSchemas = new Set(["routelab.policy.v1", "routelab.policy.v2", "routelab.policy.v3"]);
+const supportedSchemas = new Set(["routelab.policy.v1", "routelab.policy.v2", "routelab.policy.v3", "routelab.policy.v4"]);
 
 export function stableStringify(value) {
   if (value === undefined) return "null";
@@ -38,12 +38,12 @@ export function assertPolicyEnvelope(envelope) {
     throw new Error("The policy classifier configuration is invalid.");
   }
   const requireRuntimeTarget = bundle.schemaVersion !== "routelab.policy.v1";
-  if (bundle.schemaVersion === "routelab.policy.v3") {
+  if (bundle.schemaVersion === "routelab.policy.v3" || bundle.schemaVersion === "routelab.policy.v4") {
     if (bundle.defaultStrategy?.type === "fixed_model") assertModelTarget(bundle.defaultStrategy.target, "The fixed default route", true);
     else if (bundle.defaultStrategy?.type !== "openrouter_auto" || bundle.defaultStrategy.openRouterModelId !== "openrouter/auto") {
       throw new Error("The default routing strategy is invalid.");
     }
-    assertModelTarget(bundle.emergencyFallback, "The emergency fallback route", true);
+    if (bundle.schemaVersion === "routelab.policy.v3") assertModelTarget(bundle.emergencyFallback, "The emergency fallback route", true);
   } else {
     assertModelTarget(bundle.fallback, "The fallback route", requireRuntimeTarget);
   }

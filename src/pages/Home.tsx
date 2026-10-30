@@ -9,7 +9,7 @@ const whyNowShifts = [
 const trustPrinciples = [
   { title: "Evidence before override", text: "A task-specific route is chosen only after the team reviews its measured quality, latency, and cost tradeoffs." },
   { title: "Conservative unknowns", text: "Unknown and low-confidence requests stay on the general default model and are prioritized for review." },
-  { title: "Versioned decisions", text: "Published policies record the default, user-selected overrides, measured evidence, and a separate emergency route." },
+  { title: "Versioned decisions", text: "Published policies record the default, user-selected overrides, and the measured evidence behind each choice." },
   { title: "Customer-hosted enforcement", text: "The local runtime applies the approved policy per request. RouteLab Cloud is not in the inference path." },
 ];
 
@@ -251,7 +251,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           <figure className="home-preview-wide"><img src="/marketing/routing-simulations-current.jpg" alt="RouteLab Routing Simulations comparing current traffic and candidate replay" /><figcaption>Deterministic demo replay · illustrative results</figcaption></figure>
         </article>
         <article className="home-product-feature">
-          <div className="home-feature-copy"><span>03 · Deploy and review</span><h3>Version the policy, then inspect its gaps.</h3><p>Policies support explicit task overrides, a fixed model or OpenRouter Auto as the ordinary default, and a separate emergency model for applicable runtime failures. Signed versions can be deployed, reactivated, and exported.</p><p>The review queue surfaces unknowns and evidence gaps. Policy verification failures can make the runtime unavailable, so RouteLab does not promise that every failure returns a fallback completion.</p></div>
+          <div className="home-feature-copy"><span>03 · Deploy and review</span><h3>Version the policy, then inspect its gaps.</h3><p>Policies support explicit task overrides plus one default strategy: either a fixed model or OpenRouter Auto. Signed versions can be deployed, reactivated, and exported.</p><p>The review queue surfaces unknowns and evidence gaps. Requests without a confident matched override use the selected default strategy.</p></div>
           <div className="home-preview-pair"><figure><img src="/marketing/policy-history.jpg" alt="RouteLab policy version history with deployed and published versions" /><figcaption>Current policy lifecycle · signed versions</figcaption></figure><figure><img src="/marketing/review-queue.jpg" alt="RouteLab Review Queue showing stratified review lanes and a trace selected for review" /><figcaption>Bundled demo data · focused human review</figcaption></figure></div>
         </article>
       </section>

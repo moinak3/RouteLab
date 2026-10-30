@@ -9,7 +9,7 @@ import {
 } from "../src/router.mjs";
 
 const bundle = {
-  schemaVersion: "routelab.policy.v3",
+  schemaVersion: "routelab.policy.v4",
   workspaceId: "workspace_test",
   policyId: "policy_test",
   version: 4,
@@ -24,7 +24,6 @@ const bundle = {
     riskThresholds: { low: .8, medium: .86, high: .92 },
   },
   defaultStrategy: { type: "fixed_model", target: { modelId: "gpt-5.5-pro", openRouterModelId: "openai/gpt-5.5-pro" } },
-  emergencyFallback: { modelId: "claude-opus-4.8", openRouterModelId: "anthropic/claude-opus-4.8" },
   guardrails: { minimumPassRate: .9, maximumLatencyIncreasePct: 20, minimumReplayCount: 3 },
   signatures: [{
     id: "billing_dispute",
@@ -111,9 +110,9 @@ describe("RouteLab sidecar routing", () => {
     expect(selectRoute(bundle, decision)).toMatchObject({ source: "default_strategy", openRouterModelId: "openai/gpt-5.5-pro" });
   });
 
-  it("uses the emergency fallback if classification is unavailable", async () => {
+  it("uses the configured default strategy if classification is unavailable", async () => {
     const route = await routeConversation({ request, bundle, apiKey: "" });
-    expect(route).toMatchObject({ source: "emergency_fallback", openRouterModelId: "anthropic/claude-opus-4.8" });
+    expect(route).toMatchObject({ source: "default_strategy", openRouterModelId: "openai/gpt-5.5-pro" });
     expect(route.decision.status).toBe("provider_unavailable");
   });
 

@@ -320,7 +320,7 @@ body:before{
 .shell>main>header h1{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:34px;font-weight:600;letter-spacing:-.025em}
 .shell>main :is(h1,h2,h3,h4){text-wrap:balance}
 .shell>main :is(h2,h3,h4){color:var(--dossier-ink)}
-.shell>main :is(.panel,.stat,.cluster-card,.trend-chart,.sim-builder,.scenario-results,.task-impact-wrap,.routing-policy-controls>label,.routing-policy-controls>div,.policy-flow>div,.policy-overrides article){
+.shell>main :is(.panel,.stat,.cluster-card,.trend-chart,.sim-builder,.scenario-results,.task-impact-wrap,.routing-policy-controls>label,.routing-policy-controls>div,.policy-flow>div,.policy-flow>.policy-default-route,.policy-overrides article){
   border-color:var(--dossier-rule);
   border-radius:2px;
   background:rgba(251,248,240,.8);
