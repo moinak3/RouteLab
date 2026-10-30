@@ -25,7 +25,15 @@ export type ClassifierValidationReport = {
   coverage: number;
   abstention: number;
   unknownFalseAcceptance: number;
-  perSignature: Array<{ signatureId: string; label: string; precision: number; recall: number; support: number }>;
+  perSignature: Array<{
+    signatureId: string;
+    label: string;
+    precision: number;
+    recall: number;
+    support: number;
+    correctAcceptedCount: number;
+    acceptedPredictionCount: number;
+  }>;
   labels: string[];
   confusion: Record<string, Record<string, number>>;
   errors: ClassifierValidationExample[];
@@ -109,6 +117,8 @@ export function buildClassifierValidationReport(
       precision: divide(truePositive, predicted.length),
       recall: divide(truePositive, actual.length),
       support: actual.length,
+      correctAcceptedCount: truePositive,
+      acceptedPredictionCount: predicted.length,
     };
   });
   return {

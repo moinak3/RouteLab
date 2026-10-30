@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type FocusEvent, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { buildClassifierValidationReport, classifierValidationReadiness, createDemoClassifierValidationExamples } from "../core/classifierValidation";
 import { loadDraftRoutingPolicy } from "../core/routingDraft";
 import { fetchPublishedPolicyHistory, fetchRoutingPolicyDraft } from "../core/routingPolicyPersistence";
@@ -8,6 +9,62 @@ import { pct } from "../lib/format";
 const shortLabel = (value: string) => value === "unknown" || value === "abstain"
   ? value
   : value.split("_").slice(0, 2).join(" ");
+
+function countLabel(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function HoverExplanation({ children, explanation, className = "" }: {
+  children: ReactNode;
+  explanation: string;
+  className?: string;
+}) {
+  const tooltipId = useId();
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const show = (event: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = Math.min(360, window.innerWidth - 24);
+    setPosition({
+      left: Math.min(Math.max(12, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 12),
+      top: Math.min(rect.bottom + 10, window.innerHeight - 190),
+    });
+  };
+  return <span
+    className={`classifier-explainable ${className}`.trim()}
+    tabIndex={0}
+    aria-describedby={position ? tooltipId : undefined}
+    onMouseEnter={show}
+    onMouseLeave={() => setPosition(null)}
+    onFocus={show}
+    onBlur={() => setPosition(null)}
+    onClick={show}
+    onKeyDown={(event) => { if (event.key === "Escape") setPosition(null); }}
+  >
+    {children}
+    {position && createPortal(<span id={tooltipId} role="tooltip" className="classifier-explanation-tooltip" style={position}>{explanation}</span>, document.body)}
+  </span>;
+}
+
+function matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, isCorrect }: {
+  actualLabel: string;
+  predictedLabel: string;
+  count: number;
+  reviewedCount: number;
+  isCorrect: boolean;
+}) {
+  if (predictedLabel === "abstain") {
+    return count === 0
+      ? `None of the ${countLabel(reviewedCount, "example")} reviewed as “${actualLabel}” fell below Jev's confidence threshold.`
+      : `Reviewers labeled ${countLabel(reviewedCount, "example")} as “${actualLabel}.” ${countLabel(count, "example")} did not clear Jev's confidence threshold, so RouteLab sent ${count === 1 ? "it" : "them"} to the default or review path.`;
+  }
+  if (count === 0) {
+    return `No examples reviewed as “${actualLabel}” were classified by Jev as “${predictedLabel}” after the confidence gate.`;
+  }
+  if (isCorrect) {
+    return `Reviewers labeled ${countLabel(reviewedCount, "example")} as “${actualLabel}.” Jev also classified ${countLabel(count, "example")} as “${predictedLabel},” so ${count === 1 ? "this is" : "these are"} correct accepted ${count === 1 ? "match" : "matches"}.`;
+  }
+  return `Reviewers labeled ${countLabel(count, "example")} as “${actualLabel},” but Jev classified ${count === 1 ? "it" : "them"} as “${predictedLabel}” after the confidence gate. ${count === 1 ? "This is an accepted misclassification" : "These are accepted misclassifications"}.`;
+}
 
 type PersonalValidationEvidence = {
   state: "loading" | "ready" | "unavailable";
@@ -108,11 +165,29 @@ function DemoClassifierValidation({ signatures }: { signatures: KnownTaskSignatu
     </section>
     <section className="panel classifier-signature-table">
       <div className="panelhead"><div><p className="eyebrow">Per-signature performance</p><h2>Precision and recall</h2></div><span>{report.metadata.testSplit}</span></div>
-      <div className="tablewrap"><table><thead><tr><th>Signature</th><th>Precision</th><th>Recall</th><th>Reviewed support</th></tr></thead><tbody>{report.perSignature.map((row)=><tr key={row.signatureId}><td><b>{row.label}</b><small>{row.signatureId}</small></td><td>{pct(row.precision*100)}</td><td>{pct(row.recall*100)}</td><td>{row.support}</td></tr>)}</tbody></table></div>
+      <p className="classifier-interaction-hint">Hover, tap, or focus a metric to see the reviewed examples behind it.</p>
+      <div className="tablewrap"><table><thead><tr><th>Signature</th><th><HoverExplanation explanation="Precision asks: of everything Jev confidently classified as this task group, how many did human reviewers agree truly belonged here?">Precision</HoverExplanation></th><th><HoverExplanation explanation="Recall asks: of everything human reviewers labeled as this task group, how many did Jev correctly find and confidently accept?">Recall</HoverExplanation></th><th><HoverExplanation explanation="Reviewed support is the number of independently human-labeled examples available for this task group in the held-out test set.">Reviewed support</HoverExplanation></th></tr></thead><tbody>{report.perSignature.map((row)=>{
+        const precisionExplanation = row.acceptedPredictionCount
+          ? `Jev confidently predicted “${row.label}” ${row.acceptedPredictionCount} times. Reviewers agreed ${row.correctAcceptedCount} times. Precision = ${row.correctAcceptedCount} ÷ ${row.acceptedPredictionCount} = ${pct(row.precision*100)}.`
+          : `Jev did not confidently predict “${row.label}” for any reviewed example, so there are no accepted predictions from which to measure precision.`;
+        const recallExplanation = row.support
+          ? `Reviewers labeled ${countLabel(row.support, "example")} as “${row.label}.” Jev correctly found and accepted ${row.correctAcceptedCount}. Recall = ${row.correctAcceptedCount} ÷ ${row.support} = ${pct(row.recall*100)}.`
+          : `No held-out examples were reviewed as “${row.label},” so recall cannot yet be measured.`;
+        return <tr key={row.signatureId}><td><b>{row.label}</b><small>{row.signatureId}</small></td><td><HoverExplanation className="classifier-metric-explainer" explanation={precisionExplanation}>{pct(row.precision*100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={recallExplanation}>{pct(row.recall*100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={`${countLabel(row.support, "held-out example")} ${row.support === 1 ? "was" : "were"} independently reviewed and labeled as “${row.label}.”`}>{row.support}</HoverExplanation></td></tr>;
+      })}</tbody></table></div>
     </section>
     <section className="panel classifier-confusion">
       <div className="panelhead"><div><p className="eyebrow">Error structure</p><h2>Confusion matrix</h2></div><span>Rows = reviewed · columns = gated prediction</span></div>
-      <div className="tablewrap"><table><thead><tr><th>Reviewed label</th>{meaningfulLabels.map((label)=><th title={labelNames.get(label)??label} key={label}>{shortLabel(label)}</th>)}</tr></thead><tbody>{meaningfulLabels.filter((label)=>label!=="abstain").map((actual)=><tr key={actual}><th title={labelNames.get(actual)??actual}>{labelNames.get(actual)??actual}</th>{meaningfulLabels.map((predicted)=><td className={actual===predicted?"correct":report.confusion[actual]?.[predicted]?"error":""} key={predicted}>{report.confusion[actual]?.[predicted]??0}</td>)}</tr>)}</tbody></table></div>
+      <p className="classifier-interaction-hint">Each box compares a human-reviewed label with Jev's gated classification. Hover, tap, or focus any number for a plain-language explanation.</p>
+      <div className="tablewrap"><table><thead><tr><th>Reviewed label</th>{meaningfulLabels.map((label)=><th title={labelNames.get(label)??label} key={label}>{shortLabel(label)}</th>)}</tr></thead><tbody>{meaningfulLabels.filter((label)=>label!=="abstain").map((actual)=>{
+        const actualLabel = labelNames.get(actual) ?? actual;
+        const reviewedCount = Object.values(report.confusion[actual] ?? {}).reduce((sum, value) => sum + value, 0);
+        return <tr key={actual}><th title={actualLabel}>{actualLabel}</th>{meaningfulLabels.map((predicted)=>{
+          const count = report.confusion[actual]?.[predicted] ?? 0;
+          const predictedLabel = labelNames.get(predicted) ?? predicted;
+          return <td className={actual===predicted?"correct":count?"error":""} key={predicted}><HoverExplanation className="classifier-cell-explainer" explanation={matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, isCorrect: actual === predicted })}>{count}</HoverExplanation></td>;
+        })}</tr>;
+      })}</tbody></table></div>
     </section>
     <section className="panel classifier-error-examples">
       <div className="panelhead"><div><p className="eyebrow">Definition review</p><h2>Confusions and misses</h2></div><span>{report.errors.length} examples shown</span></div>

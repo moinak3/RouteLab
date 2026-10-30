@@ -18,6 +18,8 @@ describe("classifier validation", () => {
     expect(report.abstention).toBeCloseTo(1 - report.coverage);
     expect(report.unknownFalseAcceptance).toBeGreaterThan(0);
     expect(report.perSignature).toHaveLength(knownDistinctTaskSignatures.length);
+    expect(report.perSignature.every((row) => row.correctAcceptedCount <= row.acceptedPredictionCount)).toBe(true);
+    expect(report.perSignature.every((row) => row.correctAcceptedCount <= row.support)).toBe(true);
     expect(report.confusion.unknown).toBeDefined();
     expect(report.errors.length).toBeGreaterThan(0);
     expect(examples.every((example) => example.usesOnlyPreInferenceInformation)).toBe(true);

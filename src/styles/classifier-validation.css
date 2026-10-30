@@ -73,6 +73,53 @@
 .classifier-confusion .tablewrap{
   scrollbar-gutter:stable;
 }
+.classifier-interaction-hint{
+  margin:0 0 12px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+.classifier-explainable{
+  display:inline-flex;
+  align-items:center;
+  border-bottom:1px dotted currentColor;
+  cursor:help;
+  outline:none;
+}
+.classifier-explainable:focus-visible{
+  border-radius:3px;
+  box-shadow:0 0 0 2px rgba(88,240,132,.45);
+}
+.classifier-metric-explainer{
+  min-width:44px;
+}
+.classifier-confusion td{
+  padding:0;
+}
+.classifier-cell-explainer{
+  display:grid;
+  place-items:center;
+  width:100%;
+  min-height:46px;
+  padding:10px;
+  border-bottom:0;
+}
+.classifier-explanation-tooltip{
+  position:fixed;
+  z-index:2147483647;
+  width:360px;
+  max-width:calc(100vw - 24px);
+  padding:12px 14px;
+  border:1px solid rgba(88,240,132,.34);
+  border-radius:8px;
+  background:#07120e;
+  color:#f4faf6;
+  font:500 13px/1.5 var(--font-sans);
+  letter-spacing:0;
+  text-transform:none;
+  box-shadow:0 18px 42px rgba(0,0,0,.35);
+  pointer-events:none;
+}
 
 @media(max-width:1200px){
   .classifier-validation-meta,
