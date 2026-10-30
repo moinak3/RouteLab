@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   configureNewTraceEvaluation,
   evalRunBatches,
+  historicalEvalRunCoversPopulation,
   loadEvalAutomationPolicies,
   loadEvalRunHistory,
   mergeEvalResults,
   monthlyEvalHistory,
   removeEvalLifecycleState,
   saveEvalRunRecord,
+  type EvalRunRecord,
 } from "../src/core/evalLifecycle";
 import { evaluateTraceWithDefinition } from "../src/server/evalRuns";
 import type { Trace, TraceJudgeResult } from "../src/types";
@@ -77,6 +79,26 @@ describe("eval lifecycle", () => {
     expect(population[0].id).toBe("trace_000");
     expect(population.at(-1)?.id).toBe("trace_099");
     expect(new Set(population.map((item) => item.id)).size).toBe(100);
+  });
+
+  it("does not treat an old 25-trace sample as a complete 300-trace historical test", () => {
+    const sampledRun: EvalRunRecord = {
+      id: "run_sampled",
+      evalId: "personal_agent_eval",
+      evalName: "Personal agent eval",
+      evalVersion: 1,
+      mode: "historical_test",
+      status: "completed",
+      traceCount: 25,
+      passed: 20,
+      failed: 5,
+      averageScore: .8,
+      startedAt: "2026-10-29T12:00:00.000Z",
+      completedAt: "2026-10-29T12:01:00.000Z",
+    };
+
+    expect(historicalEvalRunCoversPopulation(sampledRun, 300)).toBe(false);
+    expect(historicalEvalRunCoversPopulation({ ...sampledRun, attemptedCount: 300 }, 300)).toBe(true);
   });
 
   it("starts continuous evaluation after the current trace population", () => {

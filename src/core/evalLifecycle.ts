@@ -20,6 +20,7 @@ export type EvalRunRecord = {
   evalVersion: number;
   mode: EvalRunMode;
   status: "completed" | "failed";
+  attemptedCount?: number;
   traceCount: number;
   passed: number;
   failed: number;
@@ -155,6 +156,12 @@ export function saveEvalRunRecord(workspaceId: string, run: EvalRunRecord) {
     // Run history remains available for the current response even if storage is unavailable.
   }
   return runs;
+}
+
+export function historicalEvalRunCoversPopulation(run: EvalRunRecord | undefined, totalTraces: number) {
+  if (!run || run.mode !== "historical_test" || run.status !== "completed") return false;
+  const attemptedCount = run.attemptedCount ?? run.traceCount;
+  return attemptedCount >= totalTraces;
 }
 
 export function removeEvalLifecycleState(workspaceId: string, evalId: string) {

@@ -16,6 +16,7 @@ import {
 import {
   configureNewTraceEvaluation,
   evalRunBatches,
+  historicalEvalRunCoversPopulation,
   loadEvalAutomationPolicies,
   loadEvalRunHistory,
   monthlyEvalHistory,
@@ -135,6 +136,7 @@ export function Evals({
   const [automationPolicies,setAutomationPolicies]=useState<EvalAutomationPolicy[]>(() => loadEvalAutomationPolicies(workspaceId));
   const [runHistory,setRunHistory]=useState<EvalRunRecord[]>(() => loadEvalRunHistory(workspaceId));
   const [historicalRunState,setHistoricalRunState]=useState<"idle"|"running">("idle");
+  const [historicalRunProgress,setHistoricalRunProgress]=useState({processed:0,scored:0,total:0});
   const [lifecycleMessage,setLifecycleMessage]=useState<string|null>(null);
   const [deleteConfirmEvalId,setDeleteConfirmEvalId]=useState<string|null>(null);
   const automationPolicy=activeEvalDefinition ? automationPolicies.find((policy)=>policy.evalId===activeEvalDefinition.id) : undefined;
@@ -156,6 +158,8 @@ export function Evals({
   useEffect(()=>{
     setAutomationPolicies(loadEvalAutomationPolicies(workspaceId));
     setRunHistory(loadEvalRunHistory(workspaceId));
+    setHistoricalRunState("idle");
+    setHistoricalRunProgress({processed:0,scored:0,total:0});
     setLifecycleMessage(null);
   },[workspaceId]);
   useEffect(()=>{
@@ -314,7 +318,9 @@ export function Evals({
     const startedAt=new Date().toISOString();
     const allResults: TraceJudgeResult[]=[];
     const allErrors: Array<{traceId:string;error:string}>=[];
+    let processedCount=0;
     setHistoricalRunState("running");
+    setHistoricalRunProgress({processed:0,scored:0,total:traces.length});
     setLifecycleMessage(`Running version ${activeVersion.version} on all ${traces.length.toLocaleString()} historical traces…`);
     try {
       for(let index=0;index<batches.length;index+=1){
@@ -328,7 +334,9 @@ export function Evals({
         allResults.push(...response.results);
         allErrors.push(...response.errors);
         onEvalResults(response.results);
-        setLifecycleMessage(`Testing all historical traces · ${allResults.length.toLocaleString()} of ${traces.length.toLocaleString()} scored…`);
+        processedCount+=batches[index].length;
+        setHistoricalRunProgress({processed:processedCount,scored:allResults.length,total:traces.length});
+        setLifecycleMessage(`Testing all historical traces · ${processedCount.toLocaleString()} of ${traces.length.toLocaleString()} processed · ${allResults.length.toLocaleString()} scored${allErrors.length?` · ${allErrors.length.toLocaleString()} failed`:""}…`);
       }
       const passed=allResults.filter((result)=>result.passed).length;
       const completedAt=new Date().toISOString();
@@ -339,6 +347,7 @@ export function Evals({
         evalVersion:activeVersion.version,
         mode:"historical_test",
         status:"completed",
+        attemptedCount:traces.length,
         traceCount:allResults.length,
         passed,
         failed:allResults.length-passed,
@@ -348,9 +357,31 @@ export function Evals({
       };
       const runs=saveEvalRunRecord(workspaceId,run);
       setRunHistory(runs);
+      setHistoricalRunProgress({processed:traces.length,scored:allResults.length,total:traces.length});
       setLifecycleMessage(`${allResults.length.toLocaleString()} of ${traces.length.toLocaleString()} historical traces scored · ${passed.toLocaleString()} passed${allErrors.length?` · ${allErrors.length} could not be scored`:""}`);
     } catch(error) {
-      setLifecycleMessage(error instanceof Error?error.message:"Historical eval test failed.");
+      const message=error instanceof Error?error.message:"Historical eval test failed.";
+      const completedAt=new Date().toISOString();
+      const passed=allResults.filter((result)=>result.passed).length;
+      const failedRun: EvalRunRecord={
+        id:`evalrun_failed_${Date.now().toString(36)}`,
+        evalId:definition.id,
+        evalName:definition.name,
+        evalVersion:activeVersion.version,
+        mode:"historical_test",
+        status:"failed",
+        attemptedCount:processedCount,
+        traceCount:allResults.length,
+        passed,
+        failed:allResults.length-passed,
+        averageScore:allResults.length?allResults.reduce((sum,result)=>sum+result.score,0)/allResults.length:0,
+        startedAt,
+        completedAt,
+        error:message,
+      };
+      setRunHistory(saveEvalRunRecord(workspaceId,failedRun));
+      setHistoricalRunProgress({processed:processedCount,scored:allResults.length,total:traces.length});
+      setLifecycleMessage(`Historical test stopped after ${processedCount.toLocaleString()} of ${traces.length.toLocaleString()} traces. ${message}`);
     } finally {
       setHistoricalRunState("idle");
     }
@@ -431,7 +462,23 @@ export function Evals({
 
   const detailEvalDefinition=evalDefinitions.find((definition)=>definition.id===detailEvalId)??activeEvalDefinition;
   const activeCoverage=traces.length?activeTraceJudgeResults.length/traces.length:0;
-  const hasHistoricalEvidence=Boolean(latestHistoricalRun||activeTraceJudgeResults.length);
+  const activeHistoricalNeedsRetry=workspace!=="demo"&&Boolean(
+    (latestHistoricalRun&&!historicalEvalRunCoversPopulation(latestHistoricalRun,traces.length))
+    ||(!latestHistoricalRun&&activeTraceJudgeResults.length),
+  );
+  const hasHistoricalEvidence=workspace==="demo"
+    ?Boolean(latestHistoricalRun||activeTraceJudgeResults.length)
+    :historicalEvalRunCoversPopulation(latestHistoricalRun,traces.length);
+  const activeHistoricalLifecycleStatus=historicalRunState==="running"
+    ?"Running"
+    :activeHistoricalNeedsRetry
+      ?"Needs retry"
+      :hasHistoricalEvidence?"Complete":"Not run";
+  const activeHistoricalLifecycleDetail=historicalRunState==="running"
+    ?`${historicalRunProgress.processed.toLocaleString()} of ${historicalRunProgress.total.toLocaleString()} processed · ${historicalRunProgress.scored.toLocaleString()} scored`
+    :activeHistoricalNeedsRetry
+      ?`${(latestHistoricalRun?.traceCount??activeTraceJudgeResults.length).toLocaleString()} of ${traces.length.toLocaleString()} scored before the run stopped`
+      :latestHistoricalRun?`${latestHistoricalRun.traceCount} traces · ${pct(latestHistoricalRun.averageScore*100)} average`:activeTraceJudgeResults.length?`${activeTraceJudgeResults.length.toLocaleString()} traces scored`:`All ${traces.length.toLocaleString()} available traces`;
 
   return (
     <>
@@ -478,11 +525,23 @@ export function Evals({
           {evalDefinitions.map((definition)=>{
             const definitionResults=traceJudgeResults.filter((result)=>result.eval_id===definition.id||(!result.eval_id&&result.evaluator_type.startsWith(definition.id)));
             const definitionRun=runHistory.find((run)=>run.evalId===definition.id);
+            const definitionHistoricalRun=runHistory.find((run)=>run.evalId===definition.id&&run.mode==="historical_test");
             const isCurrent=definition.id===activeEvalDefinition?.id;
             const isLive=isCurrent&&Boolean(automationPolicy?.runOnNewTraces);
-            const readiness=definition.status==="Disabled"?"Disabled":isLive?"Live":definitionResults.length?"Tested":definition.status==="Draft"?"Draft":"Needs test";
+            const isHistoricalRunning=isCurrent&&historicalRunState==="running";
+            const historicalTestComplete=workspace==="demo"
+              ?Boolean(definitionHistoricalRun||definitionResults.length)
+              :historicalEvalRunCoversPopulation(definitionHistoricalRun,traces.length);
+            const needsHistoricalRetry=isCurrent&&!isHistoricalRunning&&Boolean(
+              (definitionHistoricalRun&&!historicalTestComplete)||(!definitionHistoricalRun&&definitionResults.length),
+            );
+            const readiness=definition.status==="Disabled"?"Disabled":isHistoricalRunning?"Running":needsHistoricalRetry?"Needs retry":isLive?"Live":historicalTestComplete?"Tested":definitionResults.length?"Needs retry":definition.status==="Draft"?"Draft":"Needs test";
             const coverage=traces.length?definitionResults.length/traces.length:0;
-            const runLabel=definitionRun?new Date(definitionRun.completedAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):definitionResults.length?`${definitionResults.length.toLocaleString()} scored`:"Never";
+            const runLabel=isHistoricalRunning
+              ?`${historicalRunProgress.processed.toLocaleString()} / ${historicalRunProgress.total.toLocaleString()}`
+              :needsHistoricalRetry
+                ?`${(definitionHistoricalRun?.traceCount??definitionResults.length).toLocaleString()} / ${traces.length.toLocaleString()} before stop`
+                :definitionRun?new Date(definitionRun.completedAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):definitionResults.length?`${definitionResults.length.toLocaleString()} scored`:"Never";
             return <div className={`eval-library-row ${isCurrent?"current":""}`} role="row" key={definition.id}>
               <span role="cell"><button type="button" className="eval-name-button" onClick={()=>openDetails(definition)}><b>{definition.name}</b><small>{definition.evaluator_type}</small></button></span>
               <span role="cell">{definition.scope}</span>
@@ -491,7 +550,9 @@ export function Evals({
               <span role="cell">{pct(coverage*100)}</span>
               <span className="eval-next-action" role="cell">
                 {definition.status==="Disabled"?<button type="button" onClick={()=>openDetails(definition)}>View details</button>
-                  :isCurrent&&!hasHistoricalEvidence?<button type="button" className="primary" disabled={!supportsLiveRuns||!traces.length||historicalRunState==="running"} onClick={testHistoricalTraces}>{historicalRunState==="running"?`Testing ${traces.length.toLocaleString()} traces…`:"Test historical"}</button>
+                  :isHistoricalRunning?<button type="button" className="primary" disabled>{`Testing ${historicalRunProgress.processed.toLocaleString()} / ${historicalRunProgress.total.toLocaleString()}…`}</button>
+                  :needsHistoricalRetry?<button type="button" className="primary" disabled={!supportsLiveRuns||!traces.length} onClick={testHistoricalTraces}>Retry historical</button>
+                  :isCurrent&&!hasHistoricalEvidence?<button type="button" className="primary" disabled={!supportsLiveRuns||!traces.length} onClick={testHistoricalTraces}>Test historical</button>
                   :isCurrent&&!isLive?<button type="button" className="primary" disabled={!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(true)}>Run on new traces</button>
                   :isCurrent?<button type="button" onClick={()=>onReviewFilter("unusual")}>Review results</button>
                   :<button type="button" onClick={()=>openDetails(definition)}>View details</button>}
@@ -567,7 +628,7 @@ export function Evals({
           </section>
           {detailEvalDefinition.id===activeEvalDefinition?.id&&<section className="eval-detail-lifecycle" aria-label="Eval lifecycle status">
             <article><small>Definition</small><b>Created</b><span>Version {activeVersion?.version??1}</span></article>
-            <article><small>Historical test</small><b>{hasHistoricalEvidence?"Complete":"Not run"}</b><span>{latestHistoricalRun?`${latestHistoricalRun.traceCount} traces · ${pct(latestHistoricalRun.averageScore*100)} average`:activeTraceJudgeResults.length?`${activeTraceJudgeResults.length.toLocaleString()} traces scored`:`All ${traces.length.toLocaleString()} available traces`}</span></article>
+            <article><small>Historical test</small><b>{activeHistoricalLifecycleStatus}</b><span>{activeHistoricalLifecycleDetail}</span></article>
             <article><small>New traces</small><b>{automationPolicy?.runOnNewTraces?"On":"Off"}</b><span>{automationPolicy?.runOnNewTraces?"Scores newly ingested traces":"Enable after historical testing"}</span></article>
           </section>}
           <details className="eval-definition"><summary>Definition schema</summary><pre>{JSON.stringify(detailEvalDefinition,null,2)}</pre></details>

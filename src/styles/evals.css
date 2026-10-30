@@ -600,10 +600,16 @@
   color:#2d6b3b;
 }
 .eval-readiness-draft,
-.eval-readiness-needs-test{
+.eval-readiness-needs-test,
+.eval-readiness-needs-retry{
   border-color:#e4cf99;
   background:#fff6dc;
   color:#7c601c;
+}
+.eval-readiness-running{
+  border-color:#8eb4c7;
+  background:#e7f2f7;
+  color:#235b75;
 }
 .eval-readiness-disabled{
   border-color:#c4c9c5;
