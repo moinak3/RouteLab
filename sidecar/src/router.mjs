@@ -41,7 +41,7 @@ const title = (value) => String(value ?? "").replace(/_/g, " ");
 export function signatureCriteria(signatures, unknownSignatureId = "unknown") {
   const criteria = Object.fromEntries(signatures.map((signature) => {
     const task = signature.task
-      ? ` Taxonomy: task=${title(signature.task.task_type)}, domain=${title(signature.task.domain)}, complexity=${signature.task.complexity}, session=${title(signature.task.temporal_context)}, tool use=${title(signature.task.tool_use)}, grounding=${title(signature.task.grounding_requirement)}, output=${title(signature.task.output_format)}.`
+      ? ` Taxonomy: task=${title(signature.task.task_type)}, domain=${title(signature.task.domain)}, complexity=${signature.task.complexity}, session=${title(signature.task.temporal_context)}, tool use=${title(signature.task.tool_use)}, output=${title(signature.task.output_format)}.`
       : "";
     const examples = Array.isArray(signature.examples) && signature.examples.length
       ? ` Representative prompts: ${signature.examples.map((example) => JSON.stringify(example)).join("; ")}.`
@@ -84,7 +84,7 @@ export async function classifyConversation({ request, bundle, apiKey, fetchImpl 
         questions: {
           trace_bucket: {
             type: "choice",
-            instructions: "Map this incoming conversation to exactly one published RouteLab trace bucket. Consider the prompt, prior turns, available tools, requested output, grounding needs, and workflow state. Choose unknown when no bucket is a reliable match.",
+            instructions: "Map this incoming conversation to exactly one published RouteLab task group. Consider the requested outcome, prompt, prior turns, available tools, requested output, and workflow state. Choose unknown when no group is a reliable match.",
             criteria: signatureCriteria(bundle.signatures, bundle.classifier.unknownSignatureId),
           },
         },

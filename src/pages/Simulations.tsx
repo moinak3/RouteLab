@@ -406,7 +406,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
   signatures={distinctTaskBuckets.map((bucket) => ({
     id: bucket.bucket_id,
     label: bucket.bucket_name,
-    description: `${bucket.task.task_type} in ${bucket.task.domain}; ${bucket.task.complexity} complexity; ${bucket.task.grounding_requirement}; ${bucket.task.output_format} output`,
+    description: `${bucket.task.task_type} in ${bucket.task.domain}; ${bucket.task.complexity} complexity; ${bucket.task.output_format} output`,
     riskLevel: bucket.risk_level,
     task: bucket.task,
     examples: bucket.examples.map((example) => example.prompt_preview).filter(Boolean).slice(0, 3),

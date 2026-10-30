@@ -66,7 +66,7 @@ export function TaskSignatures({ traces, traceJudgeResults, workspaceId, serverG
       </div>
       <div className="task-signature-method-status">
         <b>{method === "rules" ? "RouteLab rules selected" : "LLM grouping selected"}</b>
-        <span>{method === "rules" ? "Task type, domain, complexity, conversation position, tool use, uncertainty, and output format define membership. Grounding is retained as an observed characteristic but does not split groups." : serverGatewayKey === undefined ? "Checking the OpenRouter connection…" : serverGatewayKey ? "OpenRouter is ready. Generation may take several minutes." : "OpenRouter must be configured before groups can be generated."}</span>
+        <span>{method === "rules" ? "Task type, domain, complexity, conversation position, tool use, uncertainty, and output format define membership." : serverGatewayKey === undefined ? "Checking the OpenRouter connection…" : serverGatewayKey ? "OpenRouter is ready. Generation may take several minutes." : "OpenRouter must be configured before groups can be generated."}</span>
       </div>
       {method === "rules" && rulesNotice && <p className="task-action-message" role="status">{rulesNotice}</p>}
     </section>

@@ -82,6 +82,7 @@ describe("RouteLab sidecar routing", () => {
     const criteria = signatureCriteria(bundle.signatures);
     expect(criteria.billing_dispute).toContain("domain=billing");
     expect(criteria.billing_dispute).toContain("Refund the duplicate invoice charge");
+    expect(criteria.billing_dispute).not.toContain("grounding=");
     expect(criteria.unknown).toContain("does not reliably match");
   });
 

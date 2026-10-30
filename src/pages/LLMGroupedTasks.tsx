@@ -215,7 +215,7 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
             <section><h4>Include when</h4>{selectedGroup.inclusionCriteria.map((item) => <p key={item}>{item}</p>)}</section>
             <section><h4>Exclude when</h4>{selectedGroup.exclusionCriteria.map((item) => <p key={item}>{item}</p>)}</section>
           </div>
-          <section className="llm-attribute-section"><h4>Task attributes</h4>{Object.entries(selectedGroup.attributes).map(([label, values]) => <div key={label}><span>{label.replace(/([A-Z])/g, " $1")}</span><p>{values.length ? values.join(" · ") : "Not specified"}</p></div>)}</section>
+          <section className="llm-attribute-section"><h4>Task attributes</h4>{Object.entries(selectedGroup.attributes).filter(([label]) => label !== "grounding").map(([label, values]) => <div key={label}><span>{label.replace(/([A-Z])/g, " $1")}</span><p>{values.length ? values.join(" · ") : "Not specified"}</p></div>)}</section>
           <section><h4>Suggested evaluation dimensions</h4><div className="llm-tags">{selectedGroup.suggestedEvaluationDimensions.map((item) => <span key={item}>{item}</span>)}</div></section>
           <section><h4>Routing relevance</h4><p>{selectedGroup.routingRationale}</p></section>
           <section><h4>Nearest groups</h4>{selectedGroup.nearestNeighbors.length ? selectedGroup.nearestNeighbors.map((neighbor) => <button type="button" className="llm-text-link" onClick={() => setSelectedGroupId(neighbor.groupId)} key={neighbor.groupId}><b>{groupById.get(neighbor.groupId)?.name ?? neighbor.groupId}</b><span>{neighbor.distinction}</span></button>) : <p>No confusing neighbor was identified.</p>}</section>
