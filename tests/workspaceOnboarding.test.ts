@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workspaceOnboardingState } from "../src/core/workspaceOnboarding";
+import { shouldShowWorkspaceOnboarding, workspaceOnboardingState } from "../src/core/workspaceOnboarding";
 
 const base = {
   traceCount: 0,
@@ -10,6 +10,13 @@ const base = {
 };
 
 describe("workspace onboarding", () => {
+  it("hides the wizard after the first policy becomes active", () => {
+    expect(shouldShowWorkspaceOnboarding(true, "ready", false)).toBe(true);
+    expect(shouldShowWorkspaceOnboarding(true, "loading", false)).toBe(false);
+    expect(shouldShowWorkspaceOnboarding(true, "ready", true)).toBe(false);
+    expect(shouldShowWorkspaceOnboarding(false, "ready", false)).toBe(false);
+  });
+
   it("marks trace import complete and advances to task-group generation", () => {
     const state = workspaceOnboardingState({ ...base, traceCount: 300 });
     expect(state.completedCount).toBe(1);

@@ -25,6 +25,14 @@ export type WorkspaceOnboardingState = {
   currentStep: WorkspaceOnboardingStep | null;
 };
 
+export function shouldShowWorkspaceOnboarding(
+  personalWorkspace: boolean,
+  policyState: "loading" | "ready" | "unavailable",
+  hasActivePolicy: boolean,
+) {
+  return personalWorkspace && policyState === "ready" && !hasActivePolicy;
+}
+
 export function workspaceOnboardingState(input: WorkspaceOnboardingInput): WorkspaceOnboardingState {
   const tracesComplete = input.traceCount > 0;
   const taskGroupsComplete = tracesComplete && input.taskGroupCount > 0;
