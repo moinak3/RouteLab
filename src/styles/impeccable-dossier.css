@@ -719,12 +719,12 @@ body:before{
 .shell>main .eval-modal .eval-version-list article small,
 .shell>main .eval-modal .eval-version-list article p>span{color:#9fb3a8}
 .shell>main .eval-modal .eval-version-list article>div>b{color:#58f084}
-.shell>main .eval-detail-modal :is(.eval-detail-section,.eval-detail-lifecycle article,.eval-detail-prompt){
+.shell>main .eval-detail-modal :is(.eval-detail-section,.eval-detail-lifecycle article,.eval-detail-prompt,.eval-detail-dimensions){
   border-color:#45534e;
   background:#1d272d;
 }
 .shell>main .eval-detail-modal :is(.eval-meta-grid small,.eval-detail-section .eyebrow,.eval-detail-lifecycle small,.eval-detail-prompt .eyebrow){color:#a9bbb2}
-.shell>main .eval-detail-modal :is(.eval-meta-grid b,.eval-detail-section h3,.eval-detail-lifecycle b,.eval-detail-prompt h3,.eval-definition summary){color:#f4faf6}
+.shell>main .eval-detail-modal :is(.eval-meta-grid b,.eval-detail-section h3,.eval-detail-lifecycle b,.eval-detail-prompt h3,.eval-detail-dimensions h3,.eval-definition summary){color:#f4faf6}
 .shell>main .eval-detail-modal .eval-generation-note{border-color:#45624f;background:#183024;color:#d9eadf}
 .shell>main .eval-detail-modal .eval-detail-lifecycle span{color:#c3d2cb}
 .shell>main .eval-detail-modal .eval-definition summary::after{border-color:#52615b;color:#c3d2cb}

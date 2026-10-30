@@ -413,6 +413,12 @@
   text-transform:uppercase;
   letter-spacing:.06em;
 }
+.eval-detail-dimensions{
+  padding:16px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;
+  background:rgba(255,255,255,.04);
+}
 .eval-definition summary{
   cursor:pointer;
   color:#fff;
