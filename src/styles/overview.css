@@ -137,24 +137,17 @@
   color:#ffad9d;
 }
 
-.overview-policy-facts{
+.overview-policy-summary{
   display:grid;
-  grid-template-columns:1.35fr .8fr .8fr;
-  gap:10px;
-}
-
-.overview-policy-facts>div{
-  display:grid;
-  align-content:start;
-  gap:7px;
+  gap:8px;
   min-width:0;
-  padding:15px;
+  padding:17px 18px;
   border:1px solid var(--line);
   border-radius:8px;
   background:linear-gradient(145deg,rgba(88,240,132,.06),rgba(255,255,255,.025));
 }
 
-.overview-policy-facts small,
+.overview-policy-summary small,
 .overview-kpis small{
   color:#92a59c;
   font-size:12px;
@@ -162,14 +155,16 @@
   text-transform:uppercase;
 }
 
-.overview-policy-facts strong{
-  min-width:0;
+.overview-policy-summary p{
+  max-width:980px;
+  margin:0;
   color:#f3f8f5;
   font-size:17px;
-  overflow-wrap:anywhere;
+  font-weight:650;
+  line-height:1.5;
 }
 
-.overview-policy-facts span,
+.overview-policy-summary span,
 .overview-kpis p{
   margin:0;
   color:#91a49b;
@@ -390,10 +385,6 @@
 }
 
 @media(max-width:1400px){
-  .overview-policy-facts{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-
   .overview-kpis{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
@@ -422,7 +413,6 @@
 }
 
 @media(max-width:650px){
-  .overview-policy-facts,
   .overview-kpis{
     grid-template-columns:1fr;
   }
