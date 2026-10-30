@@ -722,6 +722,14 @@ body:before{
 .shell>main .sort-header i{color:#526075}
 .shell>main .sort-header.active,
 .shell>main .sort-header.active i{color:#216437}
+.shell>main .task-table .sort-header,
+.shell>main .task-table .sort-header:hover,
+.shell>main .task-table .sort-header:focus-visible{
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
 .shell>main .task-row td:first-child small{color:#526075}
 .shell>main .eval-current-state>span:first-child{color:#526075}
 .shell>main .calibration-answer-pair>div{border-color:var(--dossier-rule);background:#f1eee5}
