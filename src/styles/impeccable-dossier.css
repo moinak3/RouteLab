@@ -601,8 +601,11 @@ body:before{
 .shell>main .model-catalog-page .benchmark-score a{color:var(--dossier-blue)}
 .shell>main .risk.low{border-color:#84bd8c;background:#e5f2e5;color:#2e7140}.shell>main .risk.medium{border-color:#d4b56d;background:#f6edd2;color:#7a5c17}.shell>main .risk.high{border-color:#d99686;background:#f4dfda;color:#9e3929}
 .shell>main .drawer-layer{background:rgba(17,27,51,.4)}
-.shell>main .trace-drawer,.trace-drawer{background:var(--dossier-paper);color:var(--dossier-ink);box-shadow:-12px 0 0 rgba(17,27,51,.2)}
-.drawer-head{background:var(--dossier-ink);color:#fff}.drawer-head h2{color:#fff}.drawer-section,.drawer-facts div{border-color:var(--dossier-rule);border-radius:1px;background:var(--dossier-sheet)}
+.shell>main .trace-drawer,.trace-drawer{background:var(--dossier-paper);color:var(--dossier-ink);box-shadow:-12px 0 0 rgba(17,27,51,.2);font-size:13px;line-height:1.45}
+.drawer-head{background:var(--dossier-ink);color:#fff}.drawer-head h2{color:#fff;font-size:18px;line-height:1.25}.drawer-head span{font-size:12px;line-height:1.45}.drawer-section,.drawer-facts div{border-color:var(--dossier-rule);border-radius:1px;background:var(--dossier-sheet)}
+.trace-drawer .drawer-facts b,.trace-drawer .workflow-path b,.trace-drawer .workflow-filter-link,.trace-drawer .message,.trace-drawer .message span,.trace-drawer .drawer-section pre,.trace-drawer .signature-decision p,.trace-drawer .signature-decision>small,.trace-drawer .signature-decision-metrics b{font-size:13px;line-height:1.45}
+.trace-drawer .signature-decision-head h3{font-size:14px;line-height:1.25}
+.trace-drawer .drawer-facts small,.trace-drawer .drawer-section .eyebrow,.trace-drawer .workflow-path small,.trace-drawer .message b,.trace-drawer .signature-decision-metrics small,.trace-drawer .signature-decision-head>span{font-size:12px;line-height:1.3}
 .trace-drawer .drawer-facts b,.trace-drawer .workflow-path b,.trace-drawer .message b{color:var(--dossier-ink)}
 .trace-drawer .drawer-facts small,.trace-drawer .workflow-path small{color:#526075}
 .trace-drawer .workflow-filter-link{color:#216437}
