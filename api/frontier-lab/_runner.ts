@@ -104,6 +104,7 @@ export async function runFrontierProvider(request: FrontierRunRequest, signal?: 
   const evalCase = frontierEvalCases.find((item) => item.id === request.caseId);
   if (!evalCase) throw new Error("Unknown Frontier Model Lab case.");
   if (!request.model.runtimeModelId.trim()) throw new Error(`${request.model.displayName} needs a current runtime model ID.`);
+  if (/^typesafe\/jev-/i.test(request.model.runtimeModelId)) throw new Error("Jev uses OpenRouter's Decisions API and cannot generate answers for the agent-workload benchmark.");
   if (!request.apiKey.trim()) throw new Error("An OpenRouter API key is required for live Frontier Model Lab runs.");
 
   const systemPrompt = frontierHarnesses[request.harnessId].systemPrompt;

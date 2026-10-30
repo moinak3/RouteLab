@@ -3,6 +3,7 @@ import { NewWorkspaceOverview } from "./components/NewWorkspaceOverview";
 import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
+import { requiredOpenRouterModels, withRequiredOpenRouterModels } from "./core/openRouterModels";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
@@ -148,7 +149,10 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
-  const simulationModels = useMemo(() => [...(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id), OPENROUTER_AUTO_MODEL], [openRouterModels, activeModels]);
+  const simulationModels = useMemo(() => [
+    ...withRequiredOpenRouterModels(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id),
+    OPENROUTER_AUTO_MODEL,
+  ], [openRouterModels, activeModels]);
   const simulationModelIds = useMemo(() => simulationModels.map((model) => model.id), [simulationModels]);
   const metrics = useMemo(() => dashboardMetrics(traces), [traces]);
   const workflows = useMemo(() => buildWorkflowTrees(traces), [traces]);
@@ -362,6 +366,7 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...requiredOpenRouterModels]);
     fetch("/api/openrouter/models")
       .then(async response => {
         const payload = await response.json().catch(() => ({})) as { models?: Model[]; error?: unknown };
@@ -370,8 +375,9 @@ export default function App() {
       })
       .then(models => {
         if (cancelled) return;
-        registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...models]);
-        setOpenRouterModels(models);
+        const availableModels = withRequiredOpenRouterModels(models);
+        registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...availableModels]);
+        setOpenRouterModels(availableModels);
       })
       .catch(() => undefined);
     return () => { cancelled = true; };

@@ -837,6 +837,16 @@ body:before{
 }
 .shell>main .scenario-controls .request-limit small{grid-row:3;margin-top:7px}
 .shell>main .scenario-controls .scenario-note{margin-top:2px}
+.shell>main .simulation-model-compatibility{
+  grid-column:1/-1;
+  margin:0;
+  padding:10px 12px;
+  border:1px solid #d2a848;
+  background:#fff6d9;
+  color:#5e4914;
+  font-size:13px;
+  line-height:1.45;
+}
 .shell>main .scenario-builder .sim-actions{
   display:flex;
   align-items:center;

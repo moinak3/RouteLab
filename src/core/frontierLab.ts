@@ -179,6 +179,26 @@ export const frontierModelAliases: FrontierModelAlias[] = [
     inputCostPer1m: 4,
     outputCostPer1m: 20,
   },
+  {
+    id: "particle-1",
+    displayName: "Particle-1",
+    provider: "Particle AI via OpenRouter",
+    family: "Particle",
+    description: "Particle AI's token-efficient agentic coding model through OpenRouter.",
+    runtimeModelId: "particle-ai/particle-1",
+    inputCostPer1m: .25,
+    outputCostPer1m: 1,
+  },
+  {
+    id: "typesafe-jev-1-14",
+    displayName: "Jev 1.14 (OpenRouter Decisions)",
+    provider: "TypeSafe via OpenRouter",
+    family: "TypeSafe",
+    description: "A structured decision model for classification and routing, not generative agent responses.",
+    runtimeModelId: "typesafe/jev-1.14",
+    inputCostPer1m: .042,
+    outputCostPer1m: 0,
+  },
 ];
 
 const objectParameters = (properties: Record<string, unknown>, required: string[] = []) => ({

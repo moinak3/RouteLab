@@ -238,6 +238,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     activeScopeKeyRef.current = activeScopeKey;
     const direct = useMemo(() => hasActiveModels ? replay(selectedTraces, candidate) : undefined, [selectedTraces, candidate, catalogVersion, hasActiveModels]);
     const liveKeyStatus = useMemo(() => liveRoutingStatus(candidate, { familyApiKeys, gatewayApiKeys, serverGatewayKeys }), [candidate, familyApiKeys, gatewayApiKeys, serverGatewayKeys]);
+    const isDecisionCandidate = getModel(candidate)?.deployment_type === "decision_model";
     const judgeByTraceId = useMemo(() => traceJudgeResultsByTraceId(traceJudgeResults), [traceJudgeResults]);
     const stopLiveReplay = () => { liveAbortRef.current?.abort(); liveAbortRef.current = null; setPendingLiveReplay(null); setLiveStatus({ state: "idle", message: "Simulation stopped. Showing the last available deterministic replay results." }); };
     useEffect(() => () => liveAbortRef.current?.abort(), []);
@@ -248,6 +249,10 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     }, [activeModels, defaultFallbackModelId, draftPolicy.defaultModelId]);
     useEffect(() => { liveAbortRef.current?.abort(); liveAbortRef.current = null; setLiveDirect(null); setPendingLiveReplay(null); setLiveStatus({ state: "idle", message: "" }); }, [activeScopeKey]);
     const runDirect = async () => {
+        if (isDecisionCandidate) {
+            setLiveStatus({ state: "error", message: "Jev is available through OpenRouter's Decisions API for classification and routing, but it cannot generate candidate responses for this replay." });
+            return;
+        }
         const runScopeKey = activeScopeKey;
         const nextSeed = Date.now() + Math.floor(Math.random() * 1000000);
         const runTraces = sampleTraces(availableTraces, requestLimit.count, nextSeed);
@@ -367,6 +372,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <input aria-label="Requests to simulate" inputMode="decimal" value={requestLimitValue} onChange={event => setRequestLimitValue(event.target.value)} placeholder={requestLimitMode === "percent" ? "100" : "500"}/>
 </div>{requestLimit.message && <small>{requestLimit.message}</small>}</div>
 <p className="scenario-note">{liveDirect && strategy === "direct" ? `Live replay via ${liveDirect.label}` : isAutoRouter ? "Live replay required to observe OpenRouter's selected models" : `Deterministic demo replay${providerName ? ` via ${providerName}` : ""}`} · random sample of {scenarioTraces.length.toLocaleString()} from {availableTraces.length.toLocaleString()} matching LLM calls{autoNeedsLiveReplay?"":` · monthly projection = selected sample × ${MONTHLY_MULTIPLIER}`}</p>
+{isDecisionCandidate && <p className="simulation-model-compatibility">Jev is a structured decision model. Use it for task classification and routing decisions; it does not return agent responses for before/after replay.</p>}
 </div>
 <div className="sim-actions">
 <button className={strategy === "direct" ? "primary" : ""} disabled={liveStatus.state === "running"} onClick={runDirect}>{liveStatus.state === "running" ? "Running live replay..." : "Simulate direct routing"}</button>{liveStatus.state === "running" && <button type="button" className="stop-simulation" onClick={stopLiveReplay}>Stop simulation</button>}

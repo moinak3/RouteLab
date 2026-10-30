@@ -18,6 +18,7 @@ const familyByAuthor = {
   "z-ai": "GLM",
   minimax: "MiniMax",
   nvidia: "NVIDIA",
+  "particle-ai": "Particle",
 } as const satisfies Record<string, Model["family"]>;
 
 const familyLimits: Partial<Record<Model["family"], number>> = {
@@ -37,9 +38,56 @@ export const openRouterFamilyLabels: Record<Model["family"], string> = {
   GLM: "GLM",
   MiniMax: "MiniMax",
   NVIDIA: "NVIDIA",
+  Particle: "Particle AI",
+  TypeSafe: "TypeSafe decision models",
   Local: "Local",
   Router: "Routing strategies",
 };
+
+export const requiredOpenRouterModels: Model[] = [
+  {
+    id: "openrouter:particle-ai/particle-1",
+    provider: "particle-ai",
+    family: "Particle",
+    family_tier: "top",
+    display_name: "Particle-1",
+    input_cost_per_1m: .25,
+    output_cost_per_1m: 1,
+    default_latency_ms: 600,
+    deployment_type: "closed_managed",
+    quality_tier: "specialist",
+    pricing_source: "OpenRouter",
+    pricing_source_model_id: "particle-ai/particle-1",
+    pricing_updated_at: "2026-10-29",
+    openrouter_created_at: "2026-10-28T00:00:00.000Z",
+  },
+  {
+    id: "openrouter:typesafe/jev-1.14",
+    provider: "typesafe",
+    family: "TypeSafe",
+    family_tier: "top",
+    display_name: "Jev 1.14 (OpenRouter Decisions)",
+    input_cost_per_1m: .042,
+    output_cost_per_1m: 0,
+    default_latency_ms: 170,
+    deployment_type: "decision_model",
+    quality_tier: "specialist",
+    pricing_source: "OpenRouter",
+    pricing_source_model_id: "typesafe/jev-1.14",
+    pricing_updated_at: "2026-10-29",
+    openrouter_created_at: "2026-10-14T00:00:00.000Z",
+  },
+];
+
+export const isOpenRouterDecisionModelId = (modelId: string) => /^typesafe\/jev-/i.test(modelId);
+
+export function withRequiredOpenRouterModels(models: Model[]) {
+  const byRuntimeId = new Map(models.map((model) => [model.pricing_source_model_id, model]));
+  requiredOpenRouterModels.forEach((model) => {
+    if (!byRuntimeId.has(model.pricing_source_model_id)) byRuntimeId.set(model.pricing_source_model_id, model);
+  });
+  return [...byRuntimeId.values()];
+}
 
 const numericPrice = (value: unknown) => {
   const price = Number(value);

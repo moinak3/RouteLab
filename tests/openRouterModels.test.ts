@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { providerConfig } from "../api/live/_shared";
 import { getModel, registerOpenRouterModels } from "../src/core/catalog";
 import { liveRoutingStatus } from "../src/core/liveRouting";
-import { latestOpenRouterModels, openRouterFamilyLabels } from "../src/core/openRouterModels";
+import { latestOpenRouterModels, openRouterFamilyLabels, requiredOpenRouterModels, withRequiredOpenRouterModels } from "../src/core/openRouterModels";
 
 const record = (id: string, created: number, options: { outputs?: string[]; prompt?: string; completion?: string; parameters?: string[] } = {}) => ({
   id,
@@ -80,6 +80,23 @@ describe("OpenRouter model catalog", () => {
     expect(providerConfig("openrouter", model.id, model.pricing_source_model_id).modelName).toBe("deepseek/deepseek-new");
     expect(() => providerConfig("openrouter", model.id, "unsupported/model")).toThrow("Unsupported OpenRouter candidate model");
 
+    registerOpenRouterModels([]);
+  });
+
+  it("keeps Particle-1 and Jev available in model selectors", () => {
+    const models = withRequiredOpenRouterModels([]);
+
+    expect(models.map((model) => model.pricing_source_model_id)).toEqual(expect.arrayContaining([
+      "particle-ai/particle-1",
+      "typesafe/jev-1.14",
+    ]));
+    expect(requiredOpenRouterModels.find((model) => model.pricing_source_model_id === "particle-ai/particle-1")).toMatchObject({ family: "Particle", deployment_type: "closed_managed" });
+    expect(requiredOpenRouterModels.find((model) => model.pricing_source_model_id === "typesafe/jev-1.14")).toMatchObject({ family: "TypeSafe", deployment_type: "decision_model" });
+    expect(openRouterFamilyLabels).toMatchObject({ Particle: "Particle AI", TypeSafe: "TypeSafe decision models" });
+
+    registerOpenRouterModels(models);
+    expect(providerConfig("openrouter", "openrouter:particle-ai/particle-1", "particle-ai/particle-1").modelName).toBe("particle-ai/particle-1");
+    expect(() => providerConfig("openrouter", "openrouter:typesafe/jev-1.14", "typesafe/jev-1.14")).toThrow(/Decisions API/);
     registerOpenRouterModels([]);
   });
 });

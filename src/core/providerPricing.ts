@@ -50,6 +50,8 @@ const familyProviders: Record<Model["family"], ProviderTemplate[]> = {
   GLM: openRouterOnly,
   MiniMax: openRouterOnly,
   NVIDIA: openRouterOnly,
+  Particle: openRouterOnly,
+  TypeSafe: openRouterOnly,
   Local: [
     { id: "self-hosted", name: "Self-hosted cluster", costMultiplier: 1, latencyMultiplier: 1 },
     { id: "runpod", name: "RunPod", costMultiplier: 1.15, latencyMultiplier: .9 },
