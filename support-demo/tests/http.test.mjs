@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiErrorMessage, readApiPayload, scopedSupportApiUrl, supportWorkspaceContext } from "../public/http.js";
+import { apiErrorMessage, readApiPayload, scopedSupportApiUrl, supportConsolePersona, supportWorkspaceContext } from "../public/http.js";
 
 describe("Test Console API responses", () => {
   it("reads successful JSON responses", async () => {
@@ -33,5 +33,23 @@ describe("Test Console API responses", () => {
     });
     expect(scopedSupportApiUrl("/api/support", "chat", "personal_abc123")).toBe("/api/support/chat?workspace=personal_abc123");
     expect(supportWorkspaceContext("?workspace=../../demo").workspaceId).toBe("demo");
+  });
+
+  it("uses a personal assistant persona outside the demo workspace", () => {
+    expect(supportConsolePersona("personal_abc123")).toMatchObject({
+      assistantName: "Personal Assistant",
+      greeting: expect.stringContaining("I'm your personal assistant"),
+      pendingLabel: "Personal assistant is responding",
+      composerPlaceholder: expect.stringContaining("question, plan, message, or task"),
+      idleTraceLabel: "Waiting for the next personal-assistant request",
+    });
+    expect(supportConsolePersona("personal_abc123").systemPrompt).toContain("Preserve user control");
+  });
+
+  it("keeps the support persona in the RouteLab demo", () => {
+    expect(supportConsolePersona("demo")).toMatchObject({
+      assistantName: "Support Assistant",
+      greeting: expect.stringContaining("support assistant from RouteLab"),
+    });
   });
 });

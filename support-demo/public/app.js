@@ -1,4 +1,4 @@
-import { apiErrorMessage, readApiPayload, scopedSupportApiUrl, supportWorkspaceContext } from "./http.js?v=3";
+import { apiErrorMessage, readApiPayload, scopedSupportApiUrl, supportConsolePersona, supportWorkspaceContext } from "./http.js?v=4";
 
 const conversation = document.querySelector("#conversation");
 const composer = document.querySelector("#composer");
@@ -9,9 +9,16 @@ const connectionLabel = document.querySelector("#connection-label");
 const traceSubtitle = document.querySelector("#trace-subtitle");
 const traceState = document.querySelector("#trace-state");
 const workspaceName = document.querySelector("#workspace-name");
+const chatPane = document.querySelector(".chat-pane");
+const promptLabel = document.querySelector('label[for="prompt"]');
 const apiBase = window.location.pathname.startsWith("/support-console") ? "/api/support" : "/api";
 const { workspaceId, workspaceLabel } = supportWorkspaceContext(window.location.search);
+const persona = supportConsolePersona(workspaceId);
 workspaceName.textContent = workspaceLabel;
+chatPane.setAttribute("aria-label", persona.conversationLabel);
+promptLabel.textContent = persona.promptLabel;
+prompt.placeholder = persona.composerPlaceholder;
+traceSubtitle.textContent = persona.idleTraceLabel;
 const supportSessionId = (() => {
   const key = `routelab-support-session-id:${workspaceId}`;
   try {
@@ -35,7 +42,7 @@ const supportTools = [
 const messages = [
   {
     role: "assistant",
-    content: "Hi, I'm your support assistant from RouteLab. I can help with orders, invoices, plans, and account settings. What can I help you with today?",
+    content: persona.greeting,
     createdAt: new Date(),
   },
 ];
@@ -64,7 +71,7 @@ function renderMessages() {
     meta.className = "message-meta";
     const author = document.createElement("span");
     author.className = "message-author";
-    author.textContent = message.role === "assistant" ? "Support Assistant" : "Customer";
+    author.textContent = message.role === "assistant" ? persona.assistantName : "Customer";
     const time = document.createElement("time");
     time.className = "message-time";
     time.textContent = formatTime(message.createdAt);
@@ -73,7 +80,7 @@ function renderMessages() {
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
     if (message.pending) {
-      bubble.setAttribute("aria-label", "Support assistant is responding");
+      bubble.setAttribute("aria-label", persona.pendingLabel);
       bubble.innerHTML = '<span class="thinking" aria-hidden="true"><span></span><span></span><span></span></span>';
     } else {
       bubble.textContent = message.content;
@@ -258,7 +265,7 @@ async function sendMessage(value) {
   prompt.disabled = true;
 
   const requestMessages = [
-    { role: "system", content: "You are a concise, helpful customer support assistant. Use the available context and tools, do not invent completed actions, and clearly state when more account information is needed." },
+    { role: "system", content: persona.systemPrompt },
     ...messages.filter((message) => !message.pending).map(({ role, content }) => ({ role, content })),
   ];
 
