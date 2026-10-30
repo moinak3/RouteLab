@@ -137,6 +137,14 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     </div>
     <div className="live-replay-table-wrap">
       <table className="live-replay-table">
+        <colgroup>
+          <col className="live-replay-trace-column" />
+          <col className="live-replay-original-column" />
+          <col className="live-replay-candidate-column" />
+          <col className="live-replay-eval-column" />
+          <col className="live-replay-cost-column" />
+          <col className="live-replay-latency-column" />
+        </colgroup>
         <thead><tr><th>Trace sent</th><th>Original response</th><th>OpenRouter response</th><th>Eval</th><th>Cost</th><th>Latency</th></tr></thead>
         <tbody>{pendingRows.map(trace => <tr key={`pending_${trace.id}`}>
           <td><b>{trace.id}</b><small>{preview(trace.prompt_text, 180)}</small></td>

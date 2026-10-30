@@ -905,9 +905,16 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
 }
 .live-replay-table{
   width:100%;
-  min-width:1080px;
+  min-width:1040px;
+  table-layout:fixed;
   border-collapse:collapse;
 }
+.live-replay-trace-column{width:18%}
+.live-replay-original-column{width:18%}
+.live-replay-candidate-column{width:22%}
+.live-replay-eval-column{width:21%}
+.live-replay-cost-column{width:10%}
+.live-replay-latency-column{width:11%}
 .live-replay-table th,.live-replay-table td{
   vertical-align:top;
   text-align:left;
@@ -926,11 +933,10 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
   font-size:12px;
   line-height:1.45;
 }
-.live-replay-table td:first-child{
-  width:210px;
-}
-.live-replay-table td:nth-child(2),.live-replay-table td:nth-child(3){
-  width:260px;
+.live-replay-table td:nth-child(2){
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .live-replay-table b{
   display:block;
