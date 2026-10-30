@@ -9,3 +9,5 @@ vite.config.d.ts
 .DS_Store
 artifacts/
 .vercel
+.playwright-cli/
+audit-evidence/

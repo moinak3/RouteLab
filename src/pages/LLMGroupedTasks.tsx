@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDistinctTaskBuckets } from "../core/distinctTasks";
 import {
   compareLLMGrouping,
+  compactLLMGroupingRunNames,
+  createTaskBucketsFromLLMGrouping,
   createLLMGroupingSnapshot,
   isLLMGroupingRunOutdated,
   type LLMGroupingAssignmentStatus,
@@ -13,14 +15,19 @@ import {
   runLLMGroupingExperiment,
   type LLMGroupingProgress,
 } from "../core/llmGroupingPersistence";
-import type { Trace } from "../types";
+import type { DistinctTaskBucket, Trace } from "../types";
+import { DistinctTasks } from "./DistinctTasks";
 
 type Props = {
   traces: Trace[];
+  workspaceId: string;
   serverGatewayKey?: boolean;
   embedded?: boolean;
   runToken?: number;
   onRunningChange?: (running: boolean) => void;
+  onTaskGroupsChange?: (groups: DistinctTaskBucket[]) => void;
+  savedTaskGroups?: DistinctTaskBucket[];
+  onRunSimulation?: (bucketId: string) => void;
 };
 type View = "groups" | "compare";
 
@@ -45,7 +52,7 @@ function Distribution({ values, label }: { values: number[]; label: string }) {
   </section>;
 }
 
-export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, runToken = 0, onRunningChange }: Props) {
+export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTaskGroups = [], embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange, onRunSimulation }: Props) {
   const [run, setRun] = useState<LLMGroupingRun | null>(null);
   const [view, setView] = useState<View>("groups");
   const [loading, setLoading] = useState(true);
@@ -61,7 +68,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
   const abortRef = useRef<AbortController | null>(null);
   const handledRunToken = useRef(0);
 
-  const existingBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
+  const existingBuckets = useMemo(() => run ? createDistinctTaskBuckets(traces) : [], [traces, run]);
   const comparison = useMemo(() => run ? compareLLMGrouping(existingBuckets, run) : null, [existingBuckets, run]);
   const currentSnapshot = useMemo(() => createLLMGroupingSnapshot(traces), [traces]);
   const stale = Boolean(run && isLLMGroupingRunOutdated(run, traces));
@@ -75,10 +82,11 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetchLatestLLMGroupingRun(controller.signal)
+    fetchLatestLLMGroupingRun(workspaceId, controller.signal)
       .then((latest) => {
-        setRun(latest);
-        setSelectedGroupId(latest?.groups[0]?.id ?? null);
+        const compact = latest ? compactLLMGroupingRunNames(traces, latest) : null;
+        setRun(compact);
+        setSelectedGroupId(compact?.groups[0]?.id ?? null);
       })
       .catch((loadError) => {
         if (controller.signal.aborted) return;
@@ -86,9 +94,14 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, []);
+  }, [traces, workspaceId]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!run || stale) return;
+    onTaskGroupsChange?.(createTaskBucketsFromLLMGrouping(traces, run));
+  }, [onTaskGroupsChange, run, stale, traces]);
 
   const startRun = useCallback(async () => {
     const controller = new AbortController();
@@ -98,9 +111,10 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
     setError(null);
     setProgress({ stage: "extraction", completed: 0, total: traces.length, message: "Preparing the trace snapshot" });
     try {
-      const completed = await runLLMGroupingExperiment(traces, setProgress, controller.signal);
-      setRun(completed);
-      setSelectedGroupId(completed.groups[0]?.id ?? null);
+      const completed = await runLLMGroupingExperiment(traces, workspaceId, setProgress, controller.signal);
+      const compact = compactLLMGroupingRunNames(traces, completed);
+      setRun(compact);
+      setSelectedGroupId(compact.groups[0]?.id ?? null);
       setView("groups");
     } catch (runError) {
       if (controller.signal.aborted) setError("Run cancelled. No partial result was saved.");
@@ -110,7 +124,7 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
       setRunning(false);
       onRunningChange?.(false);
     }
-  }, [onRunningChange, traces]);
+  }, [onRunningChange, traces, workspaceId]);
 
   useEffect(() => {
     if (!embedded || !runToken || handledRunToken.current === runToken) return;
@@ -157,15 +171,17 @@ export function LLMGroupedTasks({ traces, serverGatewayKey, embedded = false, ru
     {!serverGatewayKey && serverGatewayKey !== undefined && <div className="llm-alert warning"><b>Provider configuration required</b><span>Add <code>ROUTELAB_OPENROUTER_API_KEY</code> to the server environment. The key is never sent to this browser.</span></div>}
     {storageNotice && !run && <div className="llm-alert neutral"><b>Saved run unavailable</b><span>{storageNotice}</span></div>}
 
-    {loading ? <section className="llm-empty"><b>Loading the latest saved experiment…</b></section> : !run ? <section className="llm-empty">
+    {loading && !savedTaskGroups.length ? <section className="llm-empty"><b>Loading the latest saved experiment…</b></section> : (!run || stale) && savedTaskGroups.length ? <>
+      <div className="llm-alert neutral"><b>Showing saved LLM task groups</b><span>The full experiment record is unavailable, but the latest groups chosen for this workspace remain available.</span></div>
+      <DistinctTasks traces={traces} buckets={savedTaskGroups} onBucketsChange={onTaskGroupsChange} onRunSimulation={onRunSimulation} embedded />
+    </> : !run || stale ? <section className="llm-empty">
       <div><span>LLM</span></div>
-      <h3>No experiment has been run</h3>
-      <p>Start an explicit run to build independent task definitions and assign the current trace snapshot. No provider request is made until you use the run button.</p>
+      <h3>{stale ? "No task groups for this trace snapshot" : "No experiment has been run"}</h3>
+      <p>{stale ? "The saved result belongs to a different trace population and is not applied here. Generate Task Groups to create a new catalog for the current import." : "Start an explicit run to build independent task definitions and assign the current trace snapshot. No provider request is made until you use the run button."}</p>
     </section> : <>
       <section className="llm-result-header">
         <div><p className="eyebrow">Latest completed run</p><h2>{run.groups.length} discovered task groups</h2><p>{run.provider} · {run.model} · completed {dateTime(run.completedAt)}</p></div>
         <div className="llm-result-meta"><span>Prompt <b>{run.promptVersion}</b></span><span>Schema <b>{run.schemaVersion}</b></span><span>Snapshot <b>{run.snapshot.hash}</b></span></div>
-        {stale && <div className="llm-stale"><b>Outdated result</b><span>The trace population has changed since this run. Rerun before drawing current conclusions.</span></div>}
       </section>
 
       <section className="llm-metrics">

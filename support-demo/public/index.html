@@ -4,15 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#080d0f" />
-    <title>RouteLab Support Console</title>
+    <title>RouteLab Test Console</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="/" aria-label="RouteLab Support Console home">
+        <a class="brand" href="/" aria-label="RouteLab Test Console home">
           <img src="/routelab-icon.svg" alt="" width="36" height="36" />
-          <span><strong>RouteLab</strong> Support Console</span>
+          <span class="brand-copy"><span><strong>RouteLab</strong> Test Console</span><small id="workspace-name">Loading workspace</small></span>
         </a>
         <div class="connection" id="connection" data-state="checking" role="status">
           <span class="connection-dot" aria-hidden="true"></span>
@@ -81,6 +81,6 @@
         </aside>
       </main>
     </div>
-    <script src="./app.js" type="module"></script>
+    <script src="./app.js?v=3" type="module"></script>
   </body>
 </html>

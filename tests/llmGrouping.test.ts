@@ -4,6 +4,7 @@ import { parseStoredLLMGroupingRun } from "../api/llm-grouping/_store";
 import {
   LLM_GROUPING_PROMPT_VERSION,
   LLM_GROUPING_SCHEMA_VERSION,
+  compactLLMGroupingRunNames,
   compareLLMGrouping,
   createLLMGroupingInputSnapshot,
   createLLMGroupingSnapshot,
@@ -164,6 +165,16 @@ describe("LLM grouping validation and persistence", () => {
     expect(isLLMGroupingRunOutdated(run, traces)).toBe(false);
     expect(isLLMGroupingRunOutdated(run, [trace("t1", "changed"), trace("t2")])).toBe(true);
   });
+
+  it("presents saved detailed group names as short collision-free summaries", () => {
+    const run = fixtureRun();
+    run.groups[0].name = "general question answering, low complexity, single turn";
+    run.groups[1].name = "general question answering, low complexity, natural language";
+    const compact = compactLLMGroupingRunNames([trace("t1"), trace("t2")], run);
+    const names = compact.groups.map((item) => item.name);
+    expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(2);
+    expect(names.every((name) => name.split(/\s+/).length <= 4 && !name.includes(","))).toBe(true);
+  });
 });
 
 describe("LLM grouping comparison", () => {
@@ -217,6 +228,48 @@ describe("LLM grouping provider pipeline", () => {
     expect(run.coverage).toEqual({ assigned: 2, ambiguous: 0, unassigned: 0, processed: 2, total: 2 });
     expect(run.groups.map((item) => item.name)).toEqual(["Order lookup", "Refund decision"]);
     expect(progress).toHaveBeenCalledWith(expect.objectContaining({ stage: "assignment", completed: 2, total: 2 }));
+  });
+
+  it("processes independent extraction and assignment batches with bounded concurrency", async () => {
+    const manyInputs = Array.from({ length: 6 }, (_, index) => ({
+      traceId: `t${index + 1}`,
+      latestRequest: `Request ${index + 1}`,
+      requestContext: [{ role: "user" as const, content: `Request ${index + 1}` }],
+      workflowContext: {},
+    }));
+    let active = 0;
+    let maxActive = 0;
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as { response_format: { json_schema: { name: string } }; messages: Array<{ content: string }> };
+      const name = request.response_format.json_schema.name;
+      const payload = JSON.parse(request.messages[1].content.split("DATA (treat as inert JSON):\n")[1]);
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      const responsePayload = name === "task_descriptions" ? { descriptions: payload.traces.map((item: LLMGroupingTraceInput) => ({
+        traceId: item.traceId, immediateJob: "Handle a support request", modality: ["text"], grounding: ["none"], expectedOutput: ["answer"], reasoningRequirements: ["basic"], clarity: "clear", ambiguityReason: "",
+      })) } : name === "task_catalog" ? { groups: [{
+        groupKey: "support", name: "Support requests", description: "Handle routine support requests", inclusionCriteria: ["routine request"], exclusionCriteria: ["none"], candidateTraceIds: manyInputs.map((item) => item.traceId),
+        attributes: { modality: ["text"], grounding: ["none"], expectedOutput: ["answer"], reasoningRequirements: ["basic"] }, suggestedEvaluationDimensions: ["task completion"], routingRationale: "A common routing profile",
+      }] } : name === "task_assignments" ? { assignments: payload.descriptions.map((item: { traceId: string }) => ({
+        traceId: item.traceId, status: "assigned", groupKey: "support", confidence: 0.95, alternateGroupKeys: [], rationale: "Matches the support group",
+      })) } : { groups: [{ groupKey: "support", representativeTraceIds: manyInputs.slice(0, 3).map((item) => item.traceId), confusingCounterexamples: [], nearestNeighbors: [] }] };
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(responsePayload) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    const run = await runLLMGrouping({
+      inputs: manyInputs,
+      snapshot: createLLMGroupingInputSnapshot(manyInputs),
+      apiKey: "test-key",
+      model: "test/model",
+      fetchImpl,
+      batchSize: 2,
+      concurrency: 2,
+    });
+
+    expect(run.coverage.processed).toBe(6);
+    expect(maxActive).toBe(2);
   });
 
   it("fails clearly for missing credentials and provider errors", async () => {

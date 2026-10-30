@@ -13,8 +13,11 @@ import publishRoutingPolicy from "./api/routing-policy/publish";
 import activateRoutingPolicy from "./api/routing-policy/activate";
 import routingPolicyBundle from "./api/routing-policy/bundle";
 import routingPolicyVersions from "./api/routing-policy/versions";
+import { routingPolicyWorkspaceId } from "./api/routing-policy/_config";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-grouping/_api";
+import taskGroupNamesHandler from "./src/server/taskGroupNames";
 import waitlistHandler from "./src/server/waitlist";
+import evalRunHandler from "./src/server/evalRuns";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -37,6 +40,11 @@ const runApiHandler = async (handler: (req: any, res: any) => unknown, req: any,
   if (["POST", "PUT", "PATCH"].includes(String(req.method))) req.body = await readJsonBody(req);
   res.status = (status: number) => { res.statusCode = status; return res; };
   res.send = (payload: unknown) => { res.end(payload); return res; };
+  res.json = (payload: unknown) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(payload));
+    return res;
+  };
   return handler(req, res);
 };
 
@@ -67,13 +75,13 @@ const toMessages = (trace: any) => Array.isArray(trace.messages) && trace.messag
 
 export default defineConfig(({ mode }) => {
   loadedEnv = loadEnv(mode, process.cwd(), "");
-  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL", "ROUTELAB_LLM_GROUPING_MODEL", "ROUTELAB_OPENROUTER_API_KEY", "OPENROUTER_API_KEY", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_URL", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_SECRET"]
+  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL", "ROUTELAB_LLM_GROUPING_MODEL", "ROUTELAB_TASK_GROUP_NAMING_MODEL", "ROUTELAB_OPENROUTER_API_KEY", "OPENROUTER_API_KEY", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_URL", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_SECRET"]
     .forEach((key) => { if (!process.env[key] && loadedEnv[key]) process.env[key] = loadedEnv[key]; });
   return {
   plugins: [react(), {
     name: "routelab-support-console-assets",
     generateBundle() {
-      for (const fileName of ["index.html", "styles.css", "app.js"]) {
+      for (const fileName of ["index.html", "styles.css", "app.js", "http.js"]) {
         this.emitFile({
           type: "asset",
           fileName: `support-console/${fileName}`,
@@ -180,7 +188,8 @@ export default defineConfig(({ mode }) => {
       });
       server.middlewares.use("/api/routing-policy/draft", async (req, res) => {
         const databaseUrl = String(process.env.DATABASE_URL ?? loadedEnv.DATABASE_URL ?? "").trim();
-        const workspaceId = String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? loadedEnv.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
+        const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+        const workspaceId = routingPolicyWorkspaceId({ query: Object.fromEntries(url.searchParams.entries()) });
         try {
           if (req.method === "GET") return sendJson(res, 200, await getRoutingPolicyDraft(databaseUrl, workspaceId));
           if (req.method !== "PUT") return sendJson(res, 405, { error: "Method not allowed." });
@@ -202,7 +211,9 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use("/api/routing-policy/versions", (req, res) => runApiHandler(routingPolicyVersions, req, res));
       server.middlewares.use("/api/llm-grouping/latest", (req, res) => runApiHandler(handleLLMGroupingLatest, req, res));
       server.middlewares.use("/api/llm-grouping/run", (req, res) => runApiHandler(handleLLMGroupingRun, req, res));
+      server.middlewares.use("/api/task-group-names", (req, res) => runApiHandler(taskGroupNamesHandler, req, res));
       server.middlewares.use("/api/waitlist", (req, res) => runApiHandler(waitlistHandler, req, res));
+      server.middlewares.use("/api/evals/run", (req, res) => runApiHandler(evalRunHandler, req, res));
     },
   }],
   test: { environment: "node" },

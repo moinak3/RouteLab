@@ -15,6 +15,7 @@ const assets = new Map([
   ["/index.html", { path: resolve(here, "public/index.html"), type: "text/html; charset=utf-8" }],
   ["/styles.css", { path: resolve(here, "public/styles.css"), type: "text/css; charset=utf-8" }],
   ["/app.js", { path: resolve(here, "public/app.js"), type: "text/javascript; charset=utf-8" }],
+  ["/http.js", { path: resolve(here, "public/http.js"), type: "text/javascript; charset=utf-8" }],
   ["/routelab-icon.svg", { path: resolve(repoRoot, "public/routelab-icon.svg"), type: "image/svg+xml" }],
 ]);
 
@@ -46,11 +47,15 @@ async function fetchSidecar(path, options = {}) {
   });
 }
 
-async function inspectedCompletion(request) {
+async function inspectedCompletion(request, continuationToken = "") {
   const response = await fetchSidecar("/v1/inspect/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${sidecarApiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...request, stream: false }),
+    body: JSON.stringify({
+      ...request,
+      stream: false,
+      ...(continuationToken ? { routelab_continuation: continuationToken } : {}),
+    }),
   });
   const payload = await response.json().catch(() => ({ error: { message: `Sidecar returned HTTP ${response.status} without JSON.` } }));
   return { status: response.status, payload };
@@ -96,20 +101,24 @@ async function supportCompletion(request) {
     name: toolExecutions[index].name,
     content: JSON.stringify(toolExecutions[index].result),
   }));
-  const second = await inspectedCompletion({
-    ...request,
-    messages: [
-      ...(Array.isArray(request.messages) ? request.messages : []),
-      { role: "assistant", content: message.content ?? null, tool_calls: toolCalls },
-      ...toolMessages,
-    ],
-  });
+  const second = await inspectedCompletion(
+    {
+      ...request,
+      messages: [
+        ...(Array.isArray(request.messages) ? request.messages : []),
+        { role: "assistant", content: message.content ?? null, tool_calls: toolCalls },
+        ...toolMessages,
+      ],
+    },
+    first.payload?.continuationToken,
+  );
   const firstPass = {
     decision: first.payload.decision,
     route: first.payload.route,
     openRouterRequest: first.payload.openRouterRequest,
     upstream: first.payload.upstream,
     timing: first.payload.timing,
+    classificationReused: false,
   };
   const secondPass = {
     decision: second.payload?.decision,
@@ -117,12 +126,15 @@ async function supportCompletion(request) {
     openRouterRequest: second.payload?.openRouterRequest,
     upstream: second.payload?.upstream,
     timing: second.payload?.timing,
+    classificationReused: true,
   };
   return {
     status: second.status,
     payload: {
       ...second.payload,
       toolExecutions,
+      classifierInvocations: 1,
+      classificationReused: true,
       routingPasses: [firstPass, secondPass],
       timing: {
         ...second.payload?.timing,
@@ -148,7 +160,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/chat") {
-      if (!sidecarApiKey) return sendJson(res, 503, { error: { message: "ROUTELAB_SIDECAR_API_KEY is not configured for the support console." } });
+      if (!sidecarApiKey) return sendJson(res, 503, { error: { message: "ROUTELAB_SIDECAR_API_KEY is not configured for the test console." } });
       const request = await readJson(req);
       const result = await supportCompletion(request);
       return sendJson(res, result.status, result.payload);
@@ -170,12 +182,12 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 404, { error: { message: "Not found." } });
   } catch (error) {
     const status = Number(error?.statusCode ?? 502);
-    return sendJson(res, status, { error: { message: error instanceof Error ? error.message : "Support console request failed." } });
+    return sendJson(res, status, { error: { message: error instanceof Error ? error.message : "Test console request failed." } });
   }
 });
 
 server.listen(port, "0.0.0.0", () => {
-  console.info(`RouteLab Support Console listening on http://127.0.0.1:${port}`);
+  console.info(`RouteLab Test Console listening on http://127.0.0.1:${port}`);
 });
 
 const shutdown = () => server.close(() => process.exit(0));

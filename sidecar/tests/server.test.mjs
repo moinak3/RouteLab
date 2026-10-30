@@ -144,14 +144,41 @@ describe("RouteLab sidecar HTTP server", () => {
     const decisionsBeforeInspection = decisionRequests;
     const inspectionResponse = await fetch(`${baseUrl}/v1/inspect/chat/completions`, { method: "POST", headers: { Authorization: "Bearer test-sidecar-key", "Content-Type": "application/json" }, body: JSON.stringify(request) });
     expect(inspectionResponse.status).toBe(200);
-    expect(await inspectionResponse.json()).toMatchObject({
+    const inspection = await inspectionResponse.json();
+    expect(inspection).toMatchObject({
       ok: true,
       received: { messageCount: 1, latestUserPrompt: "Refund the duplicate invoice charge.", tools: [{ name: "lookup_invoice" }] },
       decision: { signatureId: "billing", confidence: .95, status: "matched" },
       route: { source: "task_override", taskBucketId: "billing", openRouterModelId: "deepseek/deepseek-r1", policyVersion: 7 },
+      classifierInvocations: 1,
+      classificationReused: false,
       openRouterRequest: { model: "deepseek/deepseek-r1", provider: { order: ["DeepInfra"] }, stream: false },
       openRouterResponse: { model: "deepseek/deepseek-r1", choices: [{ message: { content: "Refund queued." } }] },
       upstream: { status: 200, selectedModel: "deepseek/deepseek-r1" },
+    });
+    expect(inspection.continuationToken).toEqual(expect.any(String));
+    expect(decisionRequests).toBe(decisionsBeforeInspection + 1);
+
+    const continuationResponse = await fetch(`${baseUrl}/v1/inspect/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: "Bearer test-sidecar-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...request,
+        routelab_continuation: inspection.continuationToken,
+        messages: [
+          ...request.messages,
+          { role: "assistant", content: null, tool_calls: [{ id: "call_invoice", type: "function", function: { name: "lookup_invoice", arguments: "{\"invoice_id\":\"123\"}" } }] },
+          { role: "tool", tool_call_id: "call_invoice", content: "{\"invoice_id\":\"123\",\"status\":\"available\"}" },
+        ],
+      }),
+    });
+    expect(continuationResponse.status).toBe(200);
+    expect(await continuationResponse.json()).toMatchObject({
+      decision: { signatureId: "billing", confidence: .95, status: "matched" },
+      route: { taskBucketId: "billing", openRouterModelId: "deepseek/deepseek-r1" },
+      classifierInvocations: 0,
+      classificationReused: true,
+      timing: { classificationMs: 0 },
     });
     expect(decisionRequests).toBe(decisionsBeforeInspection + 1);
   });

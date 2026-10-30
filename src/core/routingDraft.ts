@@ -30,10 +30,6 @@ export type DraftRoutingPolicy = {
   defaultModelId: string;
   defaultOpenRouterModelId?: string;
   autoRouterCostTier: "low" | "medium" | "high" | "xhigh" | "max";
-  emergencyFallbackModelId: string;
-  emergencyFallbackOpenRouterModelId?: string;
-  minimumPassRate: number;
-  maximumLatencyIncreasePct: number;
   overrides: Record<string, DraftTaskOverride>;
   version: number;
   updatedAt: string;
@@ -45,27 +41,25 @@ export type RoutingPolicyDraftEnvelope = {
   updatedAt: string | null;
 };
 
-export const ROUTING_DRAFT_STORAGE_KEY = "routelab-routing-policy-draft-v1";
+export const ROUTING_DRAFT_STORAGE_KEY = "routelab-routing-policy-draft-v2";
+const routingDraftStorageKey = (workspaceId: string) => `${ROUTING_DRAFT_STORAGE_KEY}:${workspaceId}`;
 
 export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
   return {
     defaultStrategyType: "fixed_model",
     defaultModelId: fallbackModelId,
     autoRouterCostTier: "medium",
-    emergencyFallbackModelId: fallbackModelId,
-    minimumPassRate: DEFAULT_ROUTE_GUARDRAILS.minimumPassRate,
-    maximumLatencyIncreasePct: DEFAULT_ROUTE_GUARDRAILS.maximumLatencyIncreasePct,
     overrides: {},
     version: 1,
     updatedAt: new Date().toISOString(),
   };
 }
 
-export function loadDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPolicy {
+export function loadDraftRoutingPolicy(fallbackModelId: string, workspaceId = "demo"): DraftRoutingPolicy {
   const initial = createDraftRoutingPolicy(fallbackModelId);
   if (typeof window === "undefined") return initial;
   try {
-    const saved = JSON.parse(window.localStorage.getItem(ROUTING_DRAFT_STORAGE_KEY) ?? "null") as Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string } | null;
+    const saved = JSON.parse(window.localStorage.getItem(routingDraftStorageKey(workspaceId)) ?? "null") as Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string } | null;
     return saved ? normalizeDraftRoutingPolicy(saved, fallbackModelId) : initial;
   } catch {
     return initial;
@@ -75,22 +69,20 @@ export function loadDraftRoutingPolicy(fallbackModelId: string): DraftRoutingPol
 export function normalizeDraftRoutingPolicy(value: Partial<DraftRoutingPolicy> & { fallbackModelId?: string; fallbackOpenRouterModelId?: string }, fallbackModelId = ""): DraftRoutingPolicy {
   const initial = createDraftRoutingPolicy(value.fallbackModelId || fallbackModelId);
   return {
-    ...initial,
-    ...value,
     defaultStrategyType: value.defaultStrategyType === "openrouter_auto" ? "openrouter_auto" : "fixed_model",
     defaultModelId: value.defaultModelId || value.fallbackModelId || fallbackModelId,
     defaultOpenRouterModelId: value.defaultOpenRouterModelId || value.fallbackOpenRouterModelId,
     autoRouterCostTier: ["low", "medium", "high", "xhigh", "max"].includes(String(value.autoRouterCostTier)) ? value.autoRouterCostTier! : "medium",
-    emergencyFallbackModelId: value.emergencyFallbackModelId || value.fallbackModelId || fallbackModelId,
-    emergencyFallbackOpenRouterModelId: value.emergencyFallbackOpenRouterModelId || value.fallbackOpenRouterModelId,
     overrides: value.overrides ?? {},
+    version: Number.isFinite(value.version) ? value.version! : initial.version,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : initial.updatedAt,
   };
 }
 
-export function saveDraftRoutingPolicy(policy: DraftRoutingPolicy) {
+export function saveDraftRoutingPolicy(policy: DraftRoutingPolicy, workspaceId = "demo") {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(ROUTING_DRAFT_STORAGE_KEY, JSON.stringify(policy));
-    window.dispatchEvent(new CustomEvent("routelab-routing-policy-updated", { detail: policy }));
+    window.localStorage.setItem(routingDraftStorageKey(workspaceId), JSON.stringify(policy));
+    window.dispatchEvent(new CustomEvent("routelab-routing-policy-updated", { detail: { policy, workspaceId } }));
   }
 }
 
@@ -124,10 +116,6 @@ export function isDraftRoutingPolicy(value: unknown): value is DraftRoutingPolic
     || typeof policy.defaultModelId !== "string"
     || (policy.defaultOpenRouterModelId !== undefined && typeof policy.defaultOpenRouterModelId !== "string")
     || !["low", "medium", "high", "xhigh", "max"].includes(String(policy.autoRouterCostTier))
-    || typeof policy.emergencyFallbackModelId !== "string"
-    || (policy.emergencyFallbackOpenRouterModelId !== undefined && typeof policy.emergencyFallbackOpenRouterModelId !== "string")
-    || !isFiniteNumber(policy.minimumPassRate)
-    || !isFiniteNumber(policy.maximumLatencyIncreasePct)
     || !isFiniteNumber(policy.version)
     || typeof policy.updatedAt !== "string"
     || !policy.overrides

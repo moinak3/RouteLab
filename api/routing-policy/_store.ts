@@ -168,7 +168,6 @@ export async function getPublishedRoutingPolicyHistory(databaseUrl: string, work
         : signed.bundle.defaultStrategy?.type === "fixed_model"
           ? signed.bundle.defaultStrategy.target.modelId
           : signed.bundle.fallback?.modelId ?? "Unknown";
-      const emergencyFallbackModelId = signed.bundle.emergencyFallback?.modelId ?? signed.bundle.fallback?.modelId ?? "Unknown";
       return {
         policyId: signed.bundle.policyId,
         version: signed.bundle.version,
@@ -176,7 +175,6 @@ export async function getPublishedRoutingPolicyHistory(databaseUrl: string, work
         activatedAt: activeVersion === signed.bundle.version ? activatedAt : null,
         active: activeVersion === signed.bundle.version,
         defaultStrategyLabel,
-        emergencyFallbackModelId,
         overrideCount: signed.bundle.overrides.length,
         signatureCount: signed.bundle.signatures.length,
         expiresAt: signed.bundle.expiresAt,

@@ -1,4 +1,5 @@
-import type { Complexity, Domain, GroundingRequirement, InferredDistinctTask, NormalizedTrace, OutputFormat, OutputUncertainty, Risk, DistinctTaskField, TaskType, TemporalContext, ToolUse, DistinctTask, DistinctTaskBucket } from "../types";
+import type { Complexity, Domain, GroundingRequirement, InferredDistinctTask, NormalizedTrace, OutputFormat, OutputUncertainty, Risk, DistinctTaskField, TaskType, TemporalContext, ToolUse, DistinctTask, DistinctTaskBucket } from "../types.js";
+import { baseTaskGroupName, normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames.js";
 
 type Inference<T> = { value: T; confidence: number; evidence: string[] };
 const has = (text: string, words: string[]) => words.filter((word) => text.includes(word));
@@ -168,21 +169,36 @@ export class HeuristicDistinctTaskClassifier implements DistinctTaskClassifier {
     return {trace_id:trace.id,task:distinctTask,confidence,evidence,overall_confidence:overall,risk_level:risk.value,customer_facing:visibility.value,task_status:risk.confidence<.6||visibility.confidence<.6||overall<.65?"low_confidence_needs_review":"inferred"};
   }
 }
-export const distinctTaskKey=(task:DistinctTask)=>[task.task_type,task.domain,task.complexity,task.temporal_context,task.tool_use,task.output_uncertainty,task.output_format,task.grounding_requirement].join("|");
+export const distinctTaskKey=(task:DistinctTask)=>[task.task_type,task.domain,task.complexity,task.temporal_context,task.tool_use,task.output_uncertainty,task.output_format].join("|");
 const hash=(value:string)=>{let result=2166136261;for(const char of value){result^=char.charCodeAt(0);result=Math.imul(result,16777619)}return (result>>>0).toString(36)};
-const title=(value:string)=>value.replaceAll("_"," ");
-export const bucketName=(task:DistinctTask)=>`${title(task.domain)} ${title(task.task_type)}, ${task.complexity} complexity, ${title(task.temporal_context)}, ${title(task.tool_use)} tools`;
+export const bucketName=(task:DistinctTask)=>baseTaskGroupName(task.task_type);
+export function mostCommonModelForTaskGroup(bucket:Pick<DistinctTaskBucket,"traces">,traces:NormalizedTrace[]):string|undefined{
+  const traceIds=new Set(bucket.traces);
+  const counts=new Map<string,number>();
+  traces.forEach(trace=>{
+    if(!traceIds.has(trace.id))return;
+    const model=trace.model.trim();
+    if(model)counts.set(model,(counts.get(model)??0)+1);
+  });
+  return [...counts.entries()].sort(([leftModel,leftCount],[rightModel,rightCount])=>rightCount-leftCount||leftModel.localeCompare(rightModel))[0]?.[0];
+}
+const mostCommon=<T extends string>(values:T[]):T=>{
+  const counts=new Map<T,number>();
+  values.forEach(value=>counts.set(value,(counts.get(value)??0)+1));
+  return [...counts.entries()].sort((left,right)=>right[1]-left[1]||String(left[0]).localeCompare(String(right[0])))[0][0];
+};
+const representativeTask=(items:Array<{result:InferredDistinctTask}>):DistinctTask=>Object.fromEntries(distinctTaskFields.map(field=>[field,mostCommon(items.map(item=>item.result.task[field]))])) as DistinctTask;
 export function createDistinctTaskBuckets(traces:NormalizedTrace[], classifier:DistinctTaskClassifier=new HeuristicDistinctTaskClassifier()):DistinctTaskBucket[]{
   const inferred=traces.map(trace=>({trace,result:classifier.infer(trace)})); const groups=new Map<string,typeof inferred>();
   inferred.forEach(item=>{const label=typeof item.trace.metadata?.distinct_task_label==="string"?item.trace.metadata.distinct_task_label:"";const key=label||distinctTaskKey(item.result.task);const group=groups.get(key);if(group)group.push(item);else groups.set(key,[item])});
-  return [...groups.entries()].map(([key,items])=>{
-    const task=items[0].result.task;
+  const buckets:DistinctTaskBucket[]=[...groups.entries()].map(([key,items])=>{
+    const task=representativeTask(items);
     const explicitLabel=items.map(item=>item.trace.metadata?.distinct_task_label).find((value):value is string=>typeof value==="string"&&value.trim().length>0);
     const riskOrder:Risk[]=["low","medium","high"];
     const riskLevel=items.map(item=>item.result.risk_level).sort((a,b)=>riskOrder.indexOf(b)-riskOrder.indexOf(a))[0]??"medium";
     const evidence=Object.fromEntries(distinctTaskFields.map(field=>[field,[...new Set(items.flatMap(item=>item.result.evidence[field]))].slice(0,3)])) as Record<DistinctTaskField,string[]>;
     return {
-      bucket_id:`task_${hash(key)}`,bucket_name:explicitLabel??bucketName(task),task,traces:items.map(item=>item.trace.id),trace_count:items.length,
+      bucket_id:`task_${hash(key)}`,bucket_name:explicitLabel??bucketName(task),name_source:explicitLabel?"user" as const:"heuristic" as const,task,traces:items.map(item=>item.trace.id),trace_count:items.length,
       total_cost_usd:items.reduce((s,i)=>s+(i.trace.cost_usd??0),0),avg_cost_usd:average(items.map(i=>i.trace.cost_usd??0)),
       total_tokens:items.reduce((s,i)=>s+i.trace.total_tokens,0),avg_input_tokens:average(items.map(i=>i.trace.input_tokens)),
       avg_output_tokens:average(items.map(i=>i.trace.output_tokens)),avg_latency_ms:average(items.map(i=>i.trace.latency_ms??0)),
@@ -191,4 +207,5 @@ export function createDistinctTaskBuckets(traces:NormalizedTrace[], classifier:D
       evidence,examples:items.slice(0,3).map(i=>({trace_id:i.trace.id,prompt_preview:i.trace.prompt_text.slice(0,140),response_preview:(i.trace.response_text??"").slice(0,140)})),
     };
   }).sort((a,b)=>b.trace_count-a.trace_count);
+  return normalizeAutomaticTaskGroupNames(buckets);
 }

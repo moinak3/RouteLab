@@ -44,7 +44,7 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
       <p>Golden datasets are the ground-truth layer for RouteLab. Upload prompts, agent answers, human reference answers, and human pass or score labels, then compare them against the current LLM-as-judge eval.</p>
       </div>
       <div className="golden-hero-actions">
-        <label className="upload golden-upload">Upload golden CSV<input type="file" accept=".csv" onChange={(event) => uploadDataset(event.target.files?.[0])} /></label>
+        <label className="upload golden-upload primary">Upload golden CSV<input type="file" accept=".csv" onChange={(event) => uploadDataset(event.target.files?.[0])} /></label>
         <a className="ghost-link" href="/samples/routelab-simulated-golden-dataset.csv" download>Download sample CSV</a>
       </div>
     </section>
@@ -98,6 +98,10 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
         {selectedDataset && <span>{calibration.matched_rows.toLocaleString()} matched rows</span>}
       </div>
       {selectedDataset ? <>
+        {calibration.invalid_rows > 0 && <div className="notice golden-consistency-warning" role="alert">
+          <b>{calibration.invalid_rows} inconsistent golden row{calibration.invalid_rows === 1 ? "" : "s"} excluded from calibration.</b>
+          <span>A failed human label cannot use the exact same candidate and reference answer. Edit the label or provide the corrected human answer.</span>
+        </div>}
         <div className="calibration-metrics">
           <article><span>Coverage</span><b>{pct(calibration.coverage_pct)}</b><small>Golden rows with judge result</small></article>
           <article><span>Agreement</span><b>{pct(calibration.agreement_rate)}</b><small>Human pass/fail matches judge</small></article>
@@ -114,15 +118,20 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
             </div>
           </div>
           {calibration.disagreements.length ? calibration.disagreements.slice(0, 6).map((row) => <article key={row.trace_id}>
-            <div>
+            <div className="calibration-case">
               <code>{row.trace_id}</code>
               <p>{preview(row.prompt, 190)}</p>
+              <div className="calibration-answer-pair">
+                <div><span>Agent response</span><p>{row.agent_answer}</p></div>
+                <div><span>Human reference</span><p>{row.human_answer}</p></div>
+              </div>
             </div>
             <div className="calibration-verdicts">
               <span>Human: <b>{row.human_passed ? "pass" : "fail"}</b>{row.human_score !== undefined ? ` · ${row.human_score}` : ""}</span>
               <span>Judge: <b>{row.judge_passed ? "pass" : "fail"}</b>{row.judge_score !== undefined ? ` · ${row.judge_score}` : ""}</span>
+              {row.human_rationale && <small><b>Human:</b> {row.human_rationale}</small>}
+              {row.judge_rationale && <small><b>Judge:</b> {row.judge_rationale}</small>}
             </div>
-            {row.judge_rationale && <small>{row.judge_rationale}</small>}
           </article>) : <p className="muted">Upload human labels with trace IDs to compare them against the current LLM-as-judge eval.</p>}
         </div>
       </> : <div className="empty-state"><h3>Upload a golden dataset to see eval calibration.</h3><p>Rows with `trace_id` and `human_passed` or `human_score` will be compared against current LLM-as-judge results.</p></div>}

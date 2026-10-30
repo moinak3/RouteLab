@@ -11,7 +11,7 @@ function databaseUrl() {
   return value;
 }
 
-function workspaceId() {
+function defaultWorkspaceId() {
   return String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
 }
 
@@ -88,12 +88,14 @@ export function runtimeTraceFromResult({
   decision = payload?.decision,
   route = payload?.route,
   source,
+  workspaceId,
 }: {
   request: any;
   payload: any;
   decision?: any;
   route?: any;
   source: "routelab_support" | "routelab_sidecar";
+  workspaceId?: string;
 }): Trace {
   const messages = normalizedMessages(request?.messages);
   const latestPrompt = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
@@ -103,6 +105,8 @@ export function runtimeTraceFromResult({
   const classifierStatus = normalizedDecision?.status ?? "error";
   const unknownClassifier = classifierStatus === "unknown" || normalizedDecision?.signature_id === "unknown";
   const toolExecutions = Array.isArray(payload?.toolExecutions) ? payload.toolExecutions : [];
+  const conversationId = request?.session_id ? String(request.session_id) : undefined;
+  const conversationTurn = messages.filter((message) => message.role === "user").length;
   return {
     id: `runtime_${Date.now()}_${randomUUID()}`,
     timestamp: new Date().toISOString(),
@@ -117,7 +121,7 @@ export function runtimeTraceFromResult({
     latency_ms: Number(payload?.timing?.totalMs ?? decision?.latencyMs ?? 0),
     cost_usd: Number(usage.cost ?? 0),
     status: payload?.ok === false ? "error" : "success",
-    workflow_id: request?.session_id ? String(request.session_id) : undefined,
+    workflow_id: conversationId,
     workflow_role: "final_answer",
     source,
     spans: toolExecutions.map((execution: any, index: number) => ({
@@ -131,6 +135,9 @@ export function runtimeTraceFromResult({
     error_type: payload?.ok === false ? "upstream_error" : undefined,
     metadata: {
       runtime_source: source,
+      workspace_id: workspaceId,
+      conversation_id: conversationId,
+      conversation_turn: conversationTurn,
       policy_id: route?.policyId,
       policy_version: route?.policyVersion,
       route_source: route?.source,
@@ -144,32 +151,34 @@ export function runtimeTraceFromResult({
       available_tools: Array.isArray(request?.tools) ? request.tools.map((tool: any) => String(tool?.function?.name ?? tool?.name ?? "unknown_tool")) : [],
       executed_tools: toolExecutions.map((execution: any) => String(execution?.name ?? "unknown_tool")),
       routing_passes: Array.isArray(payload?.routingPasses) ? payload.routingPasses.length : 1,
+      classifier_invocations: Number(payload?.classifierInvocations ?? 1),
+      classification_reused: Boolean(payload?.classificationReused),
     },
     signature_decision: normalizedDecision,
   };
 }
 
-export async function saveRuntimeTrace(trace: Trace) {
+export async function saveRuntimeTrace(trace: Trace, workspaceId = defaultWorkspaceId()) {
   const database = store();
   await database.ready;
   const traceJson = JSON.stringify(trace);
   const classifierStatus = String(trace.signature_decision?.status ?? trace.metadata?.classifier_status ?? "error");
   await database.sql`
     INSERT INTO routelab_runtime_traces (workspace_id, trace_id, observed_at, classifier_status, trace)
-    VALUES (${workspaceId()}, ${trace.id}, ${trace.timestamp}, ${classifierStatus}, ${traceJson}::jsonb)
+    VALUES (${workspaceId}, ${trace.id}, ${trace.timestamp}, ${classifierStatus}, ${traceJson}::jsonb)
     ON CONFLICT (workspace_id, trace_id) DO UPDATE
     SET observed_at = EXCLUDED.observed_at, classifier_status = EXCLUDED.classifier_status, trace = EXCLUDED.trace
   `;
   return trace;
 }
 
-export async function listRuntimeTraces(limit = 500) {
+export async function listRuntimeTraces(limit = 500, workspaceId = defaultWorkspaceId()) {
   const database = store();
   await database.ready;
   const boundedLimit = Math.max(1, Math.min(1_000, Math.floor(limit) || 500));
   const rows = await database.sql`
     SELECT trace FROM routelab_runtime_traces
-    WHERE workspace_id = ${workspaceId()}
+    WHERE workspace_id = ${workspaceId}
     ORDER BY observed_at DESC
     LIMIT ${boundedLimit}
   `;

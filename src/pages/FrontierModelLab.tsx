@@ -176,6 +176,7 @@ function EvalCaseDetails({ evalCase, onClose, onInspectPdf }: { evalCase: Fronti
 
 export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: boolean }) {
   const [modelConfigs] = useState<FrontierModelConfig[]>(initialModelConfigs);
+  const [selectedModelIds, setSelectedModelIds] = useState(() => frontierModelAliases.slice(0, 3).map((model) => model.id));
   const [selectedCaseIds, setSelectedCaseIds] = useState(defaultDemoCaseIds);
   const [runsPerCase, setRunsPerCase] = useState(3);
   const [harnessSelection, setHarnessSelection] = useState<FrontierHarnessSelection>("improved");
@@ -191,7 +192,7 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
   const [progress, setProgress] = useState({ running: false, completed: 0, total: 0, message: "" });
   const activeRun = history.find((run) => run.id === activeRunId) ?? history[0];
   const threshold = qualityThresholdPct / 100;
-  const selectedModels = modelConfigs;
+  const selectedModels = modelConfigs.filter((model) => selectedModelIds.includes(model.id));
   const selectedCases = frontierEvalCases.filter((item) => selectedCaseIds.includes(item.id));
   const detailCase = frontierEvalCases.find((item) => item.id === detailCaseId);
   const activeHarness = activeRun?.harnesses.includes(resultHarness) ? resultHarness : activeRun?.harnesses[0] ?? resultHarness;
@@ -202,10 +203,16 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
     selectedModels.length > 4 ? "Select no more than four models." : "",
     !selectedCases.length ? "Select at least one eval case." : "",
     selectedModels.some((model) => !model.runtimeModelId.trim()) ? "Add a current runtime model ID for every selected alias." : "",
+    selectedModels.some((model) => /^typesafe\/jev-/i.test(model.runtimeModelId)) ? "Jev is a Decisions API model. It can classify and route requests, but it cannot generate answers for these agent-workload cases." : "",
     !serverGatewayKey ? "The server-side OpenRouter secret is not configured." : "",
   ].filter(Boolean);
 
   const toggleCase = (id: string) => setSelectedCaseIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  const addModel = (id: string) => {
+    if (!id || selectedModelIds.includes(id) || selectedModelIds.length >= 4) return;
+    setSelectedModelIds((ids) => [...ids, id]);
+  };
+  const removeModel = (id: string) => setSelectedModelIds((ids) => ids.length <= 2 ? ids : ids.filter((item) => item !== id));
 
   const toggleRunSettings = () => {
     setShowRunSettings((isOpen) => {
@@ -285,7 +292,7 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
 
   return <div className="frontier-lab">
     <section className="frontier-intro panel">
-      <div><p className="eyebrow">Model × workflow × harness</p><h2>Comparing frontier model performance on a standard set of tasks</h2><p>Compare performance of 8 tasks cases across GPT Astra 6, GPT Sol 6.1 and Opus 5.5 (live calls) and compare quality, cost and latency across the 3 models.</p></div>
+      <div><p className="eyebrow">Model × workflow × harness</p><h2>Comparing frontier model performance on a standard set of tasks</h2><p>Compare selected OpenRouter models across 8 task cases using live calls, with quality, cost, and latency measured separately.</p></div>
     </section>
 
     <section className="frontier-config panel">
@@ -302,6 +309,10 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
         <div><small>Baseline</small><p>{frontierHarnesses.baseline.systemPrompt}</p><span>{frontierHarnesses.baseline.summary}</span></div>
         <div><small>Improved</small><p>{frontierHarnesses.improved.systemPrompt}</p><span>{frontierHarnesses.improved.summary}</span></div>
       </div> : null}
+      <div className="frontier-model-picker">
+        <div className="frontier-section-head"><div><h3>Models</h3><small>Select 2–4 models for the same workload</small></div><label><span className="sr-only">Add benchmark model</span><select aria-label="Add benchmark model" value="" disabled={selectedModelIds.length >= 4} onChange={(event) => addModel(event.target.value)}><option value="">Add a model…</option>{modelConfigs.filter((model) => !selectedModelIds.includes(model.id)).map((model) => <option value={model.id} key={model.id}>{model.displayName}</option>)}</select></label></div>
+        <div className="frontier-selected-models">{selectedModels.map((model) => <span className={/^typesafe\/jev-/i.test(model.runtimeModelId) ? "decision" : ""} key={model.id}><b>{model.displayName}</b><small>{model.provider}</small><button type="button" aria-label={`Remove ${model.displayName}`} disabled={selectedModelIds.length <= 2} onClick={() => removeModel(model.id)}>×</button></span>)}</div>
+      </div>
       <div className="frontier-case-picker">
         <div className="frontier-section-head"><h3>Evaluation cases</h3><div><button type="button" onClick={() => setSelectedCaseIds(frontierEvalCases.map((item) => item.id))}>Select all</button><button type="button" onClick={() => setSelectedCaseIds([])}>Clear</button></div></div>
         <div className="frontier-case-grid">{frontierEvalCases.map((evalCase) => <article className={`frontier-case-option ${selectedCaseIds.includes(evalCase.id) ? "selected" : ""} ${evalCase.id === "disputed-enterprise-invoice" ? "centerpiece" : ""}`} key={evalCase.id}>
@@ -325,8 +336,8 @@ export function FrontierModelLab({ serverGatewayKey }: { serverGatewayKey?: bool
     {activeRun && activeRun.results.length ? <>
       <section className="frontier-results panel">
         <div className="panelhead"><div><p className="eyebrow">Aggregate summary</p><h2>Quality, reliability, latency, and economics stay separate</h2></div>{activeRun.harnesses.length > 1 ? <div className="frontier-tabs">{activeRun.harnesses.map((item) => <button type="button" className={activeHarness === item ? "active" : ""} key={item} onClick={() => setResultHarness(item)}>{frontierHarnesses[item].name}</button>)}</div> : <span>{frontierHarnesses[activeHarness].name}</span>}</div>
-        <div className="tablewrap"><table className="frontier-summary-table"><thead><tr><th>Model</th><th>Quality</th><th>Reliability</th><th>P50 latency</th><th>P95 latency</th><th>Avg cost/task</th><th>Cost/successful task</th></tr></thead><tbody>{aggregates.map((row) => <tr key={row.modelAliasId}><td><b>{row.modelDisplayName}</b><small>{row.successes}/{row.attempts} successful</small></td><td>{percent(row.quality)}</td><td>{percent(row.reliability)}</td><td>{latency(row.p50LatencyMs)}</td><td>{latency(row.p95LatencyMs)}</td><td>{money(row.averageCostUsd)}</td><td>{row.successes ? money(row.costPerSuccessUsd) : "∞"}</td></tr>)}</tbody></table></div>
-        <div className="frontier-matrix-wrap"><table className="frontier-matrix"><thead><tr><th>Enterprise eval case</th>{activeRun.modelConfigs.map((model) => <th key={model.id}>{model.displayName}</th>)}</tr></thead><tbody>{activeRun.caseIds.map((caseId) => { const evalCase = frontierEvalCases.find((item) => item.id === caseId)!; return <tr className={caseId === "disputed-enterprise-invoice" ? "centerpiece" : ""} key={caseId}><th><b>{evalCase.name}</b><span>{evalCase.category}</span>{evalCase.documents.length ? <button type="button" onClick={() => setShowPdf(true)}>Open 10-page fixture</button> : null}</th>{activeRun.modelConfigs.map((model) => { const results = matrixResults(caseId, model.id); const firstFailure = results.findIndex((result) => !result.passed); return <td key={model.id}><ResultCell results={results} onOpen={() => setTraceSelection({ results, index: firstFailure >= 0 ? firstFailure : 0 })} /></td>; })}</tr>; })}</tbody></table></div>
+        <div className="tablewrap"><table className="frontier-summary-table"><thead><tr><th>Model</th><th>Quality</th><th>Reliability</th><th>P50 latency</th><th>P95 latency</th><th>Avg cost/task</th><th>Cost/successful task</th></tr></thead><tbody>{aggregates.map((row) => <tr key={row.modelAliasId}><td data-label="Model"><b>{row.modelDisplayName}</b><small>{row.successes}/{row.attempts} successful</small></td><td data-label="Quality">{percent(row.quality)}</td><td data-label="Reliability">{percent(row.reliability)}</td><td data-label="P50 latency">{latency(row.p50LatencyMs)}</td><td data-label="P95 latency">{latency(row.p95LatencyMs)}</td><td data-label="Avg cost/task">{money(row.averageCostUsd)}</td><td data-label="Cost/successful task">{row.successes ? money(row.costPerSuccessUsd) : "∞"}</td></tr>)}</tbody></table></div>
+        <div className="frontier-matrix-wrap"><table className="frontier-matrix"><thead><tr><th>Enterprise eval case</th>{activeRun.modelConfigs.map((model) => <th key={model.id}>{model.displayName}</th>)}</tr></thead><tbody>{activeRun.caseIds.map((caseId) => { const evalCase = frontierEvalCases.find((item) => item.id === caseId)!; return <tr className={caseId === "disputed-enterprise-invoice" ? "centerpiece" : ""} key={caseId}><th><b>{evalCase.name}</b><span>{evalCase.category}</span>{evalCase.documents.length ? <button type="button" onClick={() => setShowPdf(true)}>Open 10-page fixture</button> : null}</th>{activeRun.modelConfigs.map((model) => { const results = matrixResults(caseId, model.id); const firstFailure = results.findIndex((result) => !result.passed); return <td data-label={model.displayName} key={model.id}><ResultCell results={results} onOpen={() => setTraceSelection({ results, index: firstFailure >= 0 ? firstFailure : 0 })} /></td>; })}</tr>; })}</tbody></table></div>
       </section>
 
       <section className="frontier-insights-grid">

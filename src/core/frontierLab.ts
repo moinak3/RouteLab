@@ -1,4 +1,4 @@
-import type { Model } from "../types";
+import type { Model } from "../types.js";
 
 export type FrontierHarnessId = "baseline" | "improved";
 export type FrontierHarnessSelection = FrontierHarnessId | "both";
@@ -178,6 +178,26 @@ export const frontierModelAliases: FrontierModelAlias[] = [
     runtimeModelId: "anthropic/claude-opus-5.5",
     inputCostPer1m: 4,
     outputCostPer1m: 20,
+  },
+  {
+    id: "particle-1",
+    displayName: "Particle-1",
+    provider: "Particle AI via OpenRouter",
+    family: "Particle",
+    description: "Particle AI's token-efficient agentic coding model through OpenRouter.",
+    runtimeModelId: "particle-ai/particle-1",
+    inputCostPer1m: .25,
+    outputCostPer1m: 1,
+  },
+  {
+    id: "typesafe-jev-1-14",
+    displayName: "Jev 1.14 (OpenRouter Decisions)",
+    provider: "TypeSafe via OpenRouter",
+    family: "TypeSafe",
+    description: "A structured decision model for classification and routing, not generative agent responses.",
+    runtimeModelId: "typesafe/jev-1.14",
+    inputCostPer1m: .042,
+    outputCostPer1m: 0,
   },
 ];
 
@@ -694,7 +714,8 @@ export function frontierTakeaways(run: FrontierLabRun): string[] {
   const separator = [...caseStats].sort((a, b) => b.spread - a.spread)[0];
   if (separator && separator.spread >= 0.08) {
     const ranked = [...separator.models].sort((a, b) => b.quality - a.quality);
-    takeaways.push(`${separator.evalCase.name} was the clearest separator: ${ranked[0].model.displayName} averaged ${(ranked[0].quality * 100).toFixed(1)}% quality versus ${(ranked.at(-1)!.quality * 100).toFixed(1)}% for ${ranked.at(-1)!.model.displayName}.`);
+    const lastRanked = ranked[ranked.length - 1];
+    takeaways.push(`${separator.evalCase.name} was the clearest separator: ${ranked[0].model.displayName} averaged ${(ranked[0].quality * 100).toFixed(1)}% quality versus ${(lastRanked.quality * 100).toFixed(1)}% for ${lastRanked.model.displayName}.`);
   }
   const equivalent = caseStats.find((item) => item.models.length > 1 && item.spread <= 0.03 && item.models.every((row) => row.quality >= run.qualityThreshold));
   if (equivalent) takeaways.push(`All measured models were effectively equivalent on ${equivalent.evalCase.name}; this workflow should favor the lowest-cost passing route.`);

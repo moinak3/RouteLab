@@ -13,8 +13,14 @@ const pickerFamilies = (models: Model[]) => {
   return [...new Set(ordered)].filter((family) => present.has(family));
 };
 
-export function ModelOptions({ models }: { models: Model[] }) {
-  return <>{pickerFamilies(models).map(family=>{const familyModels=models.filter(model=>model.family===family);return familyModels.length?<optgroup label={openRouterFamilyLabels[family]} key={family}>{familyModels.map(model=><option value={model.id} key={model.id}>{model.display_name} · {modelDate(model)}</option>)}</optgroup>:null})}</>;
+export function ModelOptions({
+  models,
+  valueForModel = (model) => model.id,
+}: {
+  models: Model[];
+  valueForModel?: (model: Model) => string;
+}) {
+  return <>{pickerFamilies(models).map(family=>{const familyModels=models.filter(model=>model.family===family);return familyModels.length?<optgroup label={openRouterFamilyLabels[family]} key={family}>{familyModels.map(model=><option value={valueForModel(model)} key={model.id}>{model.display_name} · {modelDate(model)}</option>)}</optgroup>:null})}</>;
 }
 
 export function ModelPicker({ models, value, onChange }: { models: Model[]; value: string; onChange: (value: string) => void }) {

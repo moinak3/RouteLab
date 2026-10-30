@@ -41,7 +41,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
   try {
     const databaseUrl = routingPolicyDatabaseUrl();
-    const workspaceId = routingPolicyWorkspaceId();
+    const workspaceId = routingPolicyWorkspaceId(req);
     const current = await getRoutingPolicyDraft(databaseUrl, workspaceId);
     const expectedRevision = Number(req.body?.expectedRevision);
     const signatures = Array.isArray(req.body?.signatures) ? req.body.signatures : [];
@@ -54,9 +54,7 @@ export default async function handler(req: any, res: any) {
     const defaultOpenRouterModelId = current.draft.defaultStrategyType === "fixed_model"
       ? openRouterModelId(current.draft.defaultModelId, current.draft.defaultOpenRouterModelId)
       : "openrouter/auto";
-    const emergencyOpenRouterModelId = openRouterModelId(current.draft.emergencyFallbackModelId, current.draft.emergencyFallbackOpenRouterModelId);
     if (!defaultOpenRouterModelId) errors.push("The fixed default model does not have an OpenRouter runtime target.");
-    if (!emergencyOpenRouterModelId) errors.push("The emergency fallback model does not have an OpenRouter runtime target.");
     for (const override of Object.values(current.draft.overrides)) {
       if (!openRouterModelId(override.modelId, override.openRouterModelId)) errors.push(`${override.taskName} does not have an OpenRouter runtime target.`);
     }
@@ -83,12 +81,6 @@ export default async function handler(req: any, res: any) {
       defaultStrategy: current.draft.defaultStrategyType === "openrouter_auto"
         ? { type: "openrouter_auto", openRouterModelId: "openrouter/auto", costTier: current.draft.autoRouterCostTier }
         : { type: "fixed_model", target: { modelId: current.draft.defaultModelId, openRouterModelId: defaultOpenRouterModelId } },
-      emergencyFallback: { modelId: current.draft.emergencyFallbackModelId, openRouterModelId: emergencyOpenRouterModelId },
-      guardrails: {
-        minimumPassRate: current.draft.minimumPassRate,
-        maximumLatencyIncreasePct: current.draft.maximumLatencyIncreasePct,
-        minimumReplayCount: 3,
-      },
       signatures,
       overrides: Object.values(current.draft.overrides).map((override) => ({
         taskId: override.taskId,

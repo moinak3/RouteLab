@@ -20,8 +20,8 @@ type RoutingPolicyDraftStatus = {
   imported: boolean;
 };
 
-export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: { readOnly?: boolean } = {}) {
-  const [draftPolicy, setDraftPolicy] = useState<DraftRoutingPolicy>(() => loadDraftRoutingPolicy(defaultFallbackModelId));
+export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: { readOnly?: boolean; workspaceId: string }) {
+  const [draftPolicy, setDraftPolicy] = useState<DraftRoutingPolicy>(() => loadDraftRoutingPolicy(defaultFallbackModelId, options.workspaceId));
   const [status, setStatus] = useState<RoutingPolicyDraftStatus>({ state: "loading", revision: 0, savedAt: null, imported: false });
   const [conflictingDraft, setConflictingDraft] = useState<DraftRoutingPolicy | null>(null);
   const revisionRef = useRef(0);
@@ -35,13 +35,13 @@ export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: {
     let active = true;
     const initialize = async () => {
       try {
-        const server = await fetchRoutingPolicyDraft(controller.signal);
+        const server = await fetchRoutingPolicyDraft(options.workspaceId, controller.signal);
         if (!active) return;
         revisionRef.current = server.revision;
         const selected = initialDraftSync(policyRef.current, server.draft);
         if (server.draft) {
           setDraftPolicy(selected.draft);
-          saveDraftRoutingPolicy(selected.draft);
+          saveDraftRoutingPolicy(selected.draft, options.workspaceId);
           lastSavedUpdateRef.current = selected.draft.updatedAt;
           readyRef.current = true;
           setStatus({ state: "saved", revision: server.revision, savedAt: server.updatedAt, imported: false });
@@ -52,7 +52,7 @@ export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: {
           setStatus({ state: "offline", revision: 0, savedAt: null, imported: false });
           return;
         }
-        const imported = await persistRoutingPolicyDraft(selected.draft, 0, controller.signal);
+        const imported = await persistRoutingPolicyDraft(selected.draft, 0, options.workspaceId, controller.signal);
         if (!active) return;
         revisionRef.current = imported.revision;
         lastSavedUpdateRef.current = selected.draft.updatedAt;
@@ -66,16 +66,16 @@ export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: {
     };
     void initialize();
     return () => { active = false; controller.abort(); };
-  }, [options.readOnly]);
+  }, [options.readOnly, options.workspaceId]);
 
   useEffect(() => {
-    saveDraftRoutingPolicy(draftPolicy);
+    saveDraftRoutingPolicy(draftPolicy, options.workspaceId);
     if (options.readOnly || !readyRef.current || draftPolicy.updatedAt === lastSavedUpdateRef.current) return;
     setStatus(current => ({ ...current, state: "saving", imported: false }));
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       try {
-        const saved = await persistRoutingPolicyDraft(draftPolicy, revisionRef.current, controller.signal);
+        const saved = await persistRoutingPolicyDraft(draftPolicy, revisionRef.current, options.workspaceId, controller.signal);
         revisionRef.current = saved.revision;
         lastSavedUpdateRef.current = draftPolicy.updatedAt;
         if (policyRef.current.updatedAt === draftPolicy.updatedAt) {
@@ -93,21 +93,21 @@ export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: {
       }
     }, 650);
     return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [draftPolicy, options.readOnly]);
+  }, [draftPolicy, options.readOnly, options.workspaceId]);
 
   const useServerDraft = useCallback(() => {
     if (!conflictingDraft) return;
     lastSavedUpdateRef.current = conflictingDraft.updatedAt;
-    saveDraftRoutingPolicy(conflictingDraft);
+    saveDraftRoutingPolicy(conflictingDraft, options.workspaceId);
     setDraftPolicy(conflictingDraft);
     setConflictingDraft(null);
     setStatus(current => ({ ...current, state: "saved", imported: false }));
-  }, [conflictingDraft]);
+  }, [conflictingDraft, options.workspaceId]);
 
   const retryMyDraft = useCallback(async () => {
     setStatus(current => ({ ...current, state: "saving", imported: false }));
     try {
-      const saved = await persistRoutingPolicyDraft(policyRef.current, revisionRef.current);
+      const saved = await persistRoutingPolicyDraft(policyRef.current, revisionRef.current, options.workspaceId);
       revisionRef.current = saved.revision;
       lastSavedUpdateRef.current = policyRef.current.updatedAt;
       setConflictingDraft(null);
@@ -115,7 +115,7 @@ export function useRoutingPolicyDraft(defaultFallbackModelId: string, options: {
     } catch {
       setStatus(current => ({ ...current, state: "conflict", imported: false }));
     }
-  }, []);
+  }, [options.workspaceId]);
 
   return {
     draftPolicy,

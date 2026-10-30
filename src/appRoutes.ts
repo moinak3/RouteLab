@@ -8,7 +8,7 @@ export const appPageRoutes: Record<AppPage, string> = {
   "Distinct Tasks": "/workloads/task-groups",
   Evals: "/quality/eval-library",
   "Golden Dataset": "/quality/human-calibration",
-  "Classifier Validation": "/quality/classifier-validation",
+  "Classifier Validation": "/routing/classifier-validation",
   "Review Queue": "/quality/review-queue",
   Simulations: "/routing-simulations",
   Benchmarking: "/benchmarking",
@@ -20,6 +20,7 @@ export const appPageRoutes: Record<AppPage, string> = {
 const pagesByPath = new Map<string, AppPage>(
   Object.entries(appPageRoutes).map(([page, path]) => [path, page as AppPage]),
 );
+pagesByPath.set("/quality/classifier-validation", "Classifier Validation");
 
 function normalizePath(pathname: string) {
   if (!pathname || pathname === "/") return "/";

@@ -8,6 +8,7 @@ import App from "./App";
 import "./styles.css";
 import "./styles/frontier-lab.css";
 import "./styles/classifier-validation.css";
+import "./styles/classifier-validation-empty.css";
 import "./styles/typography.css";
 import "./styles/impeccable-dossier.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);

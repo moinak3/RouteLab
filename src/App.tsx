@@ -1,15 +1,38 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
+import { NewWorkspaceOverview } from "./components/NewWorkspaceOverview";
 import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
 import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
+import { requiredOpenRouterModels, withRequiredOpenRouterModels } from "./core/openRouterModels";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
 import { buildWorkflowTrees, ingestText } from "./core/ingestion";
-import { applyJevSignatureDecisions, classifyTraceSignaturesWithJev } from "./core/jevSignatureGate";
 import { recommendPolicy } from "./core/recommendations";
 import { mergeRuntimeTraces } from "./core/runtimeTraces";
+import {
+  DEFAULT_WEEKLY_REVIEW_BUDGET,
+  fetchReviewWorkflow,
+  HUMAN_REVIEW_DATASET_ID,
+  persistReview,
+  persistWeeklyReviewBudget,
+  reviewLaneFromSearch,
+  reviewLaneHref,
+  reviewsAsGoldenDataset,
+  type PersistedReview,
+  type ReviewWorkflowState,
+  type SaveReviewInput,
+} from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
+import {
+  loadEvalAutomationPolicies,
+  markEvalTracesProcessed,
+  mergeEvalResults,
+  runEvalOnTraces,
+  saveEvalRunRecord,
+  type EvalAutomationPolicy,
+} from "./core/evalLifecycle";
+import { clearWorkspaceBrowserState, clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, resetPersonalCloudWorkspaceId, saveActiveWorkspace, savePersonalWorkspace, type TaskGroupingMethod, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
 import { ClassifierValidation } from "./pages/ClassifierValidation";
 import { Evals } from "./pages/Evals";
 import { FineTuning } from "./pages/FineTuning";
@@ -23,7 +46,7 @@ import { ReviewQueue } from "./pages/ReviewQueue";
 import { Simulations } from "./pages/Simulations";
 import { Traces } from "./pages/Traces";
 import { TaskSignatures } from "./pages/TaskSignatures";
-import type { FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace, TraceJudgeResult } from "./types";
+import type { DistinctTaskBucket, FineTuneJob, GatewayProvider, GoldenDataset as GoldenDatasetType, Model, Trace } from "./types";
 import type { Page, ReviewQueueFilter } from "./types/ui";
 
 const initialTraces = createSeedTraces();
@@ -43,8 +66,8 @@ type NavDestination = {
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Groups", page: "Distinct Tasks" }] },
-  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue", "Classifier Validation"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Classifier Validation", page: "Classifier Validation" }, { label: "Review Queue", page: "Review Queue" }] },
-  { label: "Routing Simulations", page: "Simulations", pages: ["Simulations"], icon: "M" },
+  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }] },
+  { label: "Routing", page: "Simulations", pages: ["Simulations", "Classifier Validation"], icon: "M", children: [{ label: "Routing Simulations", page: "Simulations" }, { label: "Classifier Validation", page: "Classifier Validation" }] },
 ];
 const advancedNav: NavDestination[] = [
   { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
@@ -65,8 +88,51 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => pageForPath(window.location.pathname) ?? "Home");
   const [previewUnlocked, setPreviewUnlocked] = useState(hasPreviewAccess);
   const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Quality: false });
-  const [traces, setTraces] = useState<Trace[]>(initialTraces);
-  const [traceJudgeResults, setTraceJudgeResults] = useState<TraceJudgeResult[]>(initialTraceJudgeResults);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(loadActiveWorkspace);
+  const [workspaceData, setWorkspaceData] = useState<Record<WorkspaceId, WorkspaceData>>(() => ({
+    personal: loadPersonalWorkspace(),
+    demo: { traces: initialTraces, traceJudgeResults: initialTraceJudgeResults, goldenDatasets: initialGoldenDatasets, taskGroups: createDistinctTaskBuckets(initialTraces), taskGroupingMethod: "rules" },
+  }));
+  const [personalCloudWorkspaceId, setPersonalCloudWorkspaceId] = useState(() => loadCloudWorkspaceId("personal"));
+  const traces = workspaceData[activeWorkspace].traces;
+  const traceJudgeResults = workspaceData[activeWorkspace].traceJudgeResults;
+  const goldenDatasets = workspaceData[activeWorkspace].goldenDatasets;
+  const distinctTaskBuckets = workspaceData[activeWorkspace].taskGroups;
+  const taskGroupingMethod = workspaceData[activeWorkspace].taskGroupingMethod;
+  const cloudWorkspaceId = activeWorkspace === "demo" ? "demo" : personalCloudWorkspaceId;
+  const supportConsoleUrl = `/support-console/?workspace=${encodeURIComponent(cloudWorkspaceId)}&workspaceLabel=${encodeURIComponent(activeWorkspace === "demo" ? "RouteLab demo" : "My workspace")}`;
+  const [evalAutomationPolicies, setEvalAutomationPolicies] = useState<EvalAutomationPolicy[]>(() => loadEvalAutomationPolicies(cloudWorkspaceId));
+  const activeEvalRuns = useRef(new Set<string>());
+  const setTraces = useCallback((next: SetStateAction<Trace[]>) => {
+    setWorkspaceData((current) => {
+      const workspace = current[activeWorkspace];
+      const traces = typeof next === "function" ? next(workspace.traces) : next;
+      return { ...current, [activeWorkspace]: { ...workspace, traces } };
+    });
+  }, [activeWorkspace]);
+  const setGoldenDatasets = useCallback((next: SetStateAction<GoldenDatasetType[]>) => {
+    setWorkspaceData((current) => {
+      const workspace = current[activeWorkspace];
+      const goldenDatasets = typeof next === "function" ? next(workspace.goldenDatasets) : next;
+      return { ...current, [activeWorkspace]: { ...workspace, goldenDatasets } };
+    });
+  }, [activeWorkspace]);
+  const addEvalResults = useCallback((results: typeof traceJudgeResults) => {
+    if (!results.length) return;
+    setWorkspaceData((current) => ({
+      ...current,
+      [activeWorkspace]: {
+        ...current[activeWorkspace],
+        traceJudgeResults: mergeEvalResults(current[activeWorkspace].traceJudgeResults, results),
+      },
+    }));
+  }, [activeWorkspace]);
+  const setTaskGroups = useCallback((taskGroups: DistinctTaskBucket[], method: TaskGroupingMethod) => {
+    setWorkspaceData((current) => ({
+      ...current,
+      [activeWorkspace]: { ...current[activeWorkspace], taskGroups, taskGroupingMethod: method },
+    }));
+  }, [activeWorkspace]);
   const [candidate, setCandidate] = useState("deepseek-r1");
   const [recommendationCandidate, setRecommendationCandidate] = useState(DEEPSEEK_RECOMMENDATION_SCOPE);
   const [catalogVersion, setCatalogVersion] = useState(0);
@@ -74,21 +140,86 @@ export default function App() {
   const [familyApiKeys, setFamilyApiKeys] = useState<Partial<Record<Model["family"], string>>>({});
   const [gatewayApiKeys, setGatewayApiKeys] = useState<Partial<Record<GatewayProvider, string>>>({});
   const [serverGatewayKeys, setServerGatewayKeys] = useState<Partial<Record<GatewayProvider, boolean>>>({});
-  const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>("all");
-  const [goldenDatasets, setGoldenDatasets] = useState<GoldenDatasetType[]>(initialGoldenDatasets);
+  const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>(() => reviewLaneFromSearch(window.location.search));
+  const [weeklyReviewBudget, setWeeklyReviewBudget] = useState(DEFAULT_WEEKLY_REVIEW_BUDGET);
+  const [persistedReviews, setPersistedReviews] = useState<PersistedReview[]>([]);
+  const [reviewPersistenceState, setReviewPersistenceState] = useState<"loading" | "ready" | "saving" | "unavailable">("loading");
+  const [reviewPersistenceError, setReviewPersistenceError] = useState<string | null>(null);
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
-  const [notice, setNotice] = useState<string | null>("Example dataset loaded locally");
+  const [notice, setNotice] = useState<string | null>(null);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
-  const simulationModels = useMemo(() => [...(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id), OPENROUTER_AUTO_MODEL], [openRouterModels, activeModels]);
+  const simulationModels = useMemo(() => [
+    ...withRequiredOpenRouterModels(openRouterModels ?? activeModels).filter((model) => model.id !== OPENROUTER_AUTO_MODEL.id),
+    OPENROUTER_AUTO_MODEL,
+  ], [openRouterModels, activeModels]);
   const simulationModelIds = useMemo(() => simulationModels.map((model) => model.id), [simulationModels]);
-  const distinctTaskBuckets = useMemo(() => createDistinctTaskBuckets(traces), [traces]);
   const metrics = useMemo(() => dashboardMetrics(traces), [traces]);
   const workflows = useMemo(() => buildWorkflowTrees(traces), [traces]);
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
   const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
+
+  useEffect(() => saveActiveWorkspace(activeWorkspace), [activeWorkspace]);
+  useEffect(() => savePersonalWorkspace(workspaceData.personal), [workspaceData.personal]);
+  useEffect(() => {
+    setEvalAutomationPolicies(loadEvalAutomationPolicies(cloudWorkspaceId));
+    const handlePolicyUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string; policies?: EvalAutomationPolicy[] }>).detail;
+      if (detail?.workspaceId === cloudWorkspaceId && Array.isArray(detail.policies)) setEvalAutomationPolicies(detail.policies);
+    };
+    window.addEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
+    return () => window.removeEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
+  }, [cloudWorkspaceId]);
+
+  useEffect(() => {
+    if (!previewUnlocked || !traces.length) return;
+    const controller = new AbortController();
+    const enabled = evalAutomationPolicies.filter((policy) => policy.runOnNewTraces);
+    const runNewTraceEvals = async () => {
+      for (const policy of enabled) {
+        if (activeEvalRuns.current.has(policy.evalId) || controller.signal.aborted) continue;
+        const known = new Set(policy.knownTraceIds);
+        const pending = traces.filter((trace) => !known.has(trace.id));
+        if (!pending.length) continue;
+        activeEvalRuns.current.add(policy.evalId);
+        try {
+          for (let offset = 0; offset < pending.length; offset += 25) {
+            if (controller.signal.aborted) break;
+            const batch = pending.slice(offset, offset + 25);
+            const response = await runEvalOnTraces({
+              workspaceId: cloudWorkspaceId,
+              definition: policy.definition,
+              evalVersion: policy.evalVersion,
+              mode: "new_traces",
+              traces: batch,
+              signal: controller.signal,
+            });
+            addEvalResults(response.results);
+            saveEvalRunRecord(cloudWorkspaceId, response.run);
+          }
+          if (!controller.signal.aborted) {
+            markEvalTracesProcessed(cloudWorkspaceId, policy.evalId, pending.map((trace) => trace.id));
+            setNotice(`${policy.definition.name} evaluated ${pending.length.toLocaleString()} new traces`);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : "New-trace evaluation failed");
+        } finally {
+          activeEvalRuns.current.delete(policy.evalId);
+        }
+      }
+    };
+    void runNewTraceEvals();
+    return () => controller.abort();
+  }, [previewUnlocked, traces, evalAutomationPolicies, cloudWorkspaceId, addEvalResults]);
+
+  const refreshRuntimeTraces = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(`/api/runtime-traces?limit=500&workspace=${encodeURIComponent(cloudWorkspaceId)}`, { cache: "no-store", signal });
+    const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
+    if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
+    if (payload.traces.length) setTraces(current => mergeRuntimeTraces(current, payload.traces!));
+  }, [cloudWorkspaceId, setTraces]);
 
   function navigateTo(nextPage: Page, options?: { replace?: boolean }) {
     const nextPath = pathForPage(nextPage);
@@ -97,6 +228,30 @@ export default function App() {
       window.history[options?.replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextPath);
     }
     setPage(nextPage);
+  }
+
+  function openTaskGroupSimulation(bucketId: string) {
+    const nextPath = `${pathForPage("Simulations")}?taskGroup=${encodeURIComponent(bucketId)}`;
+    window.history.pushState({ page: "Simulations", taskGroup: bucketId }, "", nextPath);
+    setPage("Simulations");
+  }
+
+  function switchWorkspace(workspace: WorkspaceId) {
+    setActiveWorkspace(workspace);
+    navigateTo("Overview");
+    setNotice(workspace === "demo"
+      ? "Demo workspace loaded · sample data only"
+      : workspaceData.personal.traces.length
+        ? "Your workspace loaded"
+        : "Your workspace is ready for its first trace import");
+  }
+
+  function navigateToReviewLane(lane: ReviewQueueFilter, options?: { replace?: boolean }) {
+    const nextPath = reviewLaneHref(lane);
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    if (currentPath !== nextPath) window.history[options?.replace ? "replaceState" : "pushState"]({ page: "Review Queue", lane }, "", nextPath);
+    setReviewQueueFilter(lane);
+    setPage("Review Queue");
   }
 
   function handlePageLink(nextPage: Page) {
@@ -108,10 +263,48 @@ export default function App() {
   }
 
   useEffect(() => {
-    const handlePopState = () => setPage(pageForPath(window.location.pathname) ?? "Home");
+    const handlePopState = () => {
+      const nextPage = pageForPath(window.location.pathname) ?? "Home";
+      if (nextPage === "Review Queue") setReviewQueueFilter(reviewLaneFromSearch(window.location.search));
+      setPage(nextPage);
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  const applyReviewWorkflow = useCallback((workflow: ReviewWorkflowState) => {
+    setWeeklyReviewBudget(workflow.weeklyBudget);
+    setPersistedReviews(workflow.reviews);
+    const humanDataset = reviewsAsGoldenDataset(workflow.reviews);
+    setGoldenDatasets((items) => {
+      const withoutHumanReviews = items.filter((item) => item.id !== HUMAN_REVIEW_DATASET_ID);
+      return humanDataset ? [humanDataset, ...withoutHumanReviews] : withoutHumanReviews;
+    });
+  }, [setGoldenDatasets]);
+
+  useEffect(() => {
+    if (!previewUnlocked || activeWorkspace !== "demo") {
+      setWeeklyReviewBudget(DEFAULT_WEEKLY_REVIEW_BUDGET);
+      setPersistedReviews([]);
+      setReviewPersistenceState("ready");
+      setReviewPersistenceError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setReviewPersistenceState("loading");
+    fetchReviewWorkflow(controller.signal)
+      .then((workflow) => {
+        applyReviewWorkflow(workflow);
+        setReviewPersistenceError(null);
+        setReviewPersistenceState("ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+        setReviewPersistenceState("unavailable");
+      });
+    return () => controller.abort();
+  }, [previewUnlocked, activeWorkspace, applyReviewWorkflow]);
 
   useEffect(() => {
     if (!notice) return;
@@ -126,6 +319,9 @@ export default function App() {
   useEffect(() => {
     const activeGroup = allNav.find((item) => item.children?.length && item.pages.includes(page));
     if (activeGroup) setExpandedNav((expanded) => ({ ...expanded, [activeGroup.label]: true }));
+    if (advancedNav.some((item) => item.pages.includes(page))) {
+      setExpandedNav((expanded) => ({ ...expanded, Advanced: true }));
+    }
   }, [page]);
 
   useEffect(() => {
@@ -141,22 +337,36 @@ export default function App() {
 
   useEffect(() => {
     if (page !== "Overview" && page !== "Traces" && page !== "Review Queue") return;
-    let cancelled = false;
-    fetch("/api/runtime-traces?limit=500", { cache: "no-store" })
-      .then(async response => {
-        const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
-        if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
-        return payload.traces;
-      })
-      .then(runtimeTraces => {
-        if (!cancelled && runtimeTraces.length) setTraces(current => mergeRuntimeTraces(current, runtimeTraces));
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [page]);
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || controller.signal.aborted) return;
+      refreshing = true;
+      try { await refreshRuntimeTraces(controller.signal); }
+      catch { /* Runtime trace storage is optional in local-only mode. */ }
+      finally { refreshing = false; }
+    };
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("routelab-runtime-traces");
+    if (channel) channel.onmessage = (event) => {
+      if (event.data?.type === "trace_saved" && event.data?.workspaceId === cloudWorkspaceId) void refresh();
+    };
+    void refresh();
+    const timer = window.setInterval(refreshWhenVisible, 10_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      channel?.close();
+    };
+  }, [page, activeWorkspace, cloudWorkspaceId, refreshRuntimeTraces]);
 
   useEffect(() => {
     let cancelled = false;
+    registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...requiredOpenRouterModels]);
     fetch("/api/openrouter/models")
       .then(async response => {
         const payload = await response.json().catch(() => ({})) as { models?: Model[]; error?: unknown };
@@ -165,8 +375,9 @@ export default function App() {
       })
       .then(models => {
         if (cancelled) return;
-        registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...models]);
-        setOpenRouterModels(models);
+        const availableModels = withRequiredOpenRouterModels(models);
+        registerOpenRouterModels([OPENROUTER_AUTO_MODEL, ...availableModels]);
+        setOpenRouterModels(availableModels);
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
@@ -182,20 +393,13 @@ export default function App() {
     const result = ingestText(text, fileName);
     const errors = result.errors.slice(0, 8).map((error) => `Row ${error.row}: ${error.reason}`);
     if (result.traces.length) {
-      setNotice(`Classifying ${result.traces.length.toLocaleString()} incoming traces with Jev...`);
-      let classifiedTraces = result.traces;
-      let gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
-      try {
-        const gate = await classifyTraceSignaturesWithJev(result.traces, knownDistinctTaskSignatures);
-        classifiedTraces = applyJevSignatureDecisions(result.traces, gate.decisions);
-        gateSummary = `${gate.summary.matched} signature routes · ${gate.summary.fallback} fallback routes`;
-      } catch {
-        gateSummary = "Jev unavailable; all requests use the broadly capable fallback";
-      }
-      setTraces(classifiedTraces);
-      setTraceJudgeResults(createTraceJudgeResults(classifiedTraces));
-      navigateTo("Traces");
-      setNotice(`${result.traces.length} traces ingested → ${createDistinctTaskBuckets(classifiedTraces).length} task groups · ${gateSummary}${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
+      setWorkspaceData((current) => ({
+        ...current,
+        personal: replaceWorkspaceTraces(current.personal, result.traces),
+      }));
+      setActiveWorkspace("personal");
+      navigateTo("Overview");
+      setNotice(`${result.traces.length.toLocaleString()} traces imported · no classification or evaluation run${result.errors.length ? ` · ${result.errors.length} rows skipped` : ""}`);
       return { imported: result.traces.length, errors };
     } else {
       setNotice(result.errors.length ? `${result.errors.length} rows could not be ingested` : "No LLM calls found in upload");
@@ -208,6 +412,28 @@ export default function App() {
     return applyUploadedText(await file.text(), file.name);
   }
 
+  function clearPersonalTraces() {
+    if (activeWorkspace !== "personal") return;
+    const previousCloudWorkspaceId = personalCloudWorkspaceId;
+    clearWorkspaceBrowserState(previousCloudWorkspaceId);
+    const nextCloudWorkspaceId = resetPersonalCloudWorkspaceId();
+    activeEvalRuns.current.clear();
+    setWorkspaceData((current) => ({
+      ...current,
+      personal: clearWorkspaceTraces(current.personal),
+    }));
+    setPersonalCloudWorkspaceId(nextCloudWorkspaceId);
+    setEvalAutomationPolicies([]);
+    setWeeklyReviewBudget(DEFAULT_WEEKLY_REVIEW_BUDGET);
+    setPersistedReviews([]);
+    setReviewPersistenceState("ready");
+    setReviewPersistenceError(null);
+    setReviewQueueFilter("representative");
+    setFineTuneJobs([]);
+    navigateTo("Overview");
+    setNotice("My workspace reset · traces, task groups, evals, reviews, and routing settings cleared");
+  }
+
   function enterApp(password: string) {
     if (password === APP_PASSWORD) {
       try {
@@ -216,7 +442,8 @@ export default function App() {
         // Session storage can be unavailable in privacy-restricted browsers.
       }
       setPreviewUnlocked(true);
-      navigateTo(page === "Home" ? "Overview" : page, { replace: page !== "Home" });
+      if (page === "Review Queue") navigateToReviewLane(reviewLaneFromSearch(window.location.search), { replace: true });
+      else navigateTo(page === "Home" ? "Overview" : page, { replace: page !== "Home" });
       return true;
     }
     return false;
@@ -229,6 +456,43 @@ export default function App() {
 
   function updateGoldenDataset(dataset: GoldenDatasetType) {
     setGoldenDatasets((items) => items.map((item) => item.id === dataset.id ? dataset : item));
+  }
+
+  async function saveWeeklyReviewBudget(weeklyBudget: number) {
+    setReviewPersistenceState("saving");
+    setReviewPersistenceError(null);
+    try {
+      const workflow = await persistWeeklyReviewBudget(weeklyBudget);
+      applyReviewWorkflow(workflow);
+      setReviewPersistenceState("ready");
+      setNotice(`Weekly review budget saved · ${workflow.weeklyBudget.toLocaleString()} conversations`);
+    } catch (error) {
+      setReviewPersistenceState("unavailable");
+      setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+      throw error;
+    }
+  }
+
+  async function saveHumanReview(input: SaveReviewInput) {
+    setReviewPersistenceState("saving");
+    setReviewPersistenceError(null);
+    try {
+      const { review } = await persistReview(input);
+      const reviews = [review, ...persistedReviews.filter((item) => item.traceId !== review.traceId)];
+      setPersistedReviews(reviews);
+      const humanDataset = reviewsAsGoldenDataset(reviews);
+      setGoldenDatasets((items) => {
+        const withoutHumanReviews = items.filter((item) => item.id !== HUMAN_REVIEW_DATASET_ID);
+        return humanDataset ? [humanDataset, ...withoutHumanReviews] : withoutHumanReviews;
+      });
+      setReviewPersistenceState("ready");
+      setNotice(review.goldenRow ? "Human review saved · golden dataset updated" : "Human review saved");
+      return review;
+    } catch (error) {
+      setReviewPersistenceState("unavailable");
+      setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+      throw error;
+    }
   }
 
   function deleteGoldenDataset(id: string) {
@@ -300,6 +564,7 @@ export default function App() {
   return <div className="shell">
     <aside>
       <a className="brand" href="/" aria-label="RouteLab home"><span className="brandmark">R</span><div><b>RouteLab</b><small>Routing intelligence</small></div></a>
+      <label className="workspace-switcher"><span>Workspace</span><select value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select><small>{activeWorkspace === "demo" ? "Sample data · changes reset" : traces.length ? `${traces.length.toLocaleString()} imported traces` : "No data added yet"}</small></label>
       <nav aria-label="Primary navigation">
         <small className="nav-group-label">Workflow</small>
         {workflowNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
@@ -316,37 +581,44 @@ export default function App() {
             {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
           </div>}
         </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
-        <small className="nav-group-label advanced">Advanced</small>
-        {advancedNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
+        <div className="nav-collapsible advanced-nav">
           <button
             type="button"
-            className={`nav-parent ${item.pages.includes(page) ? "active" : ""}`}
-            onClick={() => setExpandedNav((expanded) => ({ ...expanded, [item.label]: !expanded[item.label] }))}
-            aria-expanded={Boolean(expandedNav[item.label])}
-            aria-controls={`${item.label.toLowerCase()}-submenu`}
+            className={`nav-parent ${advancedNav.some((item) => item.pages.includes(page)) ? "active" : ""}`}
+            onClick={() => setExpandedNav((expanded) => ({ ...expanded, Advanced: !expanded.Advanced }))}
+            aria-expanded={Boolean(expandedNav.Advanced)}
+            aria-controls="advanced-submenu"
           >
-            <span>{item.icon}</span>{item.label}<i className="nav-caret" aria-hidden="true">{expandedNav[item.label] ? "-" : "+"}</i>
+            <span>A</span>Advanced<i className="nav-caret" aria-hidden="true">{expandedNav.Advanced ? "-" : "+"}</i>
           </button>
-          {expandedNav[item.label] && <div className="nav-submenu" id={`${item.label.toLowerCase()}-submenu`}>
-            {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
+          {expandedNav.Advanced && <div className="nav-submenu" id="advanced-submenu">
+            {advancedNav.map((item) => <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+            <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Test Console</a>
           </div>}
-        </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
-        <a className="nav-external" href="/support-console/" target="_blank" rel="noreferrer"><span>C</span>Support Console</a>
+        </div>
       </nav>
     </aside>
     <main>
-      {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1></header> : null}
-      <div className="mobile-nav" aria-label="Mobile navigation">{allNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}<a href="/support-console/" target="_blank" rel="noreferrer">Support Console</a></div>
+      {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1><div className="header-workspace-control"><span className={`workspace-badge ${activeWorkspace}`}>{activeWorkspace === "demo" ? "Demo data" : "My workspace"}</span><select className="mobile-workspace-select" aria-label="Select workspace" value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select></div></header> : null}
+      <div className="mobile-nav" aria-label="Mobile navigation">
+        {workflowNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+        <button type="button" className={advancedNav.some((item) => item.pages.includes(page)) ? "active" : ""} aria-expanded={Boolean(expandedNav.Advanced)} aria-controls="mobile-advanced-submenu" onClick={() => setExpandedNav((expanded) => ({ ...expanded, Advanced: !expanded.Advanced }))}>Advanced</button>
+      </div>
+      {expandedNav.Advanced && <nav className="group-mobile-subnav mobile-advanced-submenu" id="mobile-advanced-submenu" aria-label="Advanced navigation">
+          {advancedNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+          <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Test Console</a>
+      </nav>}
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}
-      {page === "Overview" && <Overview metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={(filter)=>{setReviewQueueFilter(filter);navigateTo("Review Queue")}} />}
-      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} />}
-      {page === "Distinct Tasks" && <TaskSignatures traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} />}
-      {page === "Evals" && <Evals traces={traces} traceJudgeResults={traceJudgeResults} onReviewFilter={(filter) => { setReviewQueueFilter(filter); navigateTo("Review Queue"); }} />}
+      {page === "Overview" && activeWorkspace === "personal" && traces.length === 0 && <NewWorkspaceOverview onImport={upload} onNavigate={navigateTo} onUseDemo={() => switchWorkspace("demo")} />}
+      {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview key={`overview-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
+      {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
+      {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} taskGroupingMethod={taskGroupingMethod} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
+      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={navigateToReviewLane} onEvalResults={addEvalResults} onAutomationPoliciesChange={setEvalAutomationPolicies} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
-      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={setReviewQueueFilter} />}
-      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} />}
-      {page === "Simulations" && <Simulations traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
+      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
+      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} defaultModelId={activeModels[0]?.id ?? ""} onOpenSimulations={() => navigateTo("Simulations")} />}
+      {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}

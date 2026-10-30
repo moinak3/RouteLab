@@ -38,7 +38,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Classify intent, priority, sentiment, and queue for a customer who says they were charged twice after upgrading yesterday.", response: "intent=billing_dispute; priority=high; sentiment=frustrated; queue=billing" },
       { prompt: "Tag an enterprise admin request for SSO documentation before rollout, including security review and priority.", response: "intent=security_review; priority=medium; tags=sso,security_docs,enterprise" },
-      { prompt: "Classify a message asking where to find the refund status page after submitting a request.", response: "intent=refund_status; priority=low; sentiment=neutral; queue=billing" },
+      { prompt: "Classify a message asking where to find the refund status page after submitting a request.", response: "intent=refund_status; priority=low; sentiment=neutral; queue=billing", weak_response: "intent=general_question; sentiment=neutral" },
     ],
   },
   {
@@ -77,7 +77,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Draft a reply explaining why moving to a lower base plan can still increase a bill when add-ons and usage overages remain active.", response: "A lower base plan can reduce the subscription fee, but add-ons and overage charges are billed separately. I can help review the account usage so you can decide which plan or usage limit fits best." },
       { prompt: "Explain to an admin how to schedule a downgrade at renewal instead of changing the plan immediately.", response: "You can schedule the downgrade for the renewal date so current seats and features stay active through the term. I can help confirm the renewal date and the target plan before making the change." },
-      { prompt: "Respond to a customer asking whether adding temporary seats will change their annual contract.", response: "Temporary seats can affect billing for the active term. We should confirm the seat count, dates, and contract terms before applying the change." },
+      { prompt: "Respond to a customer asking whether adding temporary seats will change their annual contract.", response: "Temporary seats can affect billing for the active term. We should confirm the seat count, dates, and contract terms before applying the change.", weak_response: "Temporary seats never affect an annual contract, so you can add them without reviewing billing or contract terms." },
     ],
   },
   {
@@ -90,7 +90,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Route a ticket where renewal is tomorrow, outage timeline is missing, and the account owner asks for SLA credit review.", response: "queue=enterprise_support; priority=high; escalation_reason=renewal_risk_and_sla_credit_review" },
       { prompt: "Route a ticket where a workspace admin lost access after SSO enforcement and the incident affects the executive team.", response: "queue=account_recovery; priority=critical; escalation_reason=admin_lockout_sso_enforcement" },
-      { prompt: "Route a ticket where a customer reports audit-log export failures before a compliance audit.", response: "queue=technical_support; priority=high; escalation_reason=compliance_deadline_export_failure" },
+      { prompt: "Route a ticket where a customer reports audit-log export failures before a compliance audit.", response: "queue=technical_support; priority=high; escalation_reason=compliance_deadline_export_failure", weak_response: "queue=general_support; priority=medium" },
     ],
   },
   {
@@ -103,7 +103,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Write a short CSAT follow-up after a billing dispute was resolved and the customer thanked the support team.", response: "Thanks again for working with us on the billing issue. If anything else comes up, reply here and we will help." },
       { prompt: "Draft a friendly follow-up after a password reset issue was resolved through admin verification.", response: "I am glad we were able to restore access. Please let us know if any other users have trouble signing in." },
-      { prompt: "Create a concise follow-up after export retries succeeded and the customer confirmed the file is available.", response: "Great to hear the export is available now. We will keep monitoring for any recurrence on our side." },
+      { prompt: "Create a concise follow-up after export retries succeeded and the customer confirmed the file is available.", response: "Great to hear the export is available now. We will keep monitoring for any recurrence on our side.", weak_response: "The export worked. Contact us again if it breaks." },
     ],
   },
   {
@@ -116,7 +116,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Summarize a ticket for handoff: the customer cannot export audit logs, billing is current, and the export job timed out twice.", response: "The customer cannot export audit logs despite an active account; two export attempts timed out and need engineering review." },
       { prompt: "Summarize a chat transcript for the next agent: the admin lost access after SSO enforcement and needs recovery today.", response: "An admin lost access after SSO enforcement and needs same-day account recovery support." },
-      { prompt: "Condense an escalation note: renewal is tomorrow, support needs the outage timeline, and the customer asked for SLA credit review.", response: "The renewal is tomorrow; support needs the outage timeline to assess SLA credit eligibility." },
+      { prompt: "Condense an escalation note: renewal is tomorrow, support needs the outage timeline, and the customer asked for SLA credit review.", response: "The renewal is tomorrow; support needs the outage timeline to assess SLA credit eligibility.", weak_response: "The customer asked support about an SLA credit." },
     ],
   },
   {
@@ -129,7 +129,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Call the order API and shipping calculator to confirm whether order SO-781 can ship today.", response: json({ order_id: "SO-781", inventory_available: true, shipping_window: "today" }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-781" } } }, { id: "shipping_calculator", type: "tool", name: "shipping_calculator", metadata: { status: "success", arguments: { region: "EMEA" } } }] },
       { prompt: "Check order SO-882 and return inventory availability and ship date.", response: json({ order_id: "SO-882", inventory_available: false, shipping_window: "backorder review" }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-882" } } }] },
-      { prompt: "Use fulfillment tools to tell support whether order SO-945 is blocked by payment or inventory.", response: json({ order_id: "SO-945", block_reason: "payment_hold", inventory_available: true }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-945" } } }] },
+      { prompt: "Use fulfillment tools to tell support whether order SO-945 is blocked by payment or inventory.", response: json({ order_id: "SO-945", block_reason: "payment_hold", inventory_available: true }), weak_response: json({ order_id: "SO-945", block_reason: "inventory", inventory_available: false }), spans: [{ id: "order_api", type: "tool", name: "order_api", metadata: { status: "success", arguments: { order_id: "SO-945" } } }] },
     ],
   },
   {
@@ -141,8 +141,8 @@ const groups: SeedGroup[] = [
     currentModels: ["claude-opus-4.8", "gpt-5.4", "deepseek-v4-pro"],
     examples: [
       { prompt: "Call the entitlement and admin-directory tools to verify whether account Greenbyte can enable audit-log export.", response: json({ account: "Greenbyte", admin_verified: true, audit_log_export_enabled: true }), spans: [{ id: "entitlement_api", type: "tool", name: "entitlement_api", metadata: { status: "success", arguments: { account: "Greenbyte" } } }, { id: "admin_directory", type: "tool", name: "admin_directory", metadata: { status: "success", arguments: { account: "Greenbyte" } } }] },
-      { prompt: "Verify whether the requester for Northstar is an admin before discussing SSO recovery steps.", response: json({ account: "Northstar", requester_admin: true, recovery_steps_allowed: true }), spans: [{ id: "admin_directory", type: "tool", name: "admin_directory", metadata: { status: "success", arguments: { account: "Northstar" } } }] },
-      { prompt: "Check whether Acme has verified domain ownership before enabling SCIM changes.", response: json({ account: "Acme", domain_verified: true, scim_change_allowed: true }), spans: [{ id: "domain_verification", type: "tool", name: "domain_verification", metadata: { status: "success", arguments: { account: "Acme" } } }] },
+      { prompt: "Verify whether the requester for Northstar is an admin before discussing SSO recovery steps.", response: json({ account: "Northstar", requester_admin: true, recovery_steps_allowed: true }), weak_response: json({ account: "Northstar", requester_admin: false, recovery_steps_allowed: true }), spans: [{ id: "admin_directory", type: "tool", name: "admin_directory", metadata: { status: "success", arguments: { account: "Northstar" } } }] },
+      { prompt: "Check whether Acme has verified domain ownership before enabling SCIM changes.", response: json({ account: "Acme", domain_verified: true, scim_change_allowed: true }), weak_response: json({ account: "Acme", domain_verified: false, scim_change_allowed: true }), spans: [{ id: "domain_verification", type: "tool", name: "domain_verification", metadata: { status: "success", arguments: { account: "Acme" } } }] },
     ],
   },
   {
@@ -155,7 +155,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Guide a customer through first checks when API requests are slow but not failing.", response: "Check recent latency by endpoint, confirm request volume, compare p95 latency against baseline, and inspect retries or rate-limit headers before escalating." },
       { prompt: "Explain what an admin should check first when invitation emails are not received.", response: "Check the email allowlist, spam filtering, and whether invitations were sent to the correct domain before resending." },
-      { prompt: "Provide a troubleshooting flow for failed CSV exports that timeout after five minutes.", response: "Confirm export size, retry during lower traffic, check filters, and escalate with the export job ID if the retry also times out." },
+      { prompt: "Provide a troubleshooting flow for failed CSV exports that timeout after five minutes.", response: "Confirm export size, retry during lower traffic, check filters, and escalate with the export job ID if the retry also times out.", weak_response: "Try the export again later. It should eventually work." },
     ],
   },
   {
@@ -194,7 +194,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Translate to Spanish for a friendly support email: Your refund request is under review.", response: "Tu solicitud de reembolso está en revisión." },
       { prompt: "Localize this US support message for UK English: We are organizing your case history before escalating.", response: "We are organising your case history before escalating." },
-      { prompt: "Translate to French for a support reply: Please confirm the billing email on the account.", response: "Veuillez confirmer l'adresse e-mail de facturation du compte." },
+      { prompt: "Translate to French for a support reply: Please confirm the billing email on the account.", response: "Veuillez confirmer l'adresse e-mail de facturation du compte.", weak_response: "Veuillez confirmer votre adresse e-mail." },
     ],
   },
   {
@@ -207,7 +207,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Draft a support macro for explaining that an export delay is being escalated without promising an exact fix time.", response: "We have escalated the export delay to our team and will share updates as soon as we have confirmed next steps." },
       { prompt: "Rewrite a support macro to be clearer: Your thing is not working because setup is wrong.", response: "The issue appears to be caused by a setup mismatch. I can help verify the configuration." },
-      { prompt: "Draft a template for asking an admin to confirm account domain before access recovery.", response: "Please confirm the account domain and admin email so we can start the recovery review." },
+      { prompt: "Draft a template for asking an admin to confirm account domain before access recovery.", response: "Please confirm the account domain and admin email so we can start the recovery review.", weak_response: "Send us your password so we can restore access immediately." },
     ],
   },
   {
@@ -220,7 +220,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Flag sentiment and churn risk for a customer who says this is the third outage before renewal.", response: "sentiment=frustrated; churn_risk=high; trigger=repeat_outage_before_renewal" },
       { prompt: "Classify churn risk for a customer asking whether competitors have better audit-log exports.", response: "sentiment=concerned; churn_risk=medium; trigger=competitive_evaluation" },
-      { prompt: "Tag sentiment for a customer thanking support after a billing correction.", response: "sentiment=positive; churn_risk=low; trigger=resolved_billing_issue" },
+      { prompt: "Tag sentiment for a customer thanking support after a billing correction.", response: "sentiment=positive; churn_risk=low; trigger=resolved_billing_issue", weak_response: "sentiment=negative; churn_risk=high; trigger=billing_dispute" },
     ],
   },
   {
@@ -233,7 +233,7 @@ const groups: SeedGroup[] = [
     examples: [
       { prompt: "Extract missing knowledge-base topic, customer question, and suggested article title from a ticket about SSO enforcement delay.", response: json({ missing_topic: "SSO enforcement deferral", customer_question: "Can SSO enforcement be delayed?", suggested_article: "How to defer SSO enforcement" }) },
       { prompt: "Extract the documentation gap from a ticket where a customer cannot find audit-log export limits.", response: json({ missing_topic: "Audit-log export limits", customer_question: "What are the size and time limits for audit-log export?", suggested_article: "Audit-log export limits and troubleshooting" }) },
-      { prompt: "Extract a help-center gap from a support thread about renewal reminders and plan changes.", response: json({ missing_topic: "Renewal reminder timing", customer_question: "When are renewal reminders sent?", suggested_article: "Renewal reminders and scheduled plan changes" }) },
+      { prompt: "Extract a help-center gap from a support thread about renewal reminders and plan changes.", response: json({ missing_topic: "Renewal reminder timing", customer_question: "When are renewal reminders sent?", suggested_article: "Renewal reminders and scheduled plan changes" }), weak_response: json({ missing_topic: "Plan changes", customer_question: "When are renewal reminders sent?" }) },
     ],
   },
 ];
@@ -276,12 +276,72 @@ function personalize(prompt: string, index: number) {
   return `${prompt} Account: ${accounts[index % accounts.length]}. Ticket opened by ${["admin", "billing owner", "support manager", "operations lead"][index % 4]}.`;
 }
 
+const failureRationaleRules: Array<[RegExp, string]> = [
+  [/refund status page/i, "The response omits the required priority and billing queue fields and misclassifies a refund-status request as a general question."],
+  [/duplicate annual-plan charge/i, "The response promises an approved refund before billing verifies the duplicate transaction."],
+  [/immediate refund after missing a renewal reminder/i, "The response guarantees a refund even though the policy permits review, not automatic approval."],
+  [/disputing an overage fee/i, "The response removes the charge before checking usage logs and plan limits."],
+  [/annual-plan refund is allowed/i, "The response drops the no-completed-export condition and overstates refund eligibility."],
+  [/outage qualifies for service credit/i, "The response ignores the requirement for 45 continuous minutes of unplanned downtime."],
+  [/SSO enforcement can be delayed/i, "The response replaces a single 14-day deferral with an unsupported indefinite delay."],
+  [/adding temporary seats/i, "The response incorrectly says temporary seats cannot affect annual billing and skips the required contract review."],
+  [/audit-log export failures before a compliance audit/i, "The response routes a compliance-deadline failure to general support, lowers its priority, and omits the escalation reason."],
+  [/export retries succeeded/i, "The follow-up is abrupt and omits acknowledgement of the resolved retry and continued monitoring."],
+  [/renewal is tomorrow/i, "The handoff summary omits the renewal deadline and the missing outage timeline needed for SLA review."],
+  [/order SO-945/i, "The response contradicts the fulfillment result by reporting an inventory block instead of the payment hold."],
+  [/requester for Northstar/i, "The response allows recovery steps even while reporting that the requester is not an administrator."],
+  [/Acme has verified domain ownership/i, "The response allows SCIM changes even while reporting that domain ownership is unverified."],
+  [/CSV exports that timeout/i, "The response provides only an unbounded retry and omits size, filter, traffic-window, job-ID, and escalation checks."],
+  [/guarantee your refund today/i, "The response marks a pre-verification refund guarantee as compliant, which violates refund policy."],
+  [/customer CSV export in a public ticket/i, "The response approves customer-data exposure in a public ticket instead of requiring an approved support system."],
+  [/Tell me the old password/i, "The response approves password disclosure, which violates account-access policy."],
+  [/termination obligations/i, "The response dismisses legal review and misses the 60-day notice and committed-fee obligations."],
+  [/indemnity clause/i, "The response misses the uncapped customer indemnity exposure and incorrectly says the clause creates no customer risk."],
+  [/DPA excerpt/i, "The response says no escalation duties exist despite the 48-hour incident notice and access restrictions."],
+  [/billing email on the account/i, "The translation drops both the billing qualifier and the account context from the requested confirmation."],
+  [/confirm account domain before access recovery/i, "The template requests a password and promises immediate access instead of verifying the account domain and administrator email."],
+  [/thanking support after a billing correction/i, "The response reverses the observed positive sentiment and resolved state into high churn risk."],
+  [/renewal reminders and plan changes/i, "The extraction omits the required suggested article title and broadens the missing topic beyond renewal-reminder timing."],
+];
+
+function failureRationale(prompt: string) {
+  return failureRationaleRules.find(([pattern]) => pattern.test(prompt))?.[1]
+    ?? "The response does not preserve the required facts or action constraints for this request.";
+}
+
+function passRationale(group: SeedGroup, reference: string) {
+  return `${group.label}: the response matches the required outcome without unsupported claims. Required result: ${reference}`;
+}
+
+const calibrationBlindspots: Record<string, string> = {
+  trace_refund_and_billing_dispute_resolution_001:
+    "The reply gives the customer an immediate, concrete resolution and clearly communicates the refund outcome.",
+  trace_rag_grounded_policy_answers_006:
+    "The reply directly answers whether SSO enforcement can be delayed and gives a clear policy outcome.",
+  trace_policy_compliance_review_002:
+    "The reply gives a direct compliance determination and explains the condition under which sharing is acceptable.",
+  trace_legal_and_dpa_document_review_003:
+    "The review gives a direct conclusion about whether the excerpt creates support escalation duties.",
+};
+
 export function createSeedTraces(): Trace[] {
   return groups.flatMap((group, groupIndex) => Array.from({ length: SEED_TRACES_PER_GROUP }, (_, index) => {
     const example = group.examples[index % group.examples.length];
     const id = `trace_${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${String(index + 1).padStart(3, "0")}`;
     const prompt = personalize(example.prompt, index);
     const reference = example.response;
+    const judgePasses = index / SEED_TRACES_PER_GROUP < group.easyRate;
+    const blindspotRationale = calibrationBlindspots[id];
+    const humanPasses = judgePasses && !blindspotRationale;
+    const candidateResponse = humanPasses ? reference : example.weak_response;
+    if (!candidateResponse) throw new Error(`Missing weak response fixture for ${group.label}: ${example.prompt}`);
+    const humanCriticalFailure = !humanPasses && (group.key === "policy_compliance_reasoning" || group.key === "document_review_legal_analysis");
+    const judgeCriticalFailure = !judgePasses && humanCriticalFailure;
+    const judgeScore = judgePasses ? 1 : judgeCriticalFailure ? 0 : .5;
+    const judgeRationale = blindspotRationale ?? (judgePasses ? passRationale(group, reference) : failureRationale(example.prompt));
+    const humanRationale = humanPasses
+      ? `Human reviewer confirmed that the response satisfies the required outcome: ${reference}`
+      : failureRationale(example.prompt);
     const safetySignal = sampleSafetySignals[id];
     const modelId = group.currentModels[index % group.currentModels.length];
     const model = getModel(modelId)!;
@@ -307,7 +367,7 @@ export function createSeedTraces(): Trace[] {
       model: modelId,
       messages: [{ role: "user", content: prompt }],
       prompt_text: prompt,
-      response_text: safetySignal && example.weak_response ? example.weak_response : reference,
+      response_text: candidateResponse,
       input_tokens: input,
       output_tokens: output,
       total_tokens: input + output,
@@ -323,8 +383,16 @@ export function createSeedTraces(): Trace[] {
       error_type: failed ? "timeout" : undefined,
       metadata: {
         _internal_reference: reference,
-        _internal_candidate_quality: index / SEED_TRACES_PER_GROUP < group.easyRate ? "passes" : "fails",
+        _internal_candidate_quality: humanPasses ? "passes" : "fails",
         _internal_weak_response: example.weak_response,
+        _internal_human_passed: humanPasses,
+        _internal_human_score: humanPasses ? 1 : humanCriticalFailure ? 0 : .5,
+        _internal_human_severity: humanPasses ? "" : humanCriticalFailure ? "critical" : "major",
+        _internal_human_rationale: humanRationale,
+        _internal_judge_passed: judgePasses,
+        _internal_judge_score: judgeScore,
+        _internal_judge_severity: judgePasses ? "" : judgeCriticalFailure ? "critical" : "major",
+        _internal_judge_rationale: judgeRationale,
         user_id: `user_${accounts[index % accounts.length].toLowerCase()}_${String(index + 1).padStart(3, "0")}`,
         ...(sampleUserFeedback[id] ? { user_feedback: sampleUserFeedback[id] } : {}),
         ...(safetySignal ? { safety_signal: safetySignal.signal, safety_reason: safetySignal.reason } : {}),

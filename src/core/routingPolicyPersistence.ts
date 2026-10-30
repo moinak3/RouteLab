@@ -18,6 +18,11 @@ export class RoutingPolicyConflictError extends Error {
   }
 }
 
+const workspaceUrl = (path: string, workspaceId: string) => {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}workspace=${encodeURIComponent(workspaceId)}`;
+};
+
 function validEnvelope(value: unknown): value is RoutingPolicyDraftEnvelope {
   if (!value || typeof value !== "object") return false;
   const envelope = value as Partial<RoutingPolicyDraftEnvelope>;
@@ -35,8 +40,8 @@ async function parseEnvelope(response: Response): Promise<RoutingPolicyDraftEnve
   return payload;
 }
 
-export async function fetchRoutingPolicyDraft(signal?: AbortSignal): Promise<RoutingPolicyDraftEnvelope> {
-  const response = await fetch("/api/routing-policy/draft", { method: "GET", headers: { Accept: "application/json" }, signal });
+export async function fetchRoutingPolicyDraft(workspaceId: string, signal?: AbortSignal): Promise<RoutingPolicyDraftEnvelope> {
+  const response = await fetch(workspaceUrl("/api/routing-policy/draft", workspaceId), { method: "GET", headers: { Accept: "application/json" }, signal });
   if (!response.ok) throw new Error(response.status === 503 ? "Cloud policy storage is not configured." : "Could not load the saved routing policy.");
   return parseEnvelope(response);
 }
@@ -44,9 +49,10 @@ export async function fetchRoutingPolicyDraft(signal?: AbortSignal): Promise<Rou
 export async function persistRoutingPolicyDraft(
   draft: DraftRoutingPolicy,
   expectedRevision: number,
+  workspaceId: string,
   signal?: AbortSignal,
 ): Promise<RoutingPolicyDraftEnvelope> {
-  const response = await fetch("/api/routing-policy/draft", {
+  const response = await fetch(workspaceUrl("/api/routing-policy/draft", workspaceId), {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ draft, expectedRevision }),
@@ -63,8 +69,8 @@ async function parseError(response: Response, fallback: string) {
   return `${payload?.error ?? fallback}${detail}`;
 }
 
-export async function fetchPublishedPolicyHistory(signal?: AbortSignal): Promise<PublishedPolicyHistory> {
-  const response = await fetch("/api/routing-policy/versions", { headers: { Accept: "application/json" }, signal });
+export async function fetchPublishedPolicyHistory(workspaceId: string, signal?: AbortSignal): Promise<PublishedPolicyHistory> {
+  const response = await fetch(workspaceUrl("/api/routing-policy/versions", workspaceId), { headers: { Accept: "application/json" }, signal });
   const payload = await response.json().catch(() => null) as unknown;
   if (!response.ok || !isPublishedPolicyHistory(payload)) throw new Error("Could not load published policy history.");
   return payload;
@@ -73,8 +79,8 @@ export async function fetchPublishedPolicyHistory(signal?: AbortSignal): Promise
 export async function publishRoutingPolicy(input: {
   expectedRevision: number;
   signatures: PublishedTaskSignature[];
-}): Promise<SignedRoutingPolicyEnvelope> {
-  const response = await fetch("/api/routing-policy/publish", {
+}, workspaceId: string): Promise<SignedRoutingPolicyEnvelope> {
+  const response = await fetch(workspaceUrl("/api/routing-policy/publish", workspaceId), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(input),
@@ -85,8 +91,8 @@ export async function publishRoutingPolicy(input: {
   return payload;
 }
 
-export async function activateRoutingPolicy(version: number) {
-  const response = await fetch("/api/routing-policy/activate", {
+export async function activateRoutingPolicy(version: number, workspaceId: string) {
+  const response = await fetch(workspaceUrl("/api/routing-policy/activate", workspaceId), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ version }),
@@ -95,8 +101,8 @@ export async function activateRoutingPolicy(version: number) {
   return response.json() as Promise<{ version: number; activatedAt: string }>;
 }
 
-export async function fetchSignedRoutingPolicy(version: number | "active", signal?: AbortSignal) {
-  const response = await fetch(`/api/routing-policy/bundle?version=${encodeURIComponent(String(version))}`, { headers: { Accept: "application/json" }, signal });
+export async function fetchSignedRoutingPolicy(version: number | "active", workspaceId: string, signal?: AbortSignal) {
+  const response = await fetch(workspaceUrl(`/api/routing-policy/bundle?version=${encodeURIComponent(String(version))}`, workspaceId), { headers: { Accept: "application/json" }, signal });
   const payload = await response.json().catch(() => null) as (SignedRoutingPolicyEnvelope & { error?: string }) | null;
   if (!response.ok) throw new Error(payload?.error ?? "Could not export the policy bundle.");
   if (!isSignedRoutingPolicyEnvelope(payload)) throw new Error("Policy export returned an invalid bundle.");

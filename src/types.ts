@@ -74,6 +74,9 @@ export type DistinctTaskBucket = {
   risk_level: Risk; customer_facing: boolean;
   evidence: Record<DistinctTaskField, string[]>;
   examples: Array<{ trace_id: string; prompt_preview: string; response_preview: string }>;
+  review_status?: "inferred" | "confirmed" | "edited";
+  reviewed_at?: string;
+  name_source?: "heuristic" | "llm" | "user";
 };
 export type EvalType = "json_schema_validation" | "field_level_exact_match" | "regex_match" | "classification_accuracy" | "confusion_matrix" | "sql_parse" | "sql_execution" | "unit_tests" | "compile_check" | "groundedness_judge" | "citation_accuracy" | "policy_compliance_judge" | "required_facts_check" | "hallucination_check" | "summarization_fidelity_judge" | "omission_check" | "pairwise_judge_against_baseline" | "rubric_judge" | "safety_policy_check" | "tool_call_validity" | "tool_argument_correctness" | "tool_error_recovery" | "context_retention" | "instruction_adherence" | "uncertainty_calibration" | "human_review_sample" | "business_outcome_check";
 export type EvalRecommendation = { eval_type: EvalType; priority: "required" | "recommended" | "optional"; reason: string; suggested_config?: Record<string, unknown> };
@@ -97,7 +100,7 @@ export type Model = {
   openrouter_created_at?: string;
   enabled?: boolean;
   quality_tier: "cheap" | "balanced" | "strong" | "specialist";
-  family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "GLM" | "MiniMax" | "NVIDIA" | "Local" | "Router";
+  family: "OpenAI" | "Claude" | "Gemini" | "Mistral" | "DeepSeek" | "GLM" | "MiniMax" | "NVIDIA" | "Particle" | "TypeSafe" | "Local" | "Router";
   family_tier: "top" | "mid" | "cheapest";
 };
 export type InferenceProviderQuote = {
@@ -120,6 +123,7 @@ export type TraceJudgeResult = {
   id: string; trace_id: string; evaluator_type: string;
   score: number; passed: boolean; rationale: string; severity?: "minor" | "major" | "critical";
   created_at: string;
+  eval_id?: string; eval_version?: number; run_id?: string; run_mode?: "historical_test" | "new_traces";
 };
 export type RoutingRule = {
   id: string; name: string; match: { distinct_task_bucket_id: string; risk_level: Risk };
@@ -207,13 +211,13 @@ export type GoldenDataset = {
 };
 export type GoldenDatasetCalibrationRow = {
   trace_id: string; prompt: string; agent_answer: string; human_answer: string;
-  human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical";
+  human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical"; human_rationale?: string;
   judge_passed?: boolean; judge_score?: number; judge_severity?: "minor" | "major" | "critical"; judge_rationale?: string;
-  agreement?: boolean; score_delta?: number;
+  agreement?: boolean; score_delta?: number; data_issue?: string;
 };
 export type GoldenDatasetCalibration = {
   matched_rows: number; coverage_pct: number; agreement_rate: number; false_pass_rate: number;
-  false_fail_rate: number; avg_score_delta: number; severity_agreement_rate: number; disagreements: GoldenDatasetCalibrationRow[];
+  false_fail_rate: number; avg_score_delta: number; severity_agreement_rate: number; invalid_rows: number; disagreements: GoldenDatasetCalibrationRow[];
   rows: GoldenDatasetCalibrationRow[];
 };
 export type FineTuneJob = {

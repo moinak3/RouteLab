@@ -25,11 +25,68 @@ export type ClassifierValidationReport = {
   coverage: number;
   abstention: number;
   unknownFalseAcceptance: number;
-  perSignature: Array<{ signatureId: string; label: string; precision: number; recall: number; support: number }>;
+  perSignature: Array<{
+    signatureId: string;
+    label: string;
+    precision: number;
+    recall: number;
+    support: number;
+    correctAcceptedCount: number;
+    acceptedPredictionCount: number;
+  }>;
   labels: string[];
   confusion: Record<string, Record<string, number>>;
   errors: ClassifierValidationExample[];
 };
+
+export type ClassifierValidationReadiness = {
+  simulationEvidenceCount: number;
+  overrideCount: number;
+  signedPolicyCount: number;
+  reviewedLabelCount: number;
+};
+
+export function classifierValidationReadiness(input: ClassifierValidationReadiness) {
+  const prerequisites = [
+    {
+      id: "simulation",
+      label: "Measure routing candidates",
+      complete: input.simulationEvidenceCount > 0,
+      detail: input.simulationEvidenceCount > 0
+        ? `${input.simulationEvidenceCount} promoted simulation result${input.simulationEvidenceCount === 1 ? "" : "s"}`
+        : "Run a routing simulation and promote at least one measured result.",
+    },
+    {
+      id: "overrides",
+      label: "Approve task overrides",
+      complete: input.overrideCount > 0,
+      detail: input.overrideCount > 0
+        ? `${input.overrideCount} approved task override${input.overrideCount === 1 ? "" : "s"}`
+        : "No task-specific model allocation has been approved.",
+    },
+    {
+      id: "policy",
+      label: "Sign a policy version",
+      complete: input.signedPolicyCount > 0,
+      detail: input.signedPolicyCount > 0
+        ? `${input.signedPolicyCount} signed policy version${input.signedPolicyCount === 1 ? "" : "s"}`
+        : "The draft routing policy has not been signed.",
+    },
+    {
+      id: "labels",
+      label: "Add independently reviewed labels",
+      complete: input.reviewedLabelCount > 0,
+      detail: input.reviewedLabelCount > 0
+        ? `${input.reviewedLabelCount} reviewed classifier label${input.reviewedLabelCount === 1 ? "" : "s"}`
+        : "Classifier accuracy requires a held-out set of human-reviewed task labels.",
+    },
+  ];
+  return {
+    prerequisites,
+    ready: prerequisites.every((item) => item.complete),
+    completedCount: prerequisites.filter((item) => item.complete).length,
+  };
+}
 
 const divide = (numerator: number, denominator: number) => denominator ? numerator / denominator : 0;
 
@@ -60,6 +117,8 @@ export function buildClassifierValidationReport(
       precision: divide(truePositive, predicted.length),
       recall: divide(truePositive, actual.length),
       support: actual.length,
+      correctAcceptedCount: truePositive,
+      acceptedPredictionCount: predicted.length,
     };
   });
   return {

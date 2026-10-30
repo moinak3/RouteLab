@@ -1,5 +1,5 @@
 import http from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { PolicyClient } from "./policy.mjs";
 import { routeConversation, routedChatRequest } from "./router.mjs";
 
@@ -11,6 +11,7 @@ const openRouterChatUrl = String(env.OPENROUTER_CHAT_URL ?? "https://openrouter.
 const decisionMode = String(env.ROUTELAB_DECISION_MODE ?? "enforce").toLowerCase() === "shadow" ? "shadow" : "enforce";
 const openRouterApiKey = String(env.OPENROUTER_API_KEY ?? env.ROUTELAB_OPENROUTER_API_KEY ?? "").trim();
 const sidecarApiKey = String(env.ROUTELAB_SIDECAR_API_KEY ?? "").trim();
+const continuationTtlMs = Math.max(30_000, Math.min(15 * 60_000, Number(env.ROUTELAB_CONTINUATION_TTL_MS ?? 5 * 60_000)));
 
 if (!sidecarApiKey) throw new Error("ROUTELAB_SIDECAR_API_KEY is required.");
 
@@ -56,6 +57,34 @@ const authorized = (req) => {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 };
 
+function signContinuation(route) {
+  const encoded = Buffer.from(JSON.stringify({ route, expiresAt: Date.now() + continuationTtlMs }), "utf8").toString("base64url");
+  const signature = createHmac("sha256", sidecarApiKey).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function routeFromContinuation(token, bundle) {
+  const [encoded, suppliedSignature, extra] = String(token ?? "").split(".");
+  if (!encoded || !suppliedSignature || extra) throw Object.assign(new Error("The RouteLab continuation token is invalid."), { statusCode: 400 });
+  const expectedSignature = createHmac("sha256", sidecarApiKey).update(encoded).digest();
+  const supplied = Buffer.from(suppliedSignature, "base64url");
+  if (supplied.length !== expectedSignature.length || !timingSafeEqual(supplied, expectedSignature)) {
+    throw Object.assign(new Error("The RouteLab continuation token signature is invalid."), { statusCode: 401 });
+  }
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  } catch {
+    throw Object.assign(new Error("The RouteLab continuation token payload is invalid."), { statusCode: 400 });
+  }
+  if (Number(payload?.expiresAt ?? 0) <= Date.now()) throw Object.assign(new Error("The RouteLab continuation token has expired."), { statusCode: 409 });
+  const route = payload?.route;
+  if (!route?.decision || route.policyId !== bundle.policyId || Number(route.policyVersion) !== Number(bundle.version)) {
+    throw Object.assign(new Error("The RouteLab continuation token does not match the active policy."), { statusCode: 409 });
+  }
+  return route;
+}
+
 async function proxyChat(req, res, request, route) {
   const disconnected = new AbortController();
   const abort = () => disconnected.abort();
@@ -91,7 +120,7 @@ function inspectableRoute(route) {
   return { decision, selectedRoute };
 }
 
-async function inspectChat(request, route) {
+async function inspectChat(request, route, classificationReused = false) {
   const started = Date.now();
   const routedRequest = routedChatRequest({ ...request, stream: false }, route, decisionMode);
   const upstream = await fetch(openRouterChatUrl, {
@@ -129,6 +158,9 @@ async function inspectChat(request, route) {
     },
     decision,
     route: selectedRoute,
+    continuationToken: signContinuation(route),
+    classifierInvocations: classificationReused ? 0 : 1,
+    classificationReused,
     openRouterRequest: {
       model: routedRequest.model,
       provider: routedRequest.provider ?? null,
@@ -143,8 +175,8 @@ async function inspectChat(request, route) {
       selectedModel,
     },
     timing: {
-      classificationMs: decision.latencyMs,
-      totalMs: Date.now() - started + Number(decision.latencyMs ?? 0),
+      classificationMs: classificationReused ? 0 : decision.latencyMs,
+      totalMs: Date.now() - started + (classificationReused ? 0 : Number(decision.latencyMs ?? 0)),
     },
   };
 }
@@ -163,12 +195,17 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && (url.pathname === "/v1/route" || url.pathname === "/v1/chat/completions" || url.pathname === "/v1/inspect/chat/completions")) {
       if (!authorized(req)) return json(res, 401, { error: { message: "A valid RouteLab sidecar API key is required.", type: "authentication_error" } });
-      const request = await readJson(req);
-      const route = await routeConversation({ request, bundle: policyClient.getBundle(), apiKey: openRouterApiKey });
+      const body = await readJson(req);
+      const continuationToken = url.pathname === "/v1/inspect/chat/completions" ? String(body?.routelab_continuation ?? "").trim() : "";
+      const { routelab_continuation: _continuation, ...request } = body;
+      const bundle = policyClient.getBundle();
+      const route = continuationToken
+        ? routeFromContinuation(continuationToken, bundle)
+        : await routeConversation({ request, bundle, apiKey: openRouterApiKey });
       if (url.pathname === "/v1/route") return json(res, 200, { route }, routeHeaders(route));
       if (!openRouterApiKey) return json(res, 503, { error: { message: "OPENROUTER_API_KEY or ROUTELAB_OPENROUTER_API_KEY is required for chat completions.", type: "configuration_error" }, route }, routeHeaders(route));
       if (url.pathname === "/v1/inspect/chat/completions") {
-        const result = await inspectChat(request, route);
+        const result = await inspectChat(request, route, Boolean(continuationToken));
         return json(res, 200, result, routeHeaders(route));
       }
       return await proxyChat(req, res, request, route);

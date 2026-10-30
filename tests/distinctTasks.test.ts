@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DistinctTaskEvalPlanGenerator } from "../src/core/evalPlans";
 import { createDistinctTaskSeedTraces } from "../src/core/distinctTaskSeed";
-import { createDistinctTaskBuckets, HeuristicDistinctTaskClassifier } from "../src/core/distinctTasks";
-import type { Trace } from "../src/types";
+import { bucketName, createDistinctTaskBuckets, distinctTaskKey, HeuristicDistinctTaskClassifier, mostCommonModelForTaskGroup } from "../src/core/distinctTasks";
+import type { DistinctTask } from "../src/types";
 
 const traces=createDistinctTaskSeedTraces(); const classifier=new HeuristicDistinctTaskClassifier();
 const by=(key:string)=>traces.find(trace=>trace.id.includes(key))!;
@@ -53,6 +53,24 @@ describe("distinct task buckets",()=>{
     expect(new Set(buckets.map(bucket=>bucket.task.domain))).toEqual(new Set(["customer_support"]));
     expect(traces.every(trace=>trace.prompt_text.startsWith("As an AI customer support agent,"))).toBe(true);
   });
+  it("does not use grounding to split task groups",()=>{
+    const base=classifier.infer(by("rag_grounded_answers")).task;
+    const alternate={...base,grounding_requirement:"none" as const};
+    expect(distinctTaskKey(base)).toBe(distinctTaskKey(alternate));
+  });
+  it("uses readable outcome names instead of concatenated factors",()=>{
+    const task={...classifier.infer(by("summarization")).task,domain:"billing",complexity:"high",temporal_context:"late_multi_turn",tool_use:"recovered_failure"} as DistinctTask;
+    expect(bucketName(task)).toBe("Ticket Summaries");
+    expect(bucketName(task)).not.toMatch(/complexity|late multi turn|tools/i);
+  });
+  it("reports the most frequently observed model with deterministic ties",()=>{
+    const bucket=buckets[0];
+    const observed=traces.filter(trace=>bucket.traces.includes(trace.id));
+    const withModels=observed.map((trace,index)=>({...trace,model:index<2?"provider/model-b":"provider/model-a"}));
+    expect(mostCommonModelForTaskGroup(bucket,withModels)).toBe("provider/model-b");
+    expect(mostCommonModelForTaskGroup(bucket,withModels.slice(1))).toBe("provider/model-a");
+    expect(mostCommonModelForTaskGroup(bucket,[])).toBeUndefined();
+  });
 });
 describe("task eval plans",()=>{
   const buckets=createDistinctTaskBuckets(traces,classifier); const generator=new DistinctTaskEvalPlanGenerator();
@@ -68,6 +86,7 @@ describe("task eval plans",()=>{
   it("requires human review for high risk but not internal summarization",()=>{
     expect(planFor("rag_grounded_answers").human_review_required).toBe(true);
     expect(planFor("summarization").human_review_required).toBe(false);
+    expect(planFor("summarization").plan_name).toMatch(/^Proposed eval plan for /);
   });
   it("adds specialized evals for multi-turn, tool recovery, and confident consequential answers",()=>{
     const base=by("customer_support_responses");

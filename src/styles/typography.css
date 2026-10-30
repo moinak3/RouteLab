@@ -161,6 +161,15 @@ svg text {
 }
 
 @media (max-width: 560px) {
+  .workspace-badge {
+    display: none;
+  }
+
+  .mobile-workspace-select {
+    display: block;
+    max-width: 150px;
+  }
+
   .home-page h1 {
     font-size: 40px;
     line-height: 1.05;

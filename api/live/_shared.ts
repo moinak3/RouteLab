@@ -15,12 +15,13 @@ export const sendJson = (res: any, status: number, payload: unknown) => {
 export const serverOpenRouterKey = () =>
   String(process.env.ROUTELAB_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "").trim();
 
-const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek)\/[a-z0-9][a-z0-9._:-]*$/i;
+const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek|particle-ai|typesafe)\/[a-z0-9][a-z0-9._:-]*$/i;
 
 export const providerConfig = (source: string, modelId: string, openRouterModelId?: string) => {
   if (source === "openrouter") {
     const runtimeModelId = String(openRouterModelId ?? "").trim();
     if (runtimeModelId && runtimeModelId !== "openrouter/auto" && !dynamicOpenRouterModel.test(runtimeModelId)) throw new Error("Unsupported OpenRouter candidate model.");
+    if (/^typesafe\/jev-/i.test(runtimeModelId)) throw new Error("Jev uses OpenRouter's Decisions API and cannot generate candidate responses. Use Jev for task classification or classifier validation.");
     const model = getModel(modelId);
     if (!runtimeModelId && !model) throw new Error("Unknown candidate model.");
     return {

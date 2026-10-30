@@ -18,6 +18,8 @@ describe("app routes", () => {
     expect(pathForPage("Home")).toBe("/");
     expect(pageForPath("/")).toBe("Home");
     expect(pageForPath("/quality/review-queue/")).toBe("Review Queue");
+    expect(pathForPage("Classifier Validation")).toBe("/routing/classifier-validation");
+    expect(pageForPath("/quality/classifier-validation")).toBe("Classifier Validation");
   });
 
   it("does not silently map unknown paths", () => {

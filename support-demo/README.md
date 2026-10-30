@@ -1,4 +1,4 @@
-# RouteLab Support Console
+# RouteLab Test Console
 
 Standalone customer-support chat that sends complete conversations to the RouteLab sidecar and renders the resulting routing trace beside the answer.
 
@@ -15,6 +15,8 @@ npm run support-demo
 Open `http://127.0.0.1:8790`.
 
 The browser calls only the console server. The console server forwards requests to the sidecar, keeping both the sidecar credential and the OpenRouter key out of browser code.
+
+Each user turn is classified once. If the selected model calls a tool, the console returns the sidecar's signed continuation token with the tool result so the follow-up completion reuses the same task group, confidence, and route.
 
 Publishing from RouteLab Cloud signs and deploys the new version in one action. A running sidecar polls the active bundle, verifies it against its pinned public key, and adopts the new mapping without a restart.
 

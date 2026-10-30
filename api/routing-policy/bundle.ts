@@ -8,7 +8,7 @@ export default async function handler(req: any, res: any) {
     const requested = String(req.query?.version ?? "active");
     const version = requested === "active" ? "active" : Number(requested);
     if (version !== "active" && (!Number.isInteger(version) || version < 1)) return sendJson(res, 400, { error: "Use version=active or a positive policy version." });
-    const signed = await getPublishedRoutingPolicy(routingPolicyDatabaseUrl(), routingPolicyWorkspaceId(), version);
+    const signed = await getPublishedRoutingPolicy(routingPolicyDatabaseUrl(), routingPolicyWorkspaceId(req), version);
     if (!signed) return sendJson(res, 404, { error: version === "active" ? "No active policy is available." : "Policy version not found." });
     res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
     res.setHeader("ETag", `\"${signed.bundle.policyId}\"`);

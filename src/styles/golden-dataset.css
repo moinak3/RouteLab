@@ -558,6 +558,16 @@
   gap:10px;
   margin-top:16px;
 }
+.golden-consistency-warning{
+  display:flex;
+  gap:8px 14px;
+  align-items:center;
+  margin:0 0 14px;
+  border-color:#c08a2b;
+  background:#fff5dc;
+  color:#5e430f;
+}
+.golden-consistency-warning span{color:#76591f}
 .panelhead.compact{
   margin-bottom:0;
 }
@@ -575,6 +585,28 @@
   border-radius:13px;
   background:rgba(255,255,255,.04);
 }
+.calibration-case{min-width:0}
+.calibration-answer-pair{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
+}
+.calibration-answer-pair>div{
+  min-width:0;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:rgba(0,0,0,.16);
+}
+.calibration-answer-pair span{
+  color:#91a39b;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.calibration-answer-pair p{color:#eef6f1}
 .calibration-disagreements code{
   color:#b7ff6d;
   font-size:12px;
@@ -603,6 +635,12 @@
 .calibration-verdicts b{
   color:#fff;
 }
+.calibration-verdicts small{
+  padding:9px 10px;
+  border-left:2px solid #4ee57c;
+  color:#c7d6ce;
+}
+.calibration-verdicts small b{color:#fff}
 @media(max-width:1000px){
   .golden-hero,
   .fine-tune-signal,
@@ -635,6 +673,7 @@
   .calibration-disagreements article{
     grid-template-columns:1fr;
   }
+  .calibration-answer-pair{grid-template-columns:1fr}
 }
 @media(max-width:650px){
   .signal-stats{

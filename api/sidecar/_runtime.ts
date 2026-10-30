@@ -1,11 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { verifyPolicyEnvelope } from "../../sidecar/src/policy.mjs";
 import { routeConversation, routedChatRequest } from "../../sidecar/src/router.mjs";
+import { policyUrlForWorkspace } from "./_workspace.js";
 
 const policyCacheMs = 5_000;
-let cachedEnvelope: any = null;
-let cachedAt = 0;
-let cachedEtag = "";
+const policyCache = new Map<string,{envelope:any;cachedAt:number;etag:string}>();
 
 const openRouterApiKey = () => String(process.env.ROUTELAB_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "").trim();
 const policyUrl = () => String(process.env.ROUTELAB_POLICY_URL ?? "").trim();
@@ -26,26 +25,25 @@ export function sidecarAuthorized(req: any) {
   return expected.length === supplied.length && timingSafeEqual(expected, supplied);
 }
 
-export async function loadPolicyBundle() {
-  const url = policyUrl();
+export async function loadPolicyBundle(workspaceId=String(process.env.ROUTELAB_POLICY_WORKSPACE_ID??"demo").trim()||"demo") {
+  const baseUrl = policyUrl();
   const publicKey = policyPublicKey();
-  if (!url) throw statusError("ROUTELAB_POLICY_URL is not configured.", 503);
+  if (!baseUrl) throw statusError("ROUTELAB_POLICY_URL is not configured.", 503);
   if (!publicKey) throw statusError("The RouteLab policy verification key is not configured.", 503);
-  if (cachedEnvelope && Date.now() - cachedAt < policyCacheMs) return cachedEnvelope.bundle;
+  const cached=policyCache.get(workspaceId);
+  if (cached && Date.now() - cached.cachedAt < policyCacheMs) return cached.envelope.bundle;
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (cachedEtag) headers["If-None-Match"] = cachedEtag;
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-  if (response.status === 304 && cachedEnvelope) {
-    cachedAt = Date.now();
-    return cachedEnvelope.bundle;
+  if (cached?.etag) headers["If-None-Match"] = cached.etag;
+  const response = await fetch(policyUrlForWorkspace(baseUrl,workspaceId), { headers, signal: AbortSignal.timeout(10_000) });
+  if (response.status === 304 && cached) {
+    policyCache.set(workspaceId,{...cached,cachedAt:Date.now()});
+    return cached.envelope.bundle;
   }
   if (!response.ok) throw statusError(`Policy endpoint returned HTTP ${response.status}.`, 503);
   const envelope = await response.json();
   await verifyPolicyEnvelope(envelope, publicKey);
-  cachedEnvelope = envelope;
-  cachedAt = Date.now();
-  cachedEtag = response.headers.get("etag") ?? `"${envelope.bundle.policyId}"`;
+  policyCache.set(workspaceId,{envelope,cachedAt:Date.now(),etag:response.headers.get("etag") ?? `"${envelope.bundle.policyId}"`});
   return envelope.bundle;
 }
 
@@ -56,15 +54,16 @@ export const routeHeaders = (route: any) => ({
   "X-RouteLab-Route-Source": String(route.source),
 });
 
-export async function runRoute(request: any) {
-  const bundle = await loadPolicyBundle();
+export async function runRoute(request: any,workspaceId?:string) {
+  const bundle = await loadPolicyBundle(workspaceId);
   return routeConversation({ request, bundle, apiKey: openRouterApiKey() });
 }
 
-export async function runInspectedCompletion(request: any) {
+export async function runInspectedCompletion(request: any, reusedRoute?: any,workspaceId?:string) {
   const apiKey = openRouterApiKey();
   if (!apiKey) throw statusError("ROUTELAB_OPENROUTER_API_KEY is not configured.", 503);
-  const route = await runRoute(request);
+  const route = reusedRoute ?? await runRoute(request,workspaceId);
+  const classificationReused = Boolean(reusedRoute);
   const started = Date.now();
   const routedRequest = routedChatRequest({ ...request, stream: false }, route, decisionMode());
   const upstream = await fetch(openRouterChatUrl(), {
@@ -105,6 +104,8 @@ export async function runInspectedCompletion(request: any) {
       },
       decision,
       route: selectedRoute,
+      classifierInvocations: classificationReused ? 0 : 1,
+      classificationReused,
       openRouterRequest: {
         model: routedRequest.model,
         provider: routedRequest.provider ?? null,
@@ -119,18 +120,18 @@ export async function runInspectedCompletion(request: any) {
         selectedModel,
       },
       timing: {
-        classificationMs: decision.latencyMs,
-        totalMs: Date.now() - started + Number(decision.latencyMs ?? 0),
+        classificationMs: classificationReused ? 0 : decision.latencyMs,
+        totalMs: Date.now() - started + (classificationReused ? 0 : Number(decision.latencyMs ?? 0)),
       },
     },
   };
 }
 
-export async function runChatCompletion(request: any) {
+export async function runChatCompletion(request: any,workspaceId?:string) {
   if (request?.stream) throw statusError("The hosted sidecar demo does not support streaming. Use the Docker sidecar for streaming responses.", 400);
   const apiKey = openRouterApiKey();
   if (!apiKey) throw statusError("ROUTELAB_OPENROUTER_API_KEY is not configured.", 503);
-  const route = await runRoute(request);
+  const route = await runRoute(request,workspaceId);
   const upstream = await fetch(openRouterChatUrl(), {
     method: "POST",
     signal: AbortSignal.timeout(120_000),

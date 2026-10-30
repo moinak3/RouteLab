@@ -135,6 +135,8 @@ describe("Frontier Model Lab", () => {
       "openai-astra": "openai/gpt-6-astra",
       "openai-sol": "openai/gpt-6.1-sol",
       "anthropic-opus-5-5": "anthropic/claude-opus-5.5",
+      "particle-1": "particle-ai/particle-1",
+      "typesafe-jev-1-14": "typesafe/jev-1.14",
     });
   });
 

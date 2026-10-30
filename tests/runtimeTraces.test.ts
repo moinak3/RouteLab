@@ -1,27 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { runtimeTraceFromResult } from "../api/sidecar/_traceStore";
-import { isUnknownClassifierTrace, mergeRuntimeTraces } from "../src/core/runtimeTraces";
+import { isUnknownClassifierTrace, mergeRuntimeTraces, runtimeTraceSourceLabel } from "../src/core/runtimeTraces";
 import type { Trace } from "../src/types";
 
 describe("runtime trace ingestion", () => {
   it("normalizes an unknown sidecar decision into a reviewable trace", () => {
     const trace = runtimeTraceFromResult({
-      request: { messages: [{ role: "user", content: "A completely new workflow" }], tools: [] },
+      request: { session_id: "support_session_1", messages: [{ role: "user", content: "A completely new workflow" }], tools: [] },
       payload: {
         ok: true,
         openRouterRequest: { model: "openai/gpt-5.5-pro" },
         openRouterResponse: { choices: [{ message: { content: "Can you provide more detail?" } }], usage: { prompt_tokens: 20, completion_tokens: 8, total_tokens: 28, cost: .001 } },
+        classifierInvocations: 1,
+        classificationReused: true,
         timing: { totalMs: 420 },
       },
       decision: { signatureId: "unknown", signatureLabel: "Unknown or new trace bucket", confidence: .31, probabilities: { unknown: .31 }, threshold: 1, status: "unknown", latencyMs: 55, reason: "No published trace bucket matched reliably." },
       route: { source: "fallback", taskBucketId: "unknown", taskBucketLabel: "Unknown or new trace bucket", policyId: "policy_1", policyVersion: 1, openRouterModelId: "openai/gpt-5.5-pro" },
       source: "routelab_support",
+      workspaceId: "personal_abc123",
     });
 
     expect(trace.prompt_text).toBe("A completely new workflow");
     expect(trace.response_text).toBe("Can you provide more detail?");
     expect(trace.source).toBe("routelab_support");
+    expect(trace.workflow_id).toBe("support_session_1");
+    expect(trace.metadata?.conversation_id).toBe("support_session_1");
+    expect(trace.metadata?.conversation_turn).toBe(1);
+    expect(trace.metadata?.workspace_id).toBe("personal_abc123");
+    expect(runtimeTraceSourceLabel(trace)).toBe("Test Console");
     expect(trace.metadata?.unknown_classifier).toBe(true);
+    expect(trace.metadata?.classifier_invocations).toBe(1);
+    expect(trace.metadata?.classification_reused).toBe(true);
     expect(isUnknownClassifierTrace(trace)).toBe(true);
   });
 
