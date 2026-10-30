@@ -1,7 +1,7 @@
 import type { EvalDefinition } from "./evalDefinitions";
 import type { Trace, TraceJudgeResult } from "../types";
 
-export type EvalRunMode = "historical_test" | "new_traces";
+export type EvalRunMode = "historical_test" | "new_traces" | "simulation_baseline" | "simulation_candidate";
 
 export type EvalAutomationPolicy = {
   evalId: string;

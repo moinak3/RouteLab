@@ -17,8 +17,55 @@ function runtimeModelId(model: string) {
   return configured?.pricing_source_model_id ?? model;
 }
 
+const calibrationOnly = new Set([
+  "corrected_output",
+  "expected_answer",
+  "expected_response",
+  "human_answer",
+  "human_feedback",
+  "human_passed",
+  "human_rationale",
+  "human_score",
+]);
+
+function visibleEvidence(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(visibleEvidence);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !key.startsWith("_internal") && !calibrationOnly.has(key))
+    .map(([key, item]) => [key, visibleEvidence(item)]));
+}
+
 function visibleMetadata(trace: Trace) {
-  return Object.fromEntries(Object.entries(trace.metadata ?? {}).filter(([key]) => !key.startsWith("_internal")));
+  return visibleEvidence(trace.metadata ?? {}) as Record<string, unknown>;
+}
+
+function conversationContext(trace: Trace) {
+  const messages = [...(trace.messages ?? [])];
+  let lastUserIndex = -1;
+  let finalAssistantIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (lastUserIndex < 0 && messages[index].role === "user") lastUserIndex = index;
+  }
+  for (let index = messages.length - 1; index > lastUserIndex; index -= 1) {
+    if (messages[index].role === "assistant") {
+      finalAssistantIndex = index;
+      break;
+    }
+  }
+  return messages.filter((_, index) => index !== finalAssistantIndex);
+}
+
+function visibleSpans(trace: Trace) {
+  return (trace.spans ?? []).map((span) => ({
+    id: span.id,
+    parent_id: span.parent_id ?? null,
+    type: span.type,
+    name: span.name ?? null,
+    input: visibleEvidence(span.input ?? null),
+    output: visibleEvidence(span.output ?? null),
+    metadata: visibleEvidence(span.metadata ?? {}),
+  }));
 }
 
 function traceEvidence(trace: Trace) {
@@ -26,7 +73,8 @@ function traceEvidence(trace: Trace) {
     trace_id: trace.id,
     user_request: trace.prompt_text,
     agent_response: trace.response_text ?? "",
-    prior_conversation: trace.messages,
+    prior_conversation: conversationContext(trace),
+    execution_spans: visibleSpans(trace),
     status: trace.status,
     available_evidence: visibleMetadata(trace),
     workflow: {
@@ -68,7 +116,7 @@ export async function evaluateTraceWithDefinition({
   trace: Trace;
   evalVersion: number;
   runId: string;
-  runMode: "historical_test" | "new_traces";
+  runMode: "historical_test" | "new_traces" | "simulation_baseline" | "simulation_candidate";
   apiKey: string;
   fetchImpl?: typeof fetch;
 }): Promise<TraceJudgeResult> {
@@ -135,7 +183,12 @@ export default async function evalRunHandler(req: any, res: any) {
   const definition = req.body?.definition as EvalDefinition | undefined;
   const traces = req.body?.traces as Trace[] | undefined;
   const evalVersion = Number(req.body?.evalVersion);
-  const mode = req.body?.mode === "new_traces" ? "new_traces" : "historical_test";
+  const requestedMode = String(req.body?.mode ?? "historical_test");
+  const mode = requestedMode === "new_traces"
+    || requestedMode === "simulation_baseline"
+    || requestedMode === "simulation_candidate"
+    ? requestedMode
+    : "historical_test";
   if (!isObject(definition) || typeof definition.id !== "string" || typeof definition.prompt !== "string") {
     return sendJson(res, 400, { error: "A valid eval definition is required." });
   }

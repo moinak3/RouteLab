@@ -8,7 +8,12 @@ export type SimulationSummary = {
   baseline_avg_latency_ms: number; simulated_avg_latency_ms: number; latency_delta_pct: number; average_quality_score: number;
   pass_rate: number; severe_failure_rate: number; escalation_rate?: number;
 };
-export type ReplayResult = { runs: CandidateRun[]; evals: EvalResult[]; summary: SimulationSummary };
+export type ReplayResult = {
+  runs: CandidateRun[];
+  evals: EvalResult[];
+  summary: SimulationSummary;
+  evaluation?: { eval_id: string; eval_name: string; eval_version: number; judge_model: string };
+};
 export type DistinctTaskImpact = {
   distinct_task_bucket_id: string;
   name: string;
@@ -88,6 +93,40 @@ export function replayFromRuns(traces: Trace[], runs: CandidateRun[]): ReplayRes
     return { id: `eval_${run.id}`, trace_id: run.trace_id, candidate_run_id: run.id, ...evaluateTrace(trace!, run.response_text) };
   });
   return { runs, evals, summary: summarize(traces, runs, evals) };
+}
+export function replayFromJudgedRuns(
+  traces: Trace[],
+  runs: CandidateRun[],
+  candidateJudges: TraceJudgeResult[],
+  evaluation: NonNullable<ReplayResult["evaluation"]>,
+): ReplayResult {
+  const judgesByTraceId = new Map(candidateJudges.map((judge) => [judge.trace_id, judge]));
+  const evals = runs.map((run): EvalResult => {
+    const judge = judgesByTraceId.get(run.trace_id);
+    if (judge) {
+      return {
+        id: `eval_${run.id}_${judge.id}`,
+        trace_id: run.trace_id,
+        candidate_run_id: run.id,
+        evaluator_type: judge.evaluator_type,
+        score: judge.score,
+        passed: judge.passed,
+        explanation: judge.rationale,
+        severity: judge.severity,
+      };
+    }
+    return {
+      id: `eval_${run.id}_provider_failure`,
+      trace_id: run.trace_id,
+      candidate_run_id: run.id,
+      evaluator_type: `${evaluation.eval_id} (${evaluation.judge_model})`,
+      score: 0,
+      passed: false,
+      explanation: run.status === "error" ? "The candidate request failed before an answer could be evaluated." : "No candidate eval result was returned.",
+      severity: "critical",
+    };
+  });
+  return { runs, evals, summary: summarize(traces, runs, evals), evaluation };
 }
 export function cascade(traces: Trace[], primaryId: string, fallbackId: string, primaryQuote?: InferenceProviderQuote, fallbackQuote?: InferenceProviderQuote): ReplayResult {
   const primary = replay(traces, primaryId, primaryQuote);

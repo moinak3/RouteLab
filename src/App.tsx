@@ -24,6 +24,8 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
+import { demoEvalDefinitions } from "./core/evalDefinitions";
+import { loadActiveEvalConfig, type ActiveEvalConfig } from "./core/evalRegistry";
 import {
   loadEvalAutomationPolicies,
   markEvalTracesProcessed,
@@ -147,6 +149,7 @@ export default function App() {
   const [reviewPersistenceError, setReviewPersistenceError] = useState<string | null>(null);
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [evalRegistryRevision, setEvalRegistryRevision] = useState(0);
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const simulationModels = useMemo(() => [
@@ -172,6 +175,23 @@ export default function App() {
     window.addEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
     return () => window.removeEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
   }, [cloudWorkspaceId]);
+  useEffect(() => {
+    const handleActiveEvalUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string }>).detail;
+      if (detail?.workspaceId === cloudWorkspaceId) setEvalRegistryRevision((revision) => revision + 1);
+    };
+    window.addEventListener("routelab-active-eval-updated", handleActiveEvalUpdate);
+    return () => window.removeEventListener("routelab-active-eval-updated", handleActiveEvalUpdate);
+  }, [cloudWorkspaceId]);
+  const activeEvalConfig = useMemo<ActiveEvalConfig | undefined>(() => {
+    const stored = loadActiveEvalConfig(cloudWorkspaceId);
+    const livePolicy = stored
+      ? evalAutomationPolicies.find((policy) => policy.runOnNewTraces && policy.evalId === stored.definition.id)
+      : evalAutomationPolicies.find((policy) => policy.runOnNewTraces);
+    if (livePolicy) return { definition: livePolicy.definition, version: livePolicy.evalVersion };
+    if (stored) return stored;
+    return activeWorkspace === "demo" ? { definition: demoEvalDefinitions[0], version: 1 } : undefined;
+  }, [cloudWorkspaceId, evalAutomationPolicies, activeWorkspace, page, evalRegistryRevision]);
 
   useEffect(() => {
     if (!previewUnlocked || !traces.length) return;
@@ -618,7 +638,7 @@ export default function App() {
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} />}
       {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} defaultModelId={activeModels[0]?.id ?? ""} onOpenSimulations={() => navigateTo("Simulations")} onOpenCalibration={() => navigateTo("Golden Dataset")} />}
-      {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} />}
+      {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} activeEval={activeEvalConfig} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}

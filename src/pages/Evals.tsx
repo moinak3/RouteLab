@@ -27,50 +27,39 @@ import {
   type EvalAutomationPolicy,
   type EvalRunRecord,
 } from "../core/evalLifecycle";
+import {
+  ACTIVE_EVAL_VERSION_STORAGE_PREFIX,
+  EVAL_DEFINITIONS_STORAGE_PREFIX,
+  EVAL_VERSIONS_STORAGE_PREFIX,
+  loadStoredActiveEvalVersion,
+  loadStoredEvalDefinitions,
+  loadStoredEvalVersions,
+  type StoredEvalVersion,
+} from "../core/evalRegistry";
 
-type EvalVersion = {
-  version: number;
-  createdAt: string;
-  definition: EvalDefinition;
-};
+type EvalVersion = StoredEvalVersion;
 
 export function appendEvalVersion(versions: EvalVersion[], definition: EvalDefinition, createdAt = new Date().toISOString()): EvalVersion[] {
   const nextVersion = Math.max(0, ...versions.map((item) => item.version)) + 1;
   return [...versions, { version: nextVersion, createdAt, definition }];
 }
 
-const EVAL_DEFINITIONS_STORAGE_PREFIX = "routelab-eval-definitions-v2:";
-const EVAL_VERSIONS_STORAGE_PREFIX = "routelab-eval-versions-v2:";
-const ACTIVE_EVAL_VERSION_STORAGE_PREFIX = "routelab-active-eval-version-v2:";
-
 function loadEvalDefinitions(workspaceId: string, defaults: EvalDefinition[], fallbackJudgeModel: string) {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`) ?? "null") as EvalDefinition[] | null;
-    if (Array.isArray(parsed)
-      && parsed.every((item) => typeof item?.id === "string" && typeof item?.name === "string")
-      && (parsed.length > 0 || defaults.length === 0)) {
-      return parsed.map((definition) => ensureRunnableJudgeModel(definition, fallbackJudgeModel));
-    }
-  } catch { /* Use workspace-specific defaults when local definitions are unavailable. */ }
+  const parsed = loadStoredEvalDefinitions(workspaceId);
+  if (parsed && (parsed.length > 0 || defaults.length === 0)) {
+    return parsed.map((definition) => ensureRunnableJudgeModel(definition, fallbackJudgeModel));
+  }
   return defaults;
 }
 
 function loadEvalVersions(workspaceId: string, defaults: EvalDefinition[], fallbackJudgeModel: string) {
-  try {
-    const parsed=JSON.parse(window.localStorage.getItem(`${EVAL_VERSIONS_STORAGE_PREFIX}${workspaceId}`)??"null") as EvalVersion[]|null;
-    if(Array.isArray(parsed)&&parsed.length&&parsed.every(item=>Number.isInteger(item?.version)&&typeof item?.createdAt==="string"&&typeof item?.definition?.id==="string")) {
-      return parsed.map((item) => ({ ...item, definition: ensureRunnableJudgeModel(item.definition, fallbackJudgeModel) }));
-    }
-  } catch { /* Start from workspace-specific definitions when local history is unavailable. */ }
+  const parsed = loadStoredEvalVersions(workspaceId);
+  if (parsed?.length) return parsed.map((item) => ({ ...item, definition: ensureRunnableJudgeModel(item.definition, fallbackJudgeModel) }));
   return defaults.length ? [{ version: 1, createdAt: "2026-10-01T17:00:00.000Z", definition: defaults[0] }] : [];
 }
 
 function loadActiveEvalVersion(workspaceId: string) {
-  try {
-    const parsed=Number(window.localStorage.getItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`));
-    if(Number.isInteger(parsed)&&parsed>0)return parsed;
-  } catch { /* Start from the bundled definition when local history is unavailable. */ }
-  return 1;
+  return loadStoredActiveEvalVersion(workspaceId);
 }
 
 export const evaluatorUsesJudgeModel = (evaluatorType: string) => evaluatorType.toLowerCase().includes("judge");
@@ -154,6 +143,7 @@ export function Evals({
       window.localStorage.setItem(`${EVAL_VERSIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalVersions));
       if (activeVersion) window.localStorage.setItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`,String(activeVersion.version));
       else window.localStorage.removeItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`);
+      window.dispatchEvent(new CustomEvent("routelab-active-eval-updated", { detail: { workspaceId } }));
     } catch { /* Version history remains available for the current page session. */ }
   },[workspaceId,evalDefinitions,evalVersions,activeVersion]);
   useEffect(()=>{

@@ -244,6 +244,45 @@ describe("eval lifecycle", () => {
     expect(result).toMatchObject({ eval_id: definition.id, eval_version: 3, run_id: "run_1", score: .9, passed: true });
   });
 
+  it("does not leak the original final answer or human calibration labels into candidate judging", async () => {
+    const candidateTrace: Trace = {
+      ...trace(1),
+      response_text: "Candidate response.",
+      messages: [
+        { role: "system", content: "Follow the user request." },
+        { role: "user", content: "Request 1" },
+        { role: "assistant", content: "Original response 1" },
+      ],
+      metadata: {
+        visible: "yes",
+        human_feedback: "thumbs down",
+        corrected_output: "Hidden correction",
+        nested: { expected_answer: "Hidden answer", operational: "keep" },
+      },
+    };
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body));
+      const evidence = request.messages[1].content as string;
+      expect(evidence).toContain("Candidate response.");
+      expect(evidence).toContain('"operational":"keep"');
+      expect(evidence).not.toContain("Original response 1");
+      expect(evidence).not.toContain("thumbs down");
+      expect(evidence).not.toContain("Hidden correction");
+      expect(evidence).not.toContain("Hidden answer");
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: .9, passed: true, rationale: "Candidate passed.", severity: null }) } }] }), { status: 200 });
+    });
+
+    await evaluateTraceWithDefinition({
+      definition,
+      trace: candidateTrace,
+      evalVersion: 3,
+      runId: "candidate_run",
+      runMode: "simulation_candidate",
+      apiKey: "test-key",
+      fetchImpl: fetchMock as typeof fetch,
+    });
+  });
+
   it("returns the provider error when an entire historical run fails", async () => {
     vi.stubEnv("ROUTELAB_OPENROUTER_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
