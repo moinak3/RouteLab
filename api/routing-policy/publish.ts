@@ -84,11 +84,6 @@ export default async function handler(req: any, res: any) {
         ? { type: "openrouter_auto", openRouterModelId: "openrouter/auto", costTier: current.draft.autoRouterCostTier }
         : { type: "fixed_model", target: { modelId: current.draft.defaultModelId, openRouterModelId: defaultOpenRouterModelId } },
       emergencyFallback: { modelId: current.draft.emergencyFallbackModelId, openRouterModelId: emergencyOpenRouterModelId },
-      guardrails: {
-        minimumPassRate: current.draft.minimumPassRate,
-        maximumLatencyIncreasePct: current.draft.maximumLatencyIncreasePct,
-        minimumReplayCount: 3,
-      },
       signatures,
       overrides: Object.values(current.draft.overrides).map((override) => ({
         taskId: override.taskId,

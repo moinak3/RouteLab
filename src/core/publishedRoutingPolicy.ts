@@ -42,7 +42,7 @@ export type RoutingPolicyBundle = {
   defaultStrategy?: PublishedDefaultStrategy;
   emergencyFallback?: PublishedModelTarget;
   fallback?: PublishedModelTarget;
-  guardrails: {
+  guardrails?: {
     minimumPassRate: number;
     maximumLatencyIncreasePct: number;
     minimumReplayCount: number;
@@ -111,10 +111,6 @@ export function validatePublishableDraft(draft: DraftRoutingPolicy, signatures: 
   if (signatureIds.size !== signatures.length) errors.push("Task signature IDs must be unique.");
   for (const override of Object.values(draft.overrides)) {
     if (!signatureIds.has(override.taskId)) errors.push(`${override.taskName} is not in the published signature catalog.`);
-    if (override.passRate < draft.minimumPassRate) errors.push(`${override.taskName} no longer clears the quality bar.`);
-    if (override.costDeltaPct >= 0) errors.push(`${override.taskName} does not reduce measured cost.`);
-    if (override.latencyDeltaPct > draft.maximumLatencyIncreasePct) errors.push(`${override.taskName} exceeds the latency guardrail.`);
-    if (override.replayCount < 3) errors.push(`${override.taskName} has fewer than three replayed traces.`);
   }
   return [...new Set(errors)];
 }

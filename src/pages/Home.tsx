@@ -7,15 +7,15 @@ const whyNowShifts = [
 ];
 
 const trustPrinciples = [
-  { title: "Evidence before override", text: "A task-specific route is eligible only after its candidate clears the task's quality, latency, and cost requirements." },
+  { title: "Evidence before override", text: "A task-specific route is chosen only after the team reviews its measured quality, latency, and cost tradeoffs." },
   { title: "Conservative unknowns", text: "Unknown and low-confidence requests stay on the general default model and are prioritized for review." },
-  { title: "Versioned decisions", text: "Published policies record the default, approved overrides, thresholds, evidence, and a separate emergency route." },
+  { title: "Versioned decisions", text: "Published policies record the default, user-selected overrides, measured evidence, and a separate emergency route." },
   { title: "Customer-hosted enforcement", text: "The local runtime applies the approved policy per request. RouteLab Cloud is not in the inference path." },
 ];
 
 const stackStages = [
   { number: "01", name: "Your observability and eval stack", text: "Braintrust, Arize, or your existing tools produce traces, human review, and application-specific quality evidence." },
-  { number: "02", name: "RouteLab decision layer", text: "RouteLab organizes task groups, compares candidates, records approvals, and publishes a maintained allocation policy." },
+  { number: "02", name: "RouteLab decision layer", text: "RouteLab organizes task groups, compares candidates, records model choices, and publishes a maintained allocation policy." },
   { number: "03", name: "Your gateway and providers", text: "The customer-hosted runtime applies the policy before sending the selected model to OpenRouter. Other gateway adapters remain future work." },
 ];
 
@@ -42,7 +42,7 @@ const allocationComparisonRows = [
   {
     step: "Make an allocation decision",
     today: "Results inform engineering discussions, spreadsheets, or manually maintained routing rules.",
-    routeLab: "Passing results become explicit task-to-model assignments with supporting evidence and approval.",
+    routeLab: "Selected results become explicit task-to-model assignments with supporting evidence and approval.",
     outcome: "We know exactly why this task is moving to a different model.",
   },
   {
@@ -87,7 +87,7 @@ function RouteLabWorkflowIllustration() {
         <header><img src="/routelab-icon.svg" alt="" /><div><span>RouteLab Cloud</span><small>Control plane</small></div></header>
         <ol>
           <li><span>01</span><div><b>Group recurring tasks</b><small>Define comparable work and unknowns</small></div></li>
-          <li><span>02</span><div><b>Test candidate models</b><small>Apply task-specific quality requirements</small></div></li>
+          <li><span>02</span><div><b>Test candidate models</b><small>Compare measured quality, cost, and latency</small></div></li>
           <li><span>03</span><div><b>Approve model choices</b><small>Keep a default and add proven overrides</small></div></li>
         </ol>
         <div className="home-flow-policy"><span>Approved policy</span><b>Signed and versioned</b></div>
@@ -186,7 +186,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-hero-copy">
           <p className="eyebrow">Model routing for AI agents</p>
           <h1>Choose the right model for each task your agent takes on.</h1>
-          <p>Use your production traces and evals to assign each task to the lowest-cost model that clears its quality requirements.</p>
+          <p>Use your production traces and evals to compare model quality, cost, and latency for each task, then choose the allocation that fits your needs.</p>
           <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a></div>
         </div>
         <aside className="home-why-now-card" id="why-now" aria-label="Why model allocation matters now">

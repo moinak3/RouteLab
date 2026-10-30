@@ -17,6 +17,7 @@ import { createTraceJudgeResults } from "../src/core/traceJudge";
 import { basetenModelRepo, buildBasetenTrainingJobPayload, toSupervisedFineTuneJsonl } from "../src/core/basetenFineTuning";
 import { overviewEconomics } from "../src/core/economics";
 import { assessRouteCandidate, createDraftRoutingPolicy, initialDraftSync, isDraftRoutingPolicy, reviseDraftRoutingPolicy } from "../src/core/routingDraft";
+import { validatePublishableDraft } from "../src/core/publishedRoutingPolicy";
 
 const traces = createSeedTraces();
 const distinctTaskBuckets = createDistinctTaskBuckets(traces);
@@ -93,7 +94,7 @@ describe("analysis and risk inference", () => {
   });
   it("imports a browser draft only when cloud storage has no draft", () => {
     const local = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { defaultModelId: "deepseek-r1" });
-    const cloud = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { minimumPassRate: .95 });
+    const cloud = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), { emergencyFallbackModelId: "claude-opus-4.8" });
     expect(initialDraftSync(local, null)).toEqual({ draft: local, shouldImportLocal: true });
     expect(initialDraftSync(local, cloud)).toEqual({ draft: cloud, shouldImportLocal: false });
   });
@@ -101,6 +102,24 @@ describe("analysis and risk inference", () => {
     expect(isDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"))).toBe(true);
     expect(isDraftRoutingPolicy({ fallbackModelId: "gpt-5.5-pro", overrides: {} })).toBe(false);
     expect(isDraftRoutingPolicy({ ...createDraftRoutingPolicy("gpt-5.5-pro"), overrides: { task: { taskId: "task" } } })).toBe(false);
+  });
+  it("allows a user-selected model override regardless of measured tradeoffs", () => {
+    const draft = reviseDraftRoutingPolicy(createDraftRoutingPolicy("gpt-5.5-pro"), {
+      overrides: {
+        task_one: {
+          taskId: "task_one",
+          taskName: "Task one",
+          modelId: "claude-opus-4.8",
+          modelName: "Claude Opus 4.8",
+          passRate: .12,
+          costDeltaPct: 35,
+          latencyDeltaPct: 140,
+          replayCount: 1,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+    expect(validatePublishableDraft(draft, [{ id: "task_one", label: "Task one", description: "A measured task", riskLevel: "medium" }])).toEqual([]);
   });
   it("calculates consistent dashboard metrics", () => {
     const metrics = dashboardMetrics(traces);

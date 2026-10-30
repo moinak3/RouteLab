@@ -32,8 +32,6 @@ export type DraftRoutingPolicy = {
   autoRouterCostTier: "low" | "medium" | "high" | "xhigh" | "max";
   emergencyFallbackModelId: string;
   emergencyFallbackOpenRouterModelId?: string;
-  minimumPassRate: number;
-  maximumLatencyIncreasePct: number;
   overrides: Record<string, DraftTaskOverride>;
   version: number;
   updatedAt: string;
@@ -54,8 +52,6 @@ export function createDraftRoutingPolicy(fallbackModelId: string): DraftRoutingP
     defaultModelId: fallbackModelId,
     autoRouterCostTier: "medium",
     emergencyFallbackModelId: fallbackModelId,
-    minimumPassRate: DEFAULT_ROUTE_GUARDRAILS.minimumPassRate,
-    maximumLatencyIncreasePct: DEFAULT_ROUTE_GUARDRAILS.maximumLatencyIncreasePct,
     overrides: {},
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -127,8 +123,6 @@ export function isDraftRoutingPolicy(value: unknown): value is DraftRoutingPolic
     || !["low", "medium", "high", "xhigh", "max"].includes(String(policy.autoRouterCostTier))
     || typeof policy.emergencyFallbackModelId !== "string"
     || (policy.emergencyFallbackOpenRouterModelId !== undefined && typeof policy.emergencyFallbackOpenRouterModelId !== "string")
-    || !isFiniteNumber(policy.minimumPassRate)
-    || !isFiniteNumber(policy.maximumLatencyIncreasePct)
     || !isFiniteNumber(policy.version)
     || typeof policy.updatedAt !== "string"
     || !policy.overrides
