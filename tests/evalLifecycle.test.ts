@@ -8,6 +8,7 @@ import {
   mergeEvalResults,
   monthlyEvalHistory,
   removeEvalLifecycleState,
+  runEvalBatchPool,
   saveEvalRunRecord,
   type EvalRunRecord,
 } from "../src/core/evalLifecycle";
@@ -79,6 +80,27 @@ describe("eval lifecycle", () => {
     expect(population[0].id).toBe("trace_000");
     expect(population.at(-1)?.id).toBe("trace_099");
     expect(new Set(population.map((item) => item.id)).size).toBe(100);
+  });
+
+  it("runs historical batches with bounded concurrency and processes every trace once", async () => {
+    const batches = evalRunBatches(Array.from({ length: 100 }, (_, index) => trace(index)), 25);
+    const processed: string[] = [];
+    let active = 0;
+    let maxActive = 0;
+
+    await runEvalBatchPool(batches, async (batch) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return batch.map((item) => item.id);
+    }, (ids) => {
+      processed.push(...ids);
+    });
+
+    expect(maxActive).toBe(2);
+    expect(processed).toHaveLength(100);
+    expect(new Set(processed).size).toBe(100);
   });
 
   it("does not treat an old 25-trace sample as a complete 300-trace historical test", () => {

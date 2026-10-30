@@ -39,6 +39,7 @@ export type EvalRunResponse = {
 const POLICY_PREFIX = "routelab-eval-automation-v1:";
 const RUN_PREFIX = "routelab-eval-runs-v1:";
 export const EVAL_RUN_BATCH_SIZE = 25;
+export const EVAL_RUN_BATCH_CONCURRENCY = 2;
 
 const monthLabel = (date: Date) => date.toLocaleString("en-US", { month: "short" });
 
@@ -184,6 +185,33 @@ export function evalRunBatches(traces: Trace[], batchSize = EVAL_RUN_BATCH_SIZE)
     batches.push(traces.slice(offset, offset + size));
   }
   return batches;
+}
+
+export async function runEvalBatchPool<T>(
+  batches: Trace[][],
+  worker: (batch: Trace[], index: number) => Promise<T>,
+  onComplete: (result: T, batch: Trace[], index: number) => void | Promise<void>,
+  concurrency = EVAL_RUN_BATCH_CONCURRENCY,
+) {
+  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), batches.length);
+  let cursor = 0;
+  let firstError: unknown;
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (firstError === undefined) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= batches.length) return;
+      const batch = batches[index];
+      try {
+        const result = await worker(batch, index);
+        await onComplete(result, batch, index);
+      } catch (error) {
+        if (firstError === undefined) firstError = error;
+      }
+    }
+  });
+  await Promise.all(workers);
+  if (firstError !== undefined) throw firstError;
 }
 
 export async function runEvalOnTraces({

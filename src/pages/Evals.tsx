@@ -22,6 +22,7 @@ import {
   monthlyEvalHistory,
   removeEvalLifecycleState,
   runEvalOnTraces,
+  runEvalBatchPool,
   saveEvalRunRecord,
   type EvalAutomationPolicy,
   type EvalRunRecord,
@@ -323,21 +324,20 @@ export function Evals({
     setHistoricalRunProgress({processed:0,scored:0,total:traces.length});
     setLifecycleMessage(`Running version ${activeVersion.version} on all ${traces.length.toLocaleString()} historical traces…`);
     try {
-      for(let index=0;index<batches.length;index+=1){
-        const response=await runEvalOnTraces({
+      await runEvalBatchPool(batches,async (batch)=>runEvalOnTraces({
           workspaceId,
           definition,
           evalVersion:activeVersion.version,
           mode:"historical_test",
-          traces:batches[index],
-        });
+          traces:batch,
+        }),async (response,batch)=>{
         allResults.push(...response.results);
         allErrors.push(...response.errors);
         onEvalResults(response.results);
-        processedCount+=batches[index].length;
+        processedCount+=batch.length;
         setHistoricalRunProgress({processed:processedCount,scored:allResults.length,total:traces.length});
         setLifecycleMessage(`Testing all historical traces · ${processedCount.toLocaleString()} of ${traces.length.toLocaleString()} processed · ${allResults.length.toLocaleString()} scored${allErrors.length?` · ${allErrors.length.toLocaleString()} failed`:""}…`);
-      }
+      });
       const passed=allResults.filter((result)=>result.passed).length;
       const completedAt=new Date().toISOString();
       const run: EvalRunRecord={
