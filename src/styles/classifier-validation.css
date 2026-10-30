@@ -41,6 +41,38 @@
 .classifier-signature-table table{
   min-width:680px;
 }
+.classifier-confusion table{
+  min-width:2200px;
+  table-layout:fixed;
+}
+.classifier-confusion :is(th,td):first-child{
+  width:210px;
+  min-width:210px;
+}
+.classifier-confusion th:not(:first-child),
+.classifier-confusion td:not(:first-child){
+  width:116px;
+  min-width:116px;
+}
+.classifier-confusion th{
+  overflow-wrap:anywhere;
+  word-break:normal;
+  line-height:1.35;
+  vertical-align:bottom;
+}
+.classifier-confusion thead th:first-child,
+.classifier-confusion tbody th{
+  position:sticky;
+  left:0;
+  z-index:2;
+  background:var(--dossier-sheet,#f7f3e9);
+}
+.classifier-confusion thead th:first-child{
+  z-index:3;
+}
+.classifier-confusion .tablewrap{
+  scrollbar-gutter:stable;
+}
 
 @media(max-width:1200px){
   .classifier-validation-meta,
