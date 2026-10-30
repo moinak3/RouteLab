@@ -70,8 +70,11 @@
 }
 .eval-summary-card{
   display:grid;
+  min-width:0;
   gap:7px;
+  align-content:start;
   text-align:left;
+  overflow:hidden;
 }
 .eval-summary-card small{
   color:#91a39b;
@@ -88,9 +91,13 @@
 .eval-summary-card span{
   color:#aebfb7;
   font-size:12px;
+  line-height:1.45;
+  white-space:normal;
+  overflow-wrap:anywhere;
 }
 .eval-summary-action{
   cursor:pointer;
+  white-space:normal;
 }
 .eval-summary-action:hover,.eval-summary-action:focus-visible{
   border-color:rgba(88,240,132,.45);
