@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { apiErrorMessage, readApiPayload, scopedSupportApiUrl, supportWorkspaceContext } from "../public/http.js";
 
-describe("Support Console API responses", () => {
+describe("Test Console API responses", () => {
   it("reads successful JSON responses", async () => {
     const payload = await readApiPayload(new Response(JSON.stringify({ connected: true }), {
       status: 200,

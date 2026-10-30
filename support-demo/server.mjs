@@ -160,7 +160,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/chat") {
-      if (!sidecarApiKey) return sendJson(res, 503, { error: { message: "ROUTELAB_SIDECAR_API_KEY is not configured for the support console." } });
+      if (!sidecarApiKey) return sendJson(res, 503, { error: { message: "ROUTELAB_SIDECAR_API_KEY is not configured for the test console." } });
       const request = await readJson(req);
       const result = await supportCompletion(request);
       return sendJson(res, result.status, result.payload);
@@ -182,12 +182,12 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 404, { error: { message: "Not found." } });
   } catch (error) {
     const status = Number(error?.statusCode ?? 502);
-    return sendJson(res, status, { error: { message: error instanceof Error ? error.message : "Support console request failed." } });
+    return sendJson(res, status, { error: { message: error instanceof Error ? error.message : "Test console request failed." } });
   }
 });
 
 server.listen(port, "0.0.0.0", () => {
-  console.info(`RouteLab Support Console listening on http://127.0.0.1:${port}`);
+  console.info(`RouteLab Test Console listening on http://127.0.0.1:${port}`);
 });
 
 const shutdown = () => server.close(() => process.exit(0));

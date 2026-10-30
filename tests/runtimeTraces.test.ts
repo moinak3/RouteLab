@@ -28,7 +28,7 @@ describe("runtime trace ingestion", () => {
     expect(trace.metadata?.conversation_id).toBe("support_session_1");
     expect(trace.metadata?.conversation_turn).toBe(1);
     expect(trace.metadata?.workspace_id).toBe("personal_abc123");
-    expect(runtimeTraceSourceLabel(trace)).toBe("Support Console");
+    expect(runtimeTraceSourceLabel(trace)).toBe("Test Console");
     expect(trace.metadata?.unknown_classifier).toBe(true);
     expect(trace.metadata?.classifier_invocations).toBe(1);
     expect(trace.metadata?.classification_reused).toBe(true);

@@ -587,7 +587,7 @@ export default function App() {
           </button>
           {expandedNav.Advanced && <div className="nav-submenu" id="advanced-submenu">
             {advancedNav.map((item) => <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
-            <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Support Console</a>
+            <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Test Console</a>
           </div>}
         </div>
       </nav>
@@ -600,7 +600,7 @@ export default function App() {
       </div>
       {expandedNav.Advanced && <nav className="group-mobile-subnav mobile-advanced-submenu" id="mobile-advanced-submenu" aria-label="Advanced navigation">
           {advancedNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
-          <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Support Console</a>
+          <a href={supportConsoleUrl} target="_blank" rel="noreferrer">Test Console</a>
       </nav>}
       {activeSectionChildren.length > 0 && <nav className="group-mobile-subnav" aria-label={`${topLevelLabel(page)} sections`}>{activeSectionChildren.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}</nav>}
       {notice && <div className="notice"><span>✓</span>{notice}</div>}

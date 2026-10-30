@@ -1,4 +1,4 @@
-# RouteLab Support Console
+# RouteLab Test Console
 
 Standalone customer-support chat that sends complete conversations to the RouteLab sidecar and renders the resulting routing trace beside the answer.
 

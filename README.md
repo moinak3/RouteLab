@@ -75,7 +75,7 @@ The Recommendations page exports RouteLab JSON, LiteLLM-style YAML, and a TypeSc
 
 Routing Simulations can also publish and deploy an immutable signed policy for the Docker-ready customer sidecar. The sidecar classifies each incoming conversation into a published trace bucket using its messages, tools, tool calls, and requested output; then it applies the bucket override or the general fallback and proxies the request to OpenRouter. See [`sidecar/README.md`](sidecar/README.md).
 
-The standalone support console exercises that path end to end and shows each routing decision beside the customer conversation. After starting the sidecar, run it with:
+The standalone test console exercises that path end to end and shows each routing decision beside the customer conversation. After starting the sidecar, run it with:
 
 ```bash
 ROUTELAB_SIDECAR_URL=http://127.0.0.1:8787 \

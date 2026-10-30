@@ -23,14 +23,14 @@ async function freePort() {
 async function waitUntilReady(url, child) {
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`Support console exited with code ${child.exitCode}.`);
+    if (child.exitCode !== null) throw new Error(`Test console exited with code ${child.exitCode}.`);
     try {
       const response = await fetch(url);
       if (response.ok) return;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 40));
   }
-  throw new Error("Support console did not become ready.");
+  throw new Error("Test console did not become ready.");
 }
 
 const readBody = async (req) => {
@@ -46,7 +46,7 @@ afterEach(async () => {
   servers.clear();
 });
 
-describe("RouteLab Support Console server", () => {
+describe("RouteLab Test Console server", () => {
   it("serves the app and proxies a complete inspected chat through the sidecar", async () => {
     let receivedAuthorization;
     const receivedRequests = [];
@@ -99,7 +99,7 @@ describe("RouteLab Support Console server", () => {
 
     const page = await fetch(baseUrl);
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("RouteLab Support Console");
+    expect(await page.text()).toContain("RouteLab Test Console");
 
     const status = await fetch(`${baseUrl}/api/status`);
     expect(await status.json()).toMatchObject({ connected: true, policyVersion: 4 });
