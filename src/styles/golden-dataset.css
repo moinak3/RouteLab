@@ -105,8 +105,10 @@
 }
 .golden-browser{
   display:grid;
-  grid-template-columns:260px minmax(0,1fr);
-  gap:14px;
+  grid-template-columns:minmax(220px,260px) minmax(0,1fr);
+  gap:18px;
+  align-items:start;
+  min-width:0;
 }
 .dataset-list{
   display:grid;
@@ -142,17 +144,35 @@
   gap:12px;
 }
 .dataset-summary{
-  display:flex;
-  justify-content:space-between;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
   gap:12px;
   align-items:center;
+  min-width:0;
 }
 .dataset-summary b{
   color:#fff;
   font-size:18px;
+  min-width:0;
+  overflow-wrap:anywhere;
 }
 .golden-table{
-  min-width:760px;
+  min-width:640px;
+  table-layout:fixed;
+}
+.golden-table th,
+.golden-table td{
+  width:auto;
+  min-width:0;
+  vertical-align:top;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.45;
+}
+.golden-tablewrap{
+  max-width:100%;
+  min-width:0;
+  overflow:auto;
 }
 .golden-table input{
   width:100%;
@@ -553,6 +573,95 @@
   font-size:12px;
   line-height:1.45;
 }
+.calibration-workbench{
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);
+  gap:12px;
+  margin-top:16px;
+}
+.calibration-guidance,
+.calibration-loop{
+  min-width:0;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:rgba(255,255,255,.04);
+}
+.calibration-guidance h3{
+  margin:5px 0 14px;
+  color:#fff;
+  font-size:18px;
+}
+.calibration-change-list{
+  display:grid;
+  gap:8px;
+}
+.calibration-change-list article{
+  display:grid;
+  grid-template-columns:30px minmax(0,1fr);
+  gap:10px;
+  padding:10px 0;
+  border-top:1px solid var(--line);
+}
+.calibration-change-list article>span{
+  display:grid;
+  place-items:center;
+  width:26px;
+  height:26px;
+  border:1px solid rgba(88,240,132,.3);
+  border-radius:50%;
+  color:#b7ff6d;
+  font:600 12px var(--font-mono);
+}
+.calibration-change-list b{
+  color:#eef7f1;
+  font-size:13px;
+}
+.calibration-change-list p{
+  margin:4px 0 0;
+  color:#aebfb7;
+  font-size:13px;
+  line-height:1.5;
+}
+.calibration-loop ol{
+  display:grid;
+  gap:12px;
+  margin:14px 0 18px;
+  padding:0;
+  list-style:none;
+  counter-reset:calibration-step;
+}
+.calibration-loop li{
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr);
+  gap:2px 9px;
+  counter-increment:calibration-step;
+}
+.calibration-loop li:before{
+  content:counter(calibration-step);
+  grid-row:1/3;
+  display:grid;
+  place-items:center;
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  background:rgba(88,240,132,.12);
+  color:#b7ff6d;
+  font:600 12px var(--font-mono);
+}
+.calibration-loop b{
+  color:#eef7f1;
+  font-size:13px;
+}
+.calibration-loop li span{
+  font-size:12px;
+  line-height:1.45;
+}
+.calibration-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
 .calibration-disagreements{
   display:grid;
   gap:10px;
@@ -662,6 +771,9 @@
   .calibration-metrics{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
+  .calibration-workbench{
+    grid-template-columns:1fr;
+  }
   .rec-metrics,
   .rec-evidence-grid,
   .fine-tune-signature-grid,
@@ -685,6 +797,9 @@
   .dataset-summary,
   .fine-tune-jobs article{
     display:grid;
+  }
+  .dataset-summary{
+    grid-template-columns:1fr;
   }
   .calibration-metrics{
     grid-template-columns:1fr;

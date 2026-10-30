@@ -771,6 +771,22 @@ body:before{
 .shell>main .eval-current-state>span:first-child{color:#526075}
 .shell>main .calibration-answer-pair>div{border-color:var(--dossier-rule);background:#f1eee5}
 .shell>main .calibration-answer-pair :is(span,p){color:#44536a}
+.shell>main .dataset-list button{border-color:var(--dossier-rule);background:rgba(255,255,255,.46)}
+.shell>main .dataset-list button.active{border-color:#6fa07a;background:#e3f0e1}
+.shell>main .dataset-list b,
+.shell>main .dataset-summary b{color:var(--dossier-ink)}
+.shell>main .dataset-list span,
+.shell>main .dataset-summary span{color:#526075}
+.shell>main .calibration-guidance,
+.shell>main .calibration-loop{border-color:var(--dossier-rule);background:rgba(33,77,134,.035)}
+.shell>main .calibration-guidance h3,
+.shell>main .calibration-change-list b,
+.shell>main .calibration-loop b{color:var(--dossier-ink)}
+.shell>main .calibration-change-list article{border-color:var(--dossier-rule-soft)}
+.shell>main .calibration-change-list article>span{border-color:#6fa07a;color:#216437}
+.shell>main .calibration-change-list p,
+.shell>main .calibration-loop li span{color:#526075}
+.shell>main .calibration-loop li:before{background:#dcebdc;color:#216437}
 .shell>main .policy-flow i{color:#526075}
 .shell>main .policy-version-row .active{color:#216437}
 .shell>main .policy-version-row .published{color:#76591f}
