@@ -121,13 +121,12 @@ export function Evals({
   const activeTraceJudgeResults=activeEvalDefinition
     ? traceJudgeResults.filter((result)=>result.eval_id===activeEvalDefinition.id||(!result.eval_id&&result.evaluator_type.startsWith(activeEvalDefinition.id)))
     : [];
-  const passing = activeTraceJudgeResults.filter((result) => result.passed).length;
-  const failing = activeTraceJudgeResults.length - passing;
-  const averageScore = activeTraceJudgeResults.length ? activeTraceJudgeResults.reduce((sum, result) => sum + result.score, 0) / activeTraceJudgeResults.length : 0;
+  const failing = activeTraceJudgeResults.filter((result) => !result.passed).length;
   const history = monthlyEvalHistory(activeTraceJudgeResults);
   const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.passRate) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
-  const [modal,setModal]=useState<"import"|"create"|"edit"|"versions"|null>(null);
+  const [modal,setModal]=useState<"import"|"create"|"edit"|"details"|"versions"|null>(null);
+  const [detailEvalId,setDetailEvalId]=useState<string|null>(null);
   const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:defaultJudgeModel,threshold:"0.85",scope:"All task groups",prompt:""});
   const [importText,setImportText]=useState(JSON.stringify(workspaceDefaults[0] ?? demoEvalDefinitions[0],null,2));
   const [importFileName,setImportFileName]=useState<string|null>(null);
@@ -241,16 +240,17 @@ export function Evals({
     });
     setModal(null); setFormError(null);
   }
-  function openEdit() {
-    if (!activeEvalDefinition) return;
+  function openEdit(definition = activeEvalDefinition) {
+    if (!definition) return;
     setDraft({
-      name:activeEvalDefinition.name,
-      evaluator_type:activeEvalDefinition.evaluator_type,
-      model:resolveJudgeModelValue(activeEvalDefinition.model,judgeModels),
-      threshold:String(activeEvalDefinition.threshold),
-      scope:activeEvalDefinition.scope,
-      prompt:activeEvalDefinition.prompt,
+      name:definition.name,
+      evaluator_type:definition.evaluator_type,
+      model:resolveJudgeModelValue(definition.model,judgeModels),
+      threshold:String(definition.threshold),
+      scope:definition.scope,
+      prompt:definition.prompt,
     });
+    setDetailEvalId(definition.id);
     setFormError(null);
     setModal("edit");
   }
@@ -265,10 +265,11 @@ export function Evals({
   }
   function saveVersion(event: FormEvent) {
     event.preventDefault();
-    if (!activeEvalDefinition) return;
+    const definitionBeingEdited=evalDefinitions.find((definition)=>definition.id===detailEvalId)??activeEvalDefinition;
+    if (!definitionBeingEdited) return;
     if(!draft.name.trim()){setFormError("Name is required.");return;}
     const definition: EvalDefinition={
-      ...activeEvalDefinition,
+      ...definitionBeingEdited,
       name:draft.name.trim(),
       evaluator_type:draft.evaluator_type,
       model:draft.model,
@@ -281,6 +282,7 @@ export function Evals({
     setActiveEvalVersion(versions[versions.length-1].version);
     setEvalDefinitions(items=>items.map(item=>item.id===definition.id?definition:item));
     setModal(null);
+    setDetailEvalId(null);
     setFormError(null);
   }
   function activateVersion(version: EvalVersion) {
@@ -343,141 +345,89 @@ export function Evals({
       : "Automatic evaluation of new traces is off.");
   }
 
+  function openDetails(definition: EvalDefinition) {
+    setDetailEvalId(definition.id);
+    setModal("details");
+  }
+
+  const detailEvalDefinition=evalDefinitions.find((definition)=>definition.id===detailEvalId)??activeEvalDefinition;
+  const activeCoverage=traces.length?activeTraceJudgeResults.length/traces.length:0;
+  const hasHistoricalEvidence=Boolean(latestHistoricalRun||activeTraceJudgeResults.length);
+
   return (
     <>
       <section className="evals-hero panel">
         <div>
-          <p className="eyebrow">Evaluation workspace</p>
-          <h2>Import, define, and manage evals</h2>
-          <p>
-            Evals are reusable checks that score traces, simulations, or candidate model responses before RouteLab
-            recommends routing changes. This page is the control plane for importing eval definitions, reviewing active
-            evals, and eventually creating, editing, versioning, and deleting evals.
-          </p>
+          <p className="eyebrow">Eval library</p>
+          <h2>Manage quality checks</h2>
+          <p>See which evals are active, where they apply, and what needs attention next.</p>
         </div>
         <div className="eval-actions">
-          <button type="button" className="primary" onClick={openImportModal}>Import eval</button>
-          <button type="button" onClick={openCreateModal}>Create eval</button>
-          <span className={`eval-version-button-wrap ${evalVersions.length<2?"disabled":""}`} tabIndex={evalVersions.length<2?0:undefined}>
-            <button type="button" disabled={evalVersions.length<2} onClick={()=>setModal("versions")}>Manage versions</button>
-            {evalVersions.length<2&&<span role="tooltip">Create another version to manage history.</span>}
-          </span>
+          <button type="button" className="primary" onClick={openCreateModal}>Create eval</button>
+          <button type="button" onClick={openImportModal}>Import eval</button>
         </div>
       </section>
 
-      <section className="eval-run-summary" aria-label="Latest eval run summary">
+      <section className="eval-run-summary" aria-label="Eval library summary">
         <article className="panel eval-summary-card">
-          <small>Latest run</small>
-          <b>{activeTraceJudgeResults.length.toLocaleString()}</b>
-          <span>trace scores</span>
+          <small>Active evals</small>
+          <b>{evalDefinitions.length.toLocaleString()}</b>
+          <span>quality checks in this workspace</span>
         </article>
-        <article className="panel eval-summary-card">
-          <small>Average score</small>
-          <b>{pct(averageScore * 100)}</b>
-          <span>across scored traces</span>
-        </article>
-        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("representative")}>
-          <small>Passing</small>
-          <b>{passing.toLocaleString()}</b>
-          <span>met threshold · review a representative sample</span>
-        </button>
-        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("unusual")}>
-          <small>Needs review</small>
-          <b>{failing.toLocaleString()}</b>
-          <span>below threshold · review unusual cases</span>
-        </button>
         <article className="panel eval-summary-card">
           <small>Trace coverage</small>
-          <b>{traces.length ? pct(activeTraceJudgeResults.length / traces.length * 100) : "0.0%"}</b>
-          <span>of ingested traces</span>
+          <b>{pct(activeCoverage * 100)}</b>
+          <span>scored by the current eval</span>
         </article>
+        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("unusual")}>
+          <small>Needs attention</small>
+          <b>{failing.toLocaleString()}</b>
+          <span>current results below threshold</span>
+        </button>
       </section>
-
-      {activeEvalDefinition && activeVersion ? <article className="panel eval-card">
-        <div className="eval-card-head">
-          <div>
-            <p className="eyebrow">{activeEvalDefinition.status === "Draft" ? "Generated draft" : "Currently running"}</p>
-            <h2>{activeEvalDefinition.name}</h2>
-          </div>
-          <div className="eval-current-state"><span>Version {activeVersion.version}</span><span className="eval-status">{activeEvalDefinition.status}</span></div>
-        </div>
-        {activeEvalDefinition.generation_basis && <p className="eval-generation-note">
-          Generated from {Number(activeEvalDefinition.generation_basis.trace_count ?? 0).toLocaleString()} imported traces. Review and calibrate it against human labels before using it as a routing gate.
-        </p>}
-        <section className="eval-lifecycle" aria-labelledby="eval-lifecycle-heading">
-          <div className="eval-lifecycle-head">
-            <div><p className="eyebrow">Eval lifecycle</p><h3 id="eval-lifecycle-heading">Create, test, then evaluate new traffic</h3></div>
-            <span>{automationPolicy?.runOnNewTraces?"Continuous evaluation on":"Historical test first"}</span>
-          </div>
-          <ol>
-            <li className="complete">
-              <span>1</span>
-              <div><b>Definition created</b><p>Version {activeVersion.version} is ready to test. No traces were scored when it was created.</p></div>
-              <strong>Complete</strong>
-            </li>
-            <li className={latestHistoricalRun?"complete":""}>
-              <span>2</span>
-              <div>
-                <b>Test on historical traces</b>
-                <p>Run the judge on a representative sample of up to {HISTORICAL_TEST_SAMPLE_SIZE} existing traces before a full backfill.</p>
-                {latestHistoricalRun&&<small>Last tested {new Date(latestHistoricalRun.completedAt).toLocaleString()} · {latestHistoricalRun.traceCount} scored · {pct(latestHistoricalRun.averageScore*100)} average</small>}
-              </div>
-              <button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces} title={!liveJudgeModel?"Loading the current OpenRouter judge catalog.":!supportsLiveRuns?"Live historical tests currently require an LLM judge eval.":!historicalSample.length?"Import traces before testing this eval.":undefined}>{historicalRunState==="running"?"Running test…":latestHistoricalRun?"Test again":"Test historical traces"}</button>
-            </li>
-            <li className={automationPolicy?.runOnNewTraces?"complete":""}>
-              <span>3</span>
-              <div>
-                <b>Run on all new traces</b>
-                <p>After activation, each newly ingested trace is scored with this exact eval version. Existing traces remain unchanged.</p>
-                {automationPolicy?.runOnNewTraces&&<small>Enabled {automationPolicy.enabledAt?new Date(automationPolicy.enabledAt).toLocaleString():"now"} · version {automationPolicy.evalVersion}{latestContinuousRun?` · latest run ${latestContinuousRun.traceCount} traces`:""}</small>}
-              </div>
-              <label className="eval-automation-toggle"><input type="checkbox" checked={Boolean(automationPolicy?.runOnNewTraces)} disabled={!supportsLiveRuns} onChange={(event)=>toggleNewTraceEvaluation(event.target.checked)} /><span aria-hidden="true" /><b>{automationPolicy?.runOnNewTraces?"On":"Off"}</b></label>
-            </li>
-          </ol>
-          {lifecycleMessage&&<p className="eval-lifecycle-message" role="status">{lifecycleMessage}</p>}
-        </section>
-        <section className="eval-prompt">
-          <h3>Judge prompt</h3>
-          <pre>{activeEvalDefinition.prompt}</pre>
-        </section>
-
-        <div className="eval-meta-grid">
-          <div><small>Eval ID</small><b>{activeEvalDefinition.id}</b></div>
-          <div><small>Evaluator</small><b>{activeEvalDefinition.evaluator_type}</b></div>
-          <div><small>Judge model</small><b>{activeEvalDefinition.model}</b></div>
-          <div><small>Pass threshold</small><b>{pct(activeEvalDefinition.threshold * 100)}</b></div>
-        </div>
-
-        <section className="eval-dimensions">
-          <h3>Dimensions used</h3>
-          {activeEvalDefinition.dimensions.map((dimension) => <span key={dimension}>{dimension}</span>)}
-        </section>
-
-        <details className="eval-definition">
-          <summary>Definition schema</summary>
-          <pre>{JSON.stringify(activeEvalDefinition, null, 2)}</pre>
-        </details>
-
-        <div className="eval-crud">
-          <button type="button" onClick={()=>downloadDefinition(activeEvalDefinition)}>Download JSON</button>
-          <button type="button" className="primary" onClick={openEdit}>Edit definition</button>
-          <button type="button" disabled title="Not available in this preview">Duplicate</button>
-          <button type="button" disabled title="Not available in this preview">Disable</button>
-          <button type="button" className="danger" disabled title="Not available in this preview">Delete</button>
-        </div>
-      </article> : <article className="panel eval-empty-state">
-        <p className="eyebrow">No evals in My workspace</p>
-        <h2>Create an eval from your own evidence</h2>
-        <p>RouteLab demo evals are intentionally kept out of personal workspaces. Import a definition or create one after your traces and task groups are ready.</p>
-        <div><button type="button" className="primary" onClick={openCreateModal}>Create eval</button><button type="button" onClick={openImportModal}>Import JSON</button></div>
-      </article>}
 
       <section className="panel eval-library">
-        <div className="panelhead"><div><p className="eyebrow">Eval library</p><h2>{evalDefinitions.length} active evals</h2></div></div>
-        <div className="eval-library-grid">{evalDefinitions.map((definition)=><article key={definition.id}><span className="eval-status">{definition.status}</span><h3>{definition.name}</h3><p>{definition.scope}</p><small>{definition.evaluator_type} · {definition.model} · threshold {pct(definition.threshold*100)}</small><button type="button" onClick={()=>downloadDefinition(definition)}>Download JSON</button></article>)}</div>
+        <div className="eval-library-head">
+          <div><p className="eyebrow">Workspace evals</p><h2>{evalDefinitions.length} eval{evalDefinitions.length===1?"":"s"}</h2></div>
+          <p>Open an eval for its definition, versions, and advanced controls.</p>
+        </div>
+        {lifecycleMessage&&<p className="eval-lifecycle-message" role="status">{lifecycleMessage}</p>}
+        {evalDefinitions.length?<div className="eval-library-table" role="table" aria-label="Workspace evals">
+          <div className="eval-library-row eval-library-header" role="row">
+            <span role="columnheader">Eval</span><span role="columnheader">Scope</span><span role="columnheader">Readiness</span><span role="columnheader">Last run</span><span role="columnheader">Coverage</span><span role="columnheader">Next action</span><span aria-hidden="true" />
+          </div>
+          {evalDefinitions.map((definition)=>{
+            const definitionResults=traceJudgeResults.filter((result)=>result.eval_id===definition.id||(!result.eval_id&&result.evaluator_type.startsWith(definition.id)));
+            const definitionRun=runHistory.find((run)=>run.evalId===definition.id);
+            const isCurrent=definition.id===activeEvalDefinition?.id;
+            const isLive=isCurrent&&Boolean(automationPolicy?.runOnNewTraces);
+            const readiness=isLive?"Live":definitionResults.length?"Tested":definition.status==="Draft"?"Draft":"Needs test";
+            const coverage=traces.length?definitionResults.length/traces.length:0;
+            const runLabel=definitionRun?new Date(definitionRun.completedAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):definitionResults.length?`${definitionResults.length.toLocaleString()} scored`:"Never";
+            return <div className={`eval-library-row ${isCurrent?"current":""}`} role="row" key={definition.id}>
+              <span role="cell"><button type="button" className="eval-name-button" onClick={()=>openDetails(definition)}><b>{definition.name}</b><small>{definition.evaluator_type}</small></button></span>
+              <span role="cell">{definition.scope}</span>
+              <span role="cell"><span className={`eval-readiness eval-readiness-${readiness.toLowerCase().replace(/\s+/g,"-")}`}>{readiness}</span></span>
+              <span role="cell">{runLabel}</span>
+              <span role="cell">{pct(coverage*100)}</span>
+              <span className="eval-next-action" role="cell">
+                {isCurrent&&!hasHistoricalEvidence?<button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces}>{historicalRunState==="running"?"Running test…":"Test historical"}</button>
+                  :isCurrent&&!isLive?<button type="button" className="primary" disabled={!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(true)}>Run on new traces</button>
+                  :isCurrent?<button type="button" onClick={()=>onReviewFilter("unusual")}>Review results</button>
+                  :<button type="button" onClick={()=>openDetails(definition)}>View details</button>}
+              </span>
+              <button type="button" className="eval-row-menu" aria-label={`More options for ${definition.name}`} onClick={()=>openDetails(definition)}>•••</button>
+            </div>;
+          })}
+        </div>:<article className="eval-empty-state">
+          <p className="eyebrow">No evals in My workspace</p>
+          <h2>Create an eval from your own evidence</h2>
+          <p>Import a definition or create one after your traces and task groups are ready.</p>
+          <div><button type="button" className="primary" onClick={openCreateModal}>Create eval</button><button type="button" onClick={openImportModal}>Import JSON</button></div>
+        </article>}
       </section>
 
-      <section className="panel eval-history">
+      {history.length>0&&<section className="panel eval-history">
         <div className="eval-history-head">
           <div>
             <p className="eyebrow">Historical quality</p>
@@ -513,9 +463,36 @@ export function Evals({
             ))}
           </svg>
         </div>
-      </section>
+      </section>}
       {modal&&<div className="modal-layer" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setModal(null)}}>
-        {modal==="versions"?<section className="eval-modal eval-version-modal" role="dialog" aria-modal="true" aria-labelledby="eval-version-heading">
+        {modal==="details"&&detailEvalDefinition?<section className="eval-modal eval-detail-modal" role="dialog" aria-modal="true" aria-labelledby="eval-detail-heading">
+          <div className="modal-head"><div><p className="eyebrow">Eval details</p><h2 id="eval-detail-heading">{detailEvalDefinition.name}</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
+          {detailEvalDefinition.generation_basis&&<p className="eval-generation-note">Generated from {Number(detailEvalDefinition.generation_basis.trace_count??0).toLocaleString()} imported traces. Calibrate it against human labels before using it as a routing gate.</p>}
+          <div className="eval-meta-grid">
+            <div><small>Status</small><b>{detailEvalDefinition.status}</b></div>
+            <div><small>Evaluator</small><b>{detailEvalDefinition.evaluator_type}</b></div>
+            <div><small>Judge model</small><b>{detailEvalDefinition.model}</b></div>
+            <div><small>Pass threshold</small><b>{pct(detailEvalDefinition.threshold*100)}</b></div>
+          </div>
+          <section className="eval-detail-section">
+            <div><p className="eyebrow">Task scope</p><h3>{detailEvalDefinition.scope}</h3></div>
+            <div className="eval-dimensions"><h3>Dimensions used</h3>{detailEvalDefinition.dimensions.map((dimension)=><span key={dimension}>{dimension}</span>)}</div>
+          </section>
+          {detailEvalDefinition.id===activeEvalDefinition?.id&&<section className="eval-detail-lifecycle" aria-label="Eval lifecycle status">
+            <article><small>Definition</small><b>Created</b><span>Version {activeVersion?.version??1}</span></article>
+            <article><small>Historical test</small><b>{hasHistoricalEvidence?"Complete":"Not run"}</b><span>{latestHistoricalRun?`${latestHistoricalRun.traceCount} traces · ${pct(latestHistoricalRun.averageScore*100)} average`:activeTraceJudgeResults.length?`${activeTraceJudgeResults.length.toLocaleString()} traces scored`:`Up to ${HISTORICAL_TEST_SAMPLE_SIZE} traces`}</span></article>
+            <article><small>New traces</small><b>{automationPolicy?.runOnNewTraces?"On":"Off"}</b><span>{automationPolicy?.runOnNewTraces?"Scores newly ingested traces":"Enable after historical testing"}</span></article>
+          </section>}
+          <details className="eval-definition"><summary>Definition schema</summary><pre>{JSON.stringify(detailEvalDefinition,null,2)}</pre></details>
+          <div className="eval-crud">
+            <button type="button" className="primary" onClick={()=>openEdit(detailEvalDefinition)}>Edit definition</button>
+            <button type="button" onClick={()=>downloadDefinition(detailEvalDefinition)}>Download JSON</button>
+            {detailEvalDefinition.id===activeEvalDefinition?.id&&<button type="button" disabled={evalVersions.length<2} onClick={()=>setModal("versions")}>Manage versions</button>}
+            <button type="button" disabled title="Not available in this preview">Duplicate</button>
+            <button type="button" disabled title="Not available in this preview">Disable</button>
+            <button type="button" className="danger" disabled title="Not available in this preview">Delete</button>
+          </div>
+        </section>:modal==="versions"?<section className="eval-modal eval-version-modal" role="dialog" aria-modal="true" aria-labelledby="eval-version-heading">
           <div className="modal-head"><div><p className="eyebrow">Eval history</p><h2 id="eval-version-heading">Manage versions</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
           <p>Activate an earlier immutable definition. Historical trace scores are not recalculated.</p>
           <div className="eval-version-list">{[...evalVersions].sort((a,b)=>b.version-a.version).map(version=><article key={version.version}><div><span>Version {version.version}</span>{version.version===activeVersion.version&&<b>Current</b>}<small>{new Date(version.createdAt).toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}</small></div><p><strong>{version.definition.name}</strong><span>{version.definition.model} · threshold {pct(version.definition.threshold*100)}</span></p><button type="button" disabled={version.version===activeVersion.version} onClick={()=>activateVersion(version)}>{version.version===activeVersion.version?"Active":"Activate version"}</button></article>)}</div>
