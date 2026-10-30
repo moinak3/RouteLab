@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   configureNewTraceEvaluation,
   loadEvalAutomationPolicies,
+  loadEvalRunHistory,
   mergeEvalResults,
   monthlyEvalHistory,
+  removeEvalLifecycleState,
+  saveEvalRunRecord,
   selectHistoricalTestSample,
 } from "../src/core/evalLifecycle";
 import { evaluateTraceWithDefinition } from "../src/server/evalRuns";
@@ -99,6 +102,65 @@ describe("eval lifecycle", () => {
       enabledAt: "2026-10-28T12:00:00.000Z",
       knownTraceIds: ["trace_existing_1", "trace_existing_2"],
     });
+  });
+
+  it("removes a deleted eval's automation policy and run history without touching other evals", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+      dispatchEvent: vi.fn(),
+    });
+    configureNewTraceEvaluation({
+      workspaceId: "workspace_1",
+      definition,
+      evalVersion: 2,
+      enabled: true,
+      currentTraceIds: ["trace_1"],
+    });
+    const otherDefinition = { ...definition, id: "other_eval", name: "Other eval" };
+    configureNewTraceEvaluation({
+      workspaceId: "workspace_1",
+      definition: otherDefinition,
+      evalVersion: 1,
+      enabled: true,
+      currentTraceIds: ["trace_1"],
+    });
+    saveEvalRunRecord("workspace_1", {
+      id: "run_deleted",
+      evalId: definition.id,
+      evalName: definition.name,
+      evalVersion: 2,
+      mode: "historical_test",
+      status: "completed",
+      traceCount: 1,
+      passed: 1,
+      failed: 0,
+      averageScore: 1,
+      startedAt: "2026-10-28T12:00:00.000Z",
+      completedAt: "2026-10-28T12:01:00.000Z",
+    });
+    saveEvalRunRecord("workspace_1", {
+      id: "run_kept",
+      evalId: otherDefinition.id,
+      evalName: otherDefinition.name,
+      evalVersion: 1,
+      mode: "historical_test",
+      status: "completed",
+      traceCount: 1,
+      passed: 1,
+      failed: 0,
+      averageScore: 1,
+      startedAt: "2026-10-28T12:00:00.000Z",
+      completedAt: "2026-10-28T12:02:00.000Z",
+    });
+
+    removeEvalLifecycleState("workspace_1", definition.id);
+
+    expect(loadEvalAutomationPolicies("workspace_1").map((policy) => policy.evalId)).toEqual(["other_eval"]);
+    expect(loadEvalRunHistory("workspace_1").map((run) => run.id)).toEqual(["run_kept"]);
   });
 
   it("keeps one result per eval and trace while preserving other evaluators", () => {

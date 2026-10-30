@@ -19,6 +19,7 @@ import {
   loadEvalAutomationPolicies,
   loadEvalRunHistory,
   monthlyEvalHistory,
+  removeEvalLifecycleState,
   runEvalOnTraces,
   saveEvalRunRecord,
   selectHistoricalTestSample,
@@ -122,6 +123,7 @@ export function Evals({
     ? traceJudgeResults.filter((result)=>result.eval_id===activeEvalDefinition.id||(!result.eval_id&&result.evaluator_type.startsWith(activeEvalDefinition.id)))
     : [];
   const failing = activeTraceJudgeResults.filter((result) => !result.passed).length;
+  const enabledEvalCount=evalDefinitions.filter((definition)=>definition.status!=="Disabled").length;
   const history = monthlyEvalHistory(activeTraceJudgeResults);
   const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.passRate) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
@@ -135,6 +137,7 @@ export function Evals({
   const [runHistory,setRunHistory]=useState<EvalRunRecord[]>(() => loadEvalRunHistory(workspaceId));
   const [historicalRunState,setHistoricalRunState]=useState<"idle"|"running">("idle");
   const [lifecycleMessage,setLifecycleMessage]=useState<string|null>(null);
+  const [deleteConfirmEvalId,setDeleteConfirmEvalId]=useState<string|null>(null);
   const automationPolicy=activeEvalDefinition ? automationPolicies.find((policy)=>policy.evalId===activeEvalDefinition.id) : undefined;
   const latestHistoricalRun=activeEvalDefinition
     ? runHistory.find((run)=>run.evalId===activeEvalDefinition.id&&run.mode==="historical_test")
@@ -149,6 +152,7 @@ export function Evals({
       window.localStorage.setItem(`${EVAL_DEFINITIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalDefinitions));
       window.localStorage.setItem(`${EVAL_VERSIONS_STORAGE_PREFIX}${workspaceId}`,JSON.stringify(evalVersions));
       if (activeVersion) window.localStorage.setItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`,String(activeVersion.version));
+      else window.localStorage.removeItem(`${ACTIVE_EVAL_VERSION_STORAGE_PREFIX}${workspaceId}`);
     } catch { /* Version history remains available for the current page session. */ }
   },[workspaceId,evalDefinitions,evalVersions,activeVersion]);
   useEffect(()=>{
@@ -347,7 +351,59 @@ export function Evals({
 
   function openDetails(definition: EvalDefinition) {
     setDetailEvalId(definition.id);
+    setDeleteConfirmEvalId(null);
     setModal("details");
+  }
+
+  function toggleEvalDisabled(definition: EvalDefinition) {
+    const disabling=definition.status!=="Disabled";
+    const nextDefinition={...definition,status:disabling?"Disabled":"Running"};
+    const versions=appendEvalVersion(evalVersions,nextDefinition);
+    setEvalDefinitions((items)=>items.map((item)=>item.id===definition.id?nextDefinition:item));
+    setEvalVersions(versions);
+    setActiveEvalVersion(versions[versions.length-1].version);
+    if(disabling){
+      configureNewTraceEvaluation({
+        workspaceId,
+        definition:nextDefinition,
+        evalVersion:versions[versions.length-1].version,
+        enabled:false,
+        currentTraceIds:traces.map((trace)=>trace.id),
+      });
+      const policies=loadEvalAutomationPolicies(workspaceId);
+      setAutomationPolicies(policies);
+      onAutomationPoliciesChange(policies);
+      setLifecycleMessage(`${definition.name} is disabled. Historical results remain available, and new traces will not be scored.`);
+    }else{
+      setLifecycleMessage(`${definition.name} is enabled. Test it on historical traces before turning on scoring for new traces.`);
+    }
+    setDeleteConfirmEvalId(null);
+  }
+
+  function deleteEvalDefinition(definition: EvalDefinition) {
+    if(deleteConfirmEvalId!==definition.id){
+      setDeleteConfirmEvalId(definition.id);
+      return;
+    }
+    const remainingDefinitions=evalDefinitions.filter((item)=>item.id!==definition.id);
+    const remainingVersions=evalVersions.filter((item)=>item.definition.id!==definition.id);
+    const nextEvalId=activeEvalDefinition?.id===definition.id
+      ? remainingDefinitions[0]?.id
+      : activeEvalDefinition?.id;
+    const nextVersion=nextEvalId
+      ? [...remainingVersions].reverse().find((item)=>item.definition.id===nextEvalId)
+      : undefined;
+    const lifecycle=removeEvalLifecycleState(workspaceId,definition.id);
+    setEvalDefinitions(remainingDefinitions);
+    setEvalVersions(remainingVersions);
+    setActiveEvalVersion(nextVersion?.version??0);
+    setAutomationPolicies(lifecycle.policies);
+    setRunHistory(lifecycle.runs);
+    onAutomationPoliciesChange(lifecycle.policies);
+    setDetailEvalId(null);
+    setDeleteConfirmEvalId(null);
+    setModal(null);
+    setLifecycleMessage(`${definition.name} was deleted with its saved versions, automation setting, and run history.`);
   }
 
   const detailEvalDefinition=evalDefinitions.find((definition)=>definition.id===detailEvalId)??activeEvalDefinition;
@@ -371,7 +427,7 @@ export function Evals({
       <section className="eval-run-summary" aria-label="Eval library summary">
         <article className="panel eval-summary-card">
           <small>Active evals</small>
-          <b>{evalDefinitions.length.toLocaleString()}</b>
+          <b>{enabledEvalCount.toLocaleString()}</b>
           <span>quality checks in this workspace</span>
         </article>
         <article className="panel eval-summary-card">
@@ -401,7 +457,7 @@ export function Evals({
             const definitionRun=runHistory.find((run)=>run.evalId===definition.id);
             const isCurrent=definition.id===activeEvalDefinition?.id;
             const isLive=isCurrent&&Boolean(automationPolicy?.runOnNewTraces);
-            const readiness=isLive?"Live":definitionResults.length?"Tested":definition.status==="Draft"?"Draft":"Needs test";
+            const readiness=definition.status==="Disabled"?"Disabled":isLive?"Live":definitionResults.length?"Tested":definition.status==="Draft"?"Draft":"Needs test";
             const coverage=traces.length?definitionResults.length/traces.length:0;
             const runLabel=definitionRun?new Date(definitionRun.completedAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):definitionResults.length?`${definitionResults.length.toLocaleString()} scored`:"Never";
             return <div className={`eval-library-row ${isCurrent?"current":""}`} role="row" key={definition.id}>
@@ -411,7 +467,8 @@ export function Evals({
               <span role="cell">{runLabel}</span>
               <span role="cell">{pct(coverage*100)}</span>
               <span className="eval-next-action" role="cell">
-                {isCurrent&&!hasHistoricalEvidence?<button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces}>{historicalRunState==="running"?"Running test…":"Test historical"}</button>
+                {definition.status==="Disabled"?<button type="button" onClick={()=>openDetails(definition)}>View details</button>
+                  :isCurrent&&!hasHistoricalEvidence?<button type="button" className="primary" disabled={!supportsLiveRuns||!historicalSample.length||historicalRunState==="running"} onClick={testHistoricalTraces}>{historicalRunState==="running"?"Running test…":"Test historical"}</button>
                   :isCurrent&&!isLive?<button type="button" className="primary" disabled={!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(true)}>Run on new traces</button>
                   :isCurrent?<button type="button" onClick={()=>onReviewFilter("unusual")}>Review results</button>
                   :<button type="button" onClick={()=>openDetails(definition)}>View details</button>}
@@ -478,6 +535,10 @@ export function Evals({
             <div><p className="eyebrow">Task scope</p><h3>{detailEvalDefinition.scope}</h3></div>
             <div className="eval-dimensions"><h3>Dimensions used</h3>{detailEvalDefinition.dimensions.map((dimension)=><span key={dimension}>{dimension}</span>)}</div>
           </section>
+          {evaluatorUsesJudgeModel(detailEvalDefinition.evaluator_type)&&<section className="eval-prompt eval-detail-prompt" aria-labelledby="eval-prompt-heading">
+            <div className="eval-detail-prompt-head"><div><p className="eyebrow">LLM judge prompt</p><h3 id="eval-prompt-heading">Instructions sent to the judge model</h3></div><span>Read only</span></div>
+            <pre>{detailEvalDefinition.prompt}</pre>
+          </section>}
           {detailEvalDefinition.id===activeEvalDefinition?.id&&<section className="eval-detail-lifecycle" aria-label="Eval lifecycle status">
             <article><small>Definition</small><b>Created</b><span>Version {activeVersion?.version??1}</span></article>
             <article><small>Historical test</small><b>{hasHistoricalEvidence?"Complete":"Not run"}</b><span>{latestHistoricalRun?`${latestHistoricalRun.traceCount} traces · ${pct(latestHistoricalRun.averageScore*100)} average`:activeTraceJudgeResults.length?`${activeTraceJudgeResults.length.toLocaleString()} traces scored`:`Up to ${HISTORICAL_TEST_SAMPLE_SIZE} traces`}</span></article>
@@ -489,9 +550,10 @@ export function Evals({
             <button type="button" onClick={()=>downloadDefinition(detailEvalDefinition)}>Download JSON</button>
             {detailEvalDefinition.id===activeEvalDefinition?.id&&<button type="button" disabled={evalVersions.length<2} onClick={()=>setModal("versions")}>Manage versions</button>}
             <button type="button" disabled title="Not available in this preview">Duplicate</button>
-            <button type="button" disabled title="Not available in this preview">Disable</button>
-            <button type="button" className="danger" disabled title="Not available in this preview">Delete</button>
+            <button type="button" onClick={()=>toggleEvalDisabled(detailEvalDefinition)}>{detailEvalDefinition.status==="Disabled"?"Enable":"Disable"}</button>
+            <button type="button" className={`danger ${deleteConfirmEvalId===detailEvalDefinition.id?"confirming":""}`} onClick={()=>deleteEvalDefinition(detailEvalDefinition)}>{deleteConfirmEvalId===detailEvalDefinition.id?"Confirm delete":"Delete"}</button>
           </div>
+          {deleteConfirmEvalId===detailEvalDefinition.id&&<p className="eval-delete-warning" role="alert">Deleting removes this definition, its versions, automation setting, and run history. Historical trace records are not changed.</p>}
         </section>:modal==="versions"?<section className="eval-modal eval-version-modal" role="dialog" aria-modal="true" aria-labelledby="eval-version-heading">
           <div className="modal-head"><div><p className="eyebrow">Eval history</p><h2 id="eval-version-heading">Manage versions</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
           <p>Activate an earlier immutable definition. Historical trace scores are not recalculated.</p>
