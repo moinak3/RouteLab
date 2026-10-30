@@ -409,6 +409,23 @@ body:before{
 .shell>main .eval-history-tooltip :is(b,span,small){color:#fff}
 .shell>main .danger{color:#9e3929}
 .shell>main .classifier-validation-page :is(p,span,small){color:#526075}
+.shell>main .classifier-decision-summary{border-top-color:var(--dossier-red)}
+.shell>main .classifier-verdict{border-left-color:var(--dossier-red);background:#f4e4df;color:#3d4759}
+.shell>main .classifier-verdict>span{color:#8f2d24}
+.shell>main .classifier-validation-metrics>article{background:var(--dossier-sheet)}
+.shell>main .classifier-validation-metrics>article.correct b{color:#216437}
+.shell>main .classifier-validation-metrics>article.error b{color:#9e3929}
+.shell>main .classifier-validation-metrics>article.fallback b{color:var(--dossier-blue)}
+.shell>main .classifier-validation-metrics>article.unknown b{color:#76591f}
+.shell>main .classifier-error-examples article{background:rgba(255,255,255,.42)}
+.shell>main .classifier-error-examples article>div>b,.shell>main .classifier-error-examples dd{color:var(--dossier-ink)}
+.shell>main .classifier-error-examples article.accepted-error>div>b{color:#9e3929}
+.shell>main .classifier-advanced>summary{background:rgba(33,77,134,.04)}
+.shell>main .classifier-advanced>summary b{color:var(--dossier-ink)}
+.shell>main .classifier-advanced>summary i{border-color:var(--dossier-rule);color:var(--dossier-blue)}
+.shell>main .classifier-advanced-body{border-color:var(--dossier-rule)}
+.shell>main .classifier-next-step{border-left-color:#62a46f;background:#eef5e9}
+.shell>main .classifier-next-step h2{color:var(--dossier-ink)}
 .shell>main .classifier-confusion td.correct{color:#216437}
 .shell>main .classifier-confusion td.error{color:#9e3929}
 .shell>main .review-budget h2,

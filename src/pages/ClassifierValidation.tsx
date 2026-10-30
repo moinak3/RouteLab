@@ -135,7 +135,7 @@ function PersonalClassifierValidation({ workspaceId, defaultModelId, onOpenSimul
   </div>;
 }
 
-function DemoClassifierValidation({ signatures }: { signatures: KnownTaskSignature[] }) {
+function DemoClassifierValidation({ signatures, onOpenCalibration }: { signatures: KnownTaskSignature[]; onOpenCalibration: () => void }) {
   const examples = useMemo(() => createDemoClassifierValidationExamples(signatures), [signatures]);
   const report = useMemo(() => buildClassifierValidationReport(examples, signatures, {
     datasetLabel: "Bundled demo held-out set",
@@ -146,65 +146,101 @@ function DemoClassifierValidation({ signatures }: { signatures: KnownTaskSignatu
   }), [examples, signatures]);
   const labelNames = new Map(signatures.map((signature) => [signature.id, signature.label]));
   const meaningfulLabels = report.labels.filter((label) => label === "abstain" || label === "unknown" || examples.some((example) => example.reviewedSignatureId === label || example.predictedSignatureId === label));
+  const accepted = examples.filter((example) => example.accepted);
+  const correctAcceptedCount = accepted.filter((example) => example.predictedSignatureId === example.reviewedSignatureId).length;
+  const acceptedErrorCount = accepted.length - correctAcceptedCount;
+  const abstainedCount = examples.length - accepted.length;
+  const unknownExamples = examples.filter((example) => example.reviewedSignatureId === "unknown");
+  const unknownFalseAcceptCount = unknownExamples.filter((example) => example.accepted && example.predictedSignatureId !== "unknown").length;
+  const prioritizedErrors = [...report.errors].sort((left, right) => Number(right.accepted) - Number(left.accepted));
+  const taskGroupPerformance = [...report.perSignature].sort((left, right) =>
+    left.recall - right.recall
+    || left.precision - right.precision
+    || left.support - right.support
+    || left.label.localeCompare(right.label),
+  );
   return <div className="classifier-validation-page">
-    <section className="panel classifier-validation-hero">
-      <div><p className="eyebrow">Jev classifier validation</p><h2>Validation protocol for independently reviewed task labels</h2><p>Jev's reported confidence is not measured classification accuracy. This demo applies the production confidence gate to a held-out fixture and shows what will be measured once a customer-reviewed test set is connected.</p></div>
-      <span>Demo dataset</span>
+    <section className="panel classifier-decision-summary">
+      <div className="classifier-decision-copy">
+        <p className="eyebrow">Decision summary</p>
+        <h2>Can Jev reliably assign requests to the right Task Group?</h2>
+        <p className="classifier-verdict"><span>Not production-ready yet</span> This demo still contains accepted routing mistakes and is not based on your independently reviewed labels.</p>
+        <p>Jev made {correctAcceptedCount} correct confident matches, accepted {acceptedErrorCount} wrong assignments, and sent {abstainedCount} examples to the default or review path. {unknownFalseAcceptCount} of {unknownExamples.length} unfamiliar requests was incorrectly assigned to a known Task Group.</p>
+      </div>
+      <span className="classifier-demo-badge">Demo dataset</span>
     </section>
-    <section className="classifier-validation-meta panel">
-      <div><small>Sample</small><b>{report.metadata.sampleSize} examples</b><span>{report.metadata.datasetLabel}</span></div>
-      <div><small>Classifier</small><b>{report.metadata.classifierModel}</b><span>Catalog {report.metadata.signatureCatalogVersion}</span></div>
-      <div><small>Thresholds</small><b>{pct(report.metadata.thresholds.low*100)} / {pct(report.metadata.thresholds.medium*100)} / {pct(report.metadata.thresholds.high*100)}</b><span>Low / medium / high risk</span></div>
-      <div><small>Protocol</small><b>Pre-inference inputs only</b><span>{report.metadata.thresholdTuningSplit}</span></div>
+    <section className="classifier-validation-metrics" aria-label="Classifier validation results">
+      <article className="panel correct"><small>Correct confident matches</small><b>{correctAcceptedCount}</b><span>{pct(report.acceptedPrecision*100)} precision among accepted routes</span></article>
+      <article className="panel error"><small>Wrong routes accepted</small><b>{acceptedErrorCount}</b><span>Requests that would have reached the wrong Task Group</span></article>
+      <article className="panel fallback"><small>Sent to default or review</small><b>{abstainedCount}</b><span>{pct(report.abstention*100)} of the reviewed sample</span></article>
+      <article className="panel unknown"><small>Unfamiliar work accepted</small><b>{unknownFalseAcceptCount} of {unknownExamples.length}</b><span>{pct(report.unknownFalseAcceptance*100)} unknown false acceptance</span></article>
     </section>
-    <section className="classifier-validation-metrics">
-      <article className="panel"><small>Precision among accepted matches</small><b>{pct(report.acceptedPrecision*100)}</b><span>How often gated-in assignments are correct</span></article>
-      <article className="panel"><small>Coverage</small><b>{pct(report.coverage*100)}</b><span>Traffic receiving a confident known match</span></article>
-      <article className="panel"><small>Abstention</small><b>{pct(report.abstention*100)}</b><span>Traffic sent to the default or review path</span></article>
-      <article className="panel"><small>Unknown false acceptance</small><b>{pct(report.unknownFalseAcceptance*100)}</b><span>Unfamiliar work incorrectly assigned as known</span></article>
+    <section className="panel classifier-error-examples">
+      <div className="panelhead"><div><p className="eyebrow">Where Jev needs work</p><h2>Review mistakes before trusting the route</h2></div><span>{report.errors.length} examples need attention</span></div>
+      <p className="classifier-section-intro">Accepted mistakes are the highest priority because they would send a request down the wrong Task Group route. Abstentions are safer: they stay on the default or review path.</p>
+      {prioritizedErrors.length?<div>{prioritizedErrors.map((example)=>{
+        const reviewedLabel = labelNames.get(example.reviewedSignatureId) ?? example.reviewedSignatureId;
+        const predictedLabel = labelNames.get(example.predictedSignatureId) ?? example.predictedSignatureId;
+        return <article className={example.accepted ? "accepted-error" : "abstained"} key={example.id}>
+          <div><b>{example.accepted ? "Wrong route accepted" : "Sent to fallback"}</b><span>{pct(example.confidence*100)} confidence</span></div>
+          <p>{example.promptPreview}</p>
+          <dl><div><dt>Human reviewed</dt><dd>{reviewedLabel}</dd></div><div><dt>Jev decision</dt><dd>{example.accepted ? predictedLabel : "No Task Group accepted"}</dd></div></dl>
+        </article>;
+      })}</div>:<p>No errors in this test set.</p>}
     </section>
     <section className="panel classifier-signature-table">
-      <div className="panelhead"><div><p className="eyebrow">Per-signature performance</p><h2>Precision and recall</h2></div><span>{report.metadata.testSplit}</span></div>
-      <p className="classifier-interaction-hint">Hover, tap, or focus a metric to see the reviewed examples behind it.</p>
-      <div className="tablewrap"><table><thead><tr><th>Signature</th><th><HoverExplanation explanation="Precision asks: of everything Jev confidently classified as this task group, how many did human reviewers agree truly belonged here?">Precision</HoverExplanation></th><th><HoverExplanation explanation="Recall asks: of everything human reviewers labeled as this task group, how many did Jev correctly find and confidently accept?">Recall</HoverExplanation></th><th><HoverExplanation explanation="Reviewed support is the number of independently human-labeled examples available for this task group in the held-out test set.">Reviewed support</HoverExplanation></th></tr></thead><tbody>{report.perSignature.map((row)=>{
+      <div className="panelhead"><div><p className="eyebrow">Task Group performance</p><h2>Where classification is reliable or weak</h2></div><span>Weakest recall shown first</span></div>
+      <p className="classifier-interaction-hint">Hover, tap, or focus a metric to see the reviewed examples behind it. Add more reviewed examples where support is low.</p>
+      <div className="tablewrap"><table><thead><tr><th>Task Group</th><th><HoverExplanation explanation="Precision asks: of everything Jev confidently classified as this Task Group, how many did human reviewers agree truly belonged here?">Accepted precision</HoverExplanation></th><th><HoverExplanation explanation="Recall asks: of everything human reviewers labeled as this Task Group, how many did Jev correctly find and confidently accept?">Recall</HoverExplanation></th><th><HoverExplanation explanation="Reviewed examples is the number of independently human-labeled examples available for this Task Group in the held-out test set.">Reviewed examples</HoverExplanation></th></tr></thead><tbody>{taskGroupPerformance.map((row)=>{
         const precisionExplanation = row.acceptedPredictionCount
           ? `Jev confidently predicted “${row.label}” ${row.acceptedPredictionCount} times. Reviewers agreed ${row.correctAcceptedCount} times. Precision = ${row.correctAcceptedCount} ÷ ${row.acceptedPredictionCount} = ${pct(row.precision*100)}.`
           : `Jev did not confidently predict “${row.label}” for any reviewed example, so there are no accepted predictions from which to measure precision.`;
         const recallExplanation = row.support
           ? `Reviewers labeled ${countLabel(row.support, "example")} as “${row.label}.” Jev correctly found and accepted ${row.correctAcceptedCount}. Recall = ${row.correctAcceptedCount} ÷ ${row.support} = ${pct(row.recall*100)}.`
           : `No held-out examples were reviewed as “${row.label},” so recall cannot yet be measured.`;
-        return <tr key={row.signatureId}><td><b>{row.label}</b><small>{row.signatureId}</small></td><td><HoverExplanation className="classifier-metric-explainer" explanation={precisionExplanation}>{pct(row.precision*100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={recallExplanation}>{pct(row.recall*100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={`${countLabel(row.support, "held-out example")} ${row.support === 1 ? "was" : "were"} independently reviewed and labeled as “${row.label}.”`}>{row.support}</HoverExplanation></td></tr>;
+        return <tr key={row.signatureId}><td><b>{row.label}</b></td><td><HoverExplanation className="classifier-metric-explainer" explanation={precisionExplanation}>{pct(row.precision*100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={recallExplanation}>{pct(row.recall*100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={`${countLabel(row.support, "held-out example")} ${row.support === 1 ? "was" : "were"} independently reviewed and labeled as “${row.label}.”`}>{row.support}</HoverExplanation></td></tr>;
       })}</tbody></table></div>
     </section>
-    <section className="panel classifier-confusion">
-      <div className="panelhead"><div><p className="eyebrow">Error structure</p><h2>Confusion matrix</h2></div><span>Rows = reviewed · columns = gated prediction</span></div>
-      <p className="classifier-interaction-hint">Each box compares a human-reviewed label with Jev's gated classification. Hover, tap, or focus any number for a plain-language explanation.</p>
-      <div className="tablewrap"><table><thead><tr><th>Reviewed label</th>{meaningfulLabels.map((label)=><th title={labelNames.get(label)??label} key={label}>{shortLabel(label)}</th>)}</tr></thead><tbody>{meaningfulLabels.filter((label)=>label!=="abstain").map((actual)=>{
-        const actualLabel = labelNames.get(actual) ?? actual;
-        const reviewedCount = Object.values(report.confusion[actual] ?? {}).reduce((sum, value) => sum + value, 0);
-        return <tr key={actual}><th title={actualLabel}>{actualLabel}</th>{meaningfulLabels.map((predicted)=>{
-          const count = report.confusion[actual]?.[predicted] ?? 0;
-          const predictedLabel = labelNames.get(predicted) ?? predicted;
-          return <td className={actual===predicted?"correct":count?"error":""} key={predicted}><HoverExplanation className="classifier-cell-explainer" explanation={matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, isCorrect: actual === predicted })}>{count}</HoverExplanation></td>;
-        })}</tr>;
-      })}</tbody></table></div>
+    <details className="panel classifier-advanced">
+      <summary><span><small>Advanced diagnostics</small><b>Protocol, thresholds, and full confusion matrix</b></span><i aria-hidden="true">+</i></summary>
+      <div className="classifier-advanced-body">
+        <section className="classifier-validation-meta">
+          <div><small>Sample</small><b>{report.metadata.sampleSize} examples</b><span>{report.metadata.datasetLabel}</span></div>
+          <div><small>Classifier</small><b>{report.metadata.classifierModel}</b><span>Catalog {report.metadata.signatureCatalogVersion}</span></div>
+          <div><small>Thresholds</small><b>{pct(report.metadata.thresholds.low*100)} / {pct(report.metadata.thresholds.medium*100)} / {pct(report.metadata.thresholds.high*100)}</b><span>Low / medium / high risk</span></div>
+          <div><small>Protocol</small><b>Pre-inference inputs only</b><span>{report.metadata.thresholdTuningSplit}</span></div>
+        </section>
+        <section className="classifier-confusion">
+          <div className="panelhead"><div><p className="eyebrow">Error structure</p><h2>Confusion matrix</h2></div><span>Rows = human review · columns = Jev decision</span></div>
+          <p className="classifier-interaction-hint">Each box compares a human-reviewed Task Group with Jev's gated classification. Hover, tap, or focus any number for a plain-language explanation.</p>
+          <div className="tablewrap"><table><thead><tr><th>Human-reviewed Task Group</th>{meaningfulLabels.map((label)=><th title={labelNames.get(label)??label} key={label}>{shortLabel(label)}</th>)}</tr></thead><tbody>{meaningfulLabels.filter((label)=>label!=="abstain").map((actual)=>{
+            const actualLabel = labelNames.get(actual) ?? actual;
+            const reviewedCount = Object.values(report.confusion[actual] ?? {}).reduce((sum, value) => sum + value, 0);
+            return <tr key={actual}><th title={actualLabel}>{actualLabel}</th>{meaningfulLabels.map((predicted)=>{
+              const count = report.confusion[actual]?.[predicted] ?? 0;
+              const predictedLabel = labelNames.get(predicted) ?? predicted;
+              return <td className={actual===predicted?"correct":count?"error":""} key={predicted}><HoverExplanation className="classifier-cell-explainer" explanation={matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, isCorrect: actual === predicted })}>{count}</HoverExplanation></td>;
+            })}</tr>;
+          })}</tbody></table></div>
+        </section>
+      </div>
+    </details>
+    <section className="panel classifier-next-step">
+      <div><p className="eyebrow">Next action</p><h2>Validate Jev with your own reviewed labels</h2><p>Build a held-out set in Human Calibration, keep threshold-tuning examples separate, and rerun this report before a classifier can unlock task-specific routes.</p></div>
+      <button type="button" className="primary" onClick={onOpenCalibration}>Open Human Calibration</button>
     </section>
-    <section className="panel classifier-error-examples">
-      <div className="panelhead"><div><p className="eyebrow">Definition review</p><h2>Confusions and misses</h2></div><span>{report.errors.length} examples shown</span></div>
-      {report.errors.length?<div>{report.errors.map((example)=><article key={example.id}><div><b>{example.id}</b><span>{pct(example.confidence*100)} confidence · {example.accepted?"accepted":"abstained"}</span></div><p>{example.promptPreview}</p><small>Reviewed: {labelNames.get(example.reviewedSignatureId)??example.reviewedSignatureId} · Predicted: {labelNames.get(example.predictedSignatureId)??example.predictedSignatureId}</small></article>)}</div>:<p>No errors in this test set.</p>}
-    </section>
-    <p className="classifier-validation-note">Replace this bundled demo set with a customer-reviewed held-out dataset before using these numbers for a production decision. Threshold tuning must remain separate from the final test set.</p>
   </div>;
 }
 
-export function ClassifierValidation({ signatures, workspace, workspaceId, defaultModelId, onOpenSimulations }: {
+export function ClassifierValidation({ signatures, workspace, workspaceId, defaultModelId, onOpenSimulations, onOpenCalibration = onOpenSimulations }: {
   signatures: KnownTaskSignature[];
   workspace: "personal" | "demo";
   workspaceId: string;
   defaultModelId: string;
   onOpenSimulations: () => void;
+  onOpenCalibration?: () => void;
 }) {
   return workspace === "demo"
-    ? <DemoClassifierValidation signatures={signatures} />
+    ? <DemoClassifierValidation signatures={signatures} onOpenCalibration={onOpenCalibration} />
     : <PersonalClassifierValidation workspaceId={workspaceId} defaultModelId={defaultModelId} onOpenSimulations={onOpenSimulations} />;
 }
