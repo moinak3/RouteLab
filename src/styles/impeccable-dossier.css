@@ -719,6 +719,23 @@ body:before{
 .shell>main .eval-modal .eval-version-list article small,
 .shell>main .eval-modal .eval-version-list article p>span{color:#9fb3a8}
 .shell>main .eval-modal .eval-version-list article>div>b{color:#58f084}
+.shell>main .eval-detail-modal :is(.eval-detail-section,.eval-detail-lifecycle article,.eval-detail-prompt){
+  border-color:#45534e;
+  background:#1d272d;
+}
+.shell>main .eval-detail-modal :is(.eval-meta-grid small,.eval-detail-section .eyebrow,.eval-detail-lifecycle small,.eval-detail-prompt .eyebrow){color:#a9bbb2}
+.shell>main .eval-detail-modal :is(.eval-meta-grid b,.eval-detail-section h3,.eval-detail-lifecycle b,.eval-detail-prompt h3,.eval-definition summary){color:#f4faf6}
+.shell>main .eval-detail-modal .eval-generation-note{border-color:#45624f;background:#183024;color:#d9eadf}
+.shell>main .eval-detail-modal .eval-detail-lifecycle span{color:#c3d2cb}
+.shell>main .eval-detail-modal .eval-definition summary::after{border-color:#52615b;color:#c3d2cb}
+.shell>main .eval-detail-modal .eval-definition pre{border-color:#45534e;background:#050b10;color:#dcebe3}
+.shell>main .eval-detail-modal .eval-detail-prompt-head>span{border-color:#52615b;color:#c3d2cb}
+.shell>main .eval-detail-modal .eval-crud button{border-color:#607169;background:#1b262c;color:#eef7f2}
+.shell>main .eval-detail-modal .eval-crud button:hover{border-color:#91a69b;background:#27353b;color:#fff}
+.shell>main .eval-detail-modal .eval-crud button.primary{border-color:#58f084;background:#58f084;color:#07110b}
+.shell>main .eval-detail-modal .eval-crud button.danger{border-color:#b85d4d;background:#2c1d1c;color:#ffb7aa}
+.shell>main .eval-detail-modal .eval-crud button.danger.confirming{border-color:#ff8c76;background:#4a2520;color:#ffe0d8}
+.shell>main .eval-detail-modal .eval-crud button:disabled{border-color:#45534e;background:#182127;color:#82928a}
 .drawer-section pre{border:1px solid var(--dossier-rule-soft);border-radius:0;background:#f2eee4;color:#26344b}
 
 /* Light dossier surfaces need ink-based status and chart colors. */

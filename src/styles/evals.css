@@ -382,6 +382,37 @@
   max-height:none;
   background:rgba(5,11,16,.82);
 }
+.eval-detail-prompt{
+  display:grid;
+  gap:10px;
+  padding:16px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;
+  background:rgba(255,255,255,.04);
+}
+.eval-detail-prompt-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:start;
+  gap:16px;
+}
+.eval-detail-prompt-head h3{
+  margin:4px 0 0;
+}
+.eval-detail-prompt pre{
+  max-height:220px;
+}
+.eval-detail-prompt-head>span{
+  flex:0 0 auto;
+  padding:4px 7px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:999px;
+  color:#b8c8bf;
+  font-size:12px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
 .eval-definition summary{
   cursor:pointer;
   color:#fff;
@@ -418,6 +449,19 @@
 .eval-crud .danger{
   border-color:rgba(255,125,98,.35);
   color:#ffad9d;
+}
+.eval-crud .danger.confirming{
+  border-color:#ff8c76;
+  background:rgba(255,125,98,.16);
+  color:#ffd4ca;
+}
+.shell>main .eval-delete-warning{
+  margin:10px 0 0;
+  padding:10px 12px;
+  border-left:3px solid #ff8c76;
+  background:rgba(255,125,98,.1);
+  color:#ffd4ca;
+  font-size:13px;
 }
 .eval-crud button:disabled{
   cursor:not-allowed;
@@ -550,6 +594,11 @@
   border-color:#e4cf99;
   background:#fff6dc;
   color:#7c601c;
+}
+.eval-readiness-disabled{
+  border-color:#c4c9c5;
+  background:#ecefec;
+  color:#56645d;
 }
 .eval-next-action button{
   width:100%;
@@ -1005,4 +1054,6 @@
   .eval-lifecycle li>button,.eval-lifecycle li>strong,.eval-lifecycle li>.eval-automation-toggle{grid-column:2;width:100%}
   .eval-automation-toggle{grid-template-columns:auto 1fr;width:max-content!important}
   .eval-detail-lifecycle{grid-template-columns:1fr}
+  .eval-crud{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .eval-crud button{width:100%;min-width:0}
 }

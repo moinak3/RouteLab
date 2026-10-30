@@ -157,6 +157,19 @@ export function saveEvalRunRecord(workspaceId: string, run: EvalRunRecord) {
   return runs;
 }
 
+export function removeEvalLifecycleState(workspaceId: string, evalId: string) {
+  const policies = loadEvalAutomationPolicies(workspaceId).filter((policy) => policy.evalId !== evalId);
+  const runs = loadEvalRunHistory(workspaceId).filter((run) => run.evalId !== evalId);
+  try {
+    storage()?.setItem(`${POLICY_PREFIX}${workspaceId}`, JSON.stringify(policies));
+    storage()?.setItem(`${RUN_PREFIX}${workspaceId}`, JSON.stringify(runs));
+    window.dispatchEvent(new CustomEvent("routelab-eval-policy-updated", { detail: { workspaceId, policies } }));
+  } catch {
+    // Keep the current session usable when browser storage is unavailable.
+  }
+  return { policies, runs };
+}
+
 export function selectHistoricalTestSample(traces: Trace[], limit = HISTORICAL_TEST_SAMPLE_SIZE) {
   if (traces.length <= limit) return [...traces];
   const ordered = [...traces].sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id));
