@@ -1,6 +1,6 @@
 import { getModel } from "../core/catalog.js";
 import { buildTraceEvaluationEvidence } from "../core/evaluationEvidence.js";
-import type { EvalDefinition } from "../core/evalDefinitions.js";
+import { ensureEvalScoreAnchors, type EvalDefinition } from "../core/evalDefinitions.js";
 import type { Trace, TraceJudgeResult } from "../types.js";
 import { serverOpenRouterKey } from "../../api/live/_shared.js";
 
@@ -53,7 +53,8 @@ export async function evaluateTraceWithDefinition({
   apiKey: string;
   fetchImpl?: typeof fetch;
 }): Promise<TraceJudgeResult> {
-  if (!definition.evaluator_type.toLowerCase().includes("judge")) {
+  const runtimeDefinition = ensureEvalScoreAnchors(definition);
+  if (!runtimeDefinition.evaluator_type.toLowerCase().includes("judge")) {
     throw new Error("Historical and continuous runs currently require an LLM judge evaluator.");
   }
   const response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
@@ -64,14 +65,14 @@ export async function evaluateTraceWithDefinition({
       "X-OpenRouter-Metadata": "enabled",
     },
     body: JSON.stringify({
-      model: runtimeModelId(definition.model),
+      model: runtimeModelId(runtimeDefinition.model),
       temperature: 0,
       max_tokens: 700,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
-          content: `${definition.prompt}\n\nReturn one JSON object with: score (0 to 1), passed (boolean), rationale (concise evidence-based string), and severity (minor, major, critical, or null). Evaluate only the supplied trace evidence.`,
+          content: `${runtimeDefinition.prompt}\n\nReturn one JSON object with: score (0 to 1), passed (boolean), rationale (concise evidence-based string), and severity (minor, major, critical, or null). Evaluate only the supplied trace evidence.`,
         },
         { role: "user", content: JSON.stringify(buildTraceEvaluationEvidence(trace)) },
       ],
@@ -80,17 +81,17 @@ export async function evaluateTraceWithDefinition({
   const payload = await response.json().catch(() => ({})) as Record<string, any>;
   if (!response.ok) throw new Error(String(payload.error?.message ?? `OpenRouter HTTP ${response.status}`));
   const judged = parseJudgePayload(payload.choices?.[0]?.message?.content);
-  const passed = typeof judged.passed === "boolean" ? judged.passed && judged.score >= definition.threshold : judged.score >= definition.threshold;
+  const passed = typeof judged.passed === "boolean" ? judged.passed && judged.score >= runtimeDefinition.threshold : judged.score >= runtimeDefinition.threshold;
   return {
     id: `${runId}_${trace.id}`,
     trace_id: trace.id,
-    evaluator_type: `${definition.id} (${runtimeModelId(definition.model)})`,
+    evaluator_type: `${runtimeDefinition.id} (${runtimeModelId(runtimeDefinition.model)})`,
     score: judged.score,
     passed,
     rationale: judged.rationale,
     severity: judged.severity,
     created_at: new Date().toISOString(),
-    eval_id: definition.id,
+    eval_id: runtimeDefinition.id,
     eval_version: evalVersion,
     run_id: runId,
     run_mode: runMode,

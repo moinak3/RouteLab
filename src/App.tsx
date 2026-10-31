@@ -24,7 +24,7 @@ import {
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
-import { demoEvalDefinitions } from "./core/evalDefinitions";
+import { demoEvalDefinitions, ensureEvalScoreAnchors } from "./core/evalDefinitions";
 import { loadActiveEvalConfig, type ActiveEvalConfig } from "./core/evalRegistry";
 import {
   loadEvalAutomationPolicies,
@@ -193,7 +193,7 @@ export default function App() {
     const livePolicy = stored
       ? evalAutomationPolicies.find((policy) => policy.runOnNewTraces && policy.evalId === stored.definition.id)
       : evalAutomationPolicies.find((policy) => policy.runOnNewTraces);
-    if (livePolicy) return { definition: livePolicy.definition, version: livePolicy.evalVersion };
+    if (livePolicy) return { definition: ensureEvalScoreAnchors(livePolicy.definition), version: livePolicy.evalVersion };
     if (stored) return stored;
     return activeWorkspace === "demo" ? { definition: demoEvalDefinitions[0], version: 1 } : undefined;
   }, [cloudWorkspaceId, evalAutomationPolicies, activeWorkspace, page, evalRegistryRevision]);

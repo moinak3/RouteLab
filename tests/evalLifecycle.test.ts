@@ -12,6 +12,7 @@ import {
   saveEvalRunRecord,
   type EvalRunRecord,
 } from "../src/core/evalLifecycle";
+import { PERSONAL_AGENT_RESPONSE_QUALITY_RUBRIC_ID } from "../src/core/evalDefinitions";
 import { evaluateTraceWithDefinition } from "../src/server/evalRuns";
 import type { Trace, TraceJudgeResult } from "../src/types";
 
@@ -244,6 +245,27 @@ describe("eval lifecycle", () => {
     });
 
     expect(result).toMatchObject({ eval_id: definition.id, eval_version: 3, run_id: "run_1", score: .9, passed: true });
+  });
+
+  it("adds the shared score anchors before an older personal-agent definition reaches the judge", async () => {
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body));
+      const judgePrompt = request.messages[0].content as string;
+      expect(judgePrompt).toContain("FULL CREDIT — 0.85 to 1.00");
+      expect(judgePrompt).toContain("PARTIAL CREDIT — 0.40 to 0.84");
+      expect(judgePrompt).toContain("LOW OR NO CREDIT — 0.00 to 0.39");
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: .7, passed: false, rationale: "Useful but incomplete.", severity: "minor" }) } }] }), { status: 200 });
+    });
+
+    await evaluateTraceWithDefinition({
+      definition: { ...definition, id: PERSONAL_AGENT_RESPONSE_QUALITY_RUBRIC_ID, prompt: "Legacy rubric." },
+      trace: trace(1),
+      evalVersion: 1,
+      runId: "anchored_run",
+      runMode: "historical_test",
+      apiKey: "test-key",
+      fetchImpl: fetchMock as typeof fetch,
+    });
   });
 
   it("does not leak the original final answer or human calibration labels into candidate judging", async () => {

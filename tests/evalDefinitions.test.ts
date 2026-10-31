@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPersonalAgentEvalDefinition,
   defaultEvalDefinitions,
+  ensureEvalScoreAnchors,
   ensureRunnableJudgeModel,
   evalDefinitionFileName,
   formatEvalDefinitionJson,
@@ -70,6 +71,19 @@ describe("workspace eval definitions", () => {
       detected_personal_agent_traces: 2,
       task_groups: ["Calendar scheduling and conflict resolution", "Email drafting and sending"],
     });
+    expect(definition.prompt).toContain("FULL CREDIT — 0.85 to 1.00");
+    expect(definition.prompt).toContain("PARTIAL CREDIT — 0.40 to 0.84");
+    expect(definition.prompt).toContain("LOW OR NO CREDIT — 0.00 to 0.39");
+    expect(definition.prompt).toContain("does not call a sending tool");
+    expect(definition.prompt).toContain("no successful tool result supports that claim");
+  });
+
+  it("adds score anchors to an existing personal-agent eval exactly once", () => {
+    const legacy = { ...buildPersonalAgentEvalDefinition([personalAgentTrace("trace-1", "Email drafting and sending")]), prompt: "Legacy rubric." };
+    const migrated = ensureEvalScoreAnchors(legacy);
+
+    expect(migrated.prompt).toContain("FULL CREDIT — 0.85 to 1.00");
+    expect(ensureEvalScoreAnchors(migrated)).toEqual(migrated);
   });
 
   it("serializes the downloadable definition as parseable JSON", () => {

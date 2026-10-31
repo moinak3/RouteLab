@@ -1,4 +1,4 @@
-import type { EvalDefinition } from "./evalDefinitions";
+import { ensureEvalScoreAnchors, type EvalDefinition } from "./evalDefinitions";
 
 export type StoredEvalVersion = {
   version: number;
@@ -52,5 +52,5 @@ export function loadActiveEvalConfig(workspaceId: string): ActiveEvalConfig | un
   if (!versions?.length) return undefined;
   const requestedVersion = loadStoredActiveEvalVersion(workspaceId);
   const active = versions.find((item) => item.version === requestedVersion) ?? versions.at(-1);
-  return active ? { version: active.version, definition: active.definition } : undefined;
+  return active ? { version: active.version, definition: ensureEvalScoreAnchors(active.definition) } : undefined;
 }
