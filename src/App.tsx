@@ -77,6 +77,9 @@ const advancedNav: NavDestination[] = [
 ];
 const allNav = [...workflowNav, ...advancedNav];
 const topLevelLabel = (page: Page) => allNav.find((item) => item.pages.includes(page))?.label ?? page;
+const pageTitle = (page: Page) => ["Simulations", "Classifier Validation"].includes(page)
+  ? "Simulations and Route selection"
+  : topLevelLabel(page);
 
 function hasPreviewAccess() {
   try {
@@ -613,7 +616,7 @@ export default function App() {
       </nav>
     </aside>
     <main>
-      {page !== "Benchmarking" ? <header><h1>{topLevelLabel(page)}</h1><div className="header-workspace-control"><span className={`workspace-badge ${activeWorkspace}`}>{activeWorkspace === "demo" ? "Demo data" : "My workspace"}</span><select className="mobile-workspace-select" aria-label="Select workspace" value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select></div></header> : null}
+      {page !== "Benchmarking" ? <header><h1>{pageTitle(page)}</h1><div className="header-workspace-control"><span className={`workspace-badge ${activeWorkspace}`}>{activeWorkspace === "demo" ? "Demo data" : "My workspace"}</span><select className="mobile-workspace-select" aria-label="Select workspace" value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select></div></header> : null}
       <div className="mobile-nav" aria-label="Mobile navigation">
         {workflowNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
         <button type="button" className={advancedNav.some((item) => item.pages.includes(page)) ? "active" : ""} aria-expanded={Boolean(expandedNav.Advanced)} aria-controls="mobile-advanced-submenu" onClick={() => setExpandedNav((expanded) => ({ ...expanded, Advanced: !expanded.Advanced }))}>Advanced</button>
