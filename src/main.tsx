@@ -11,4 +11,5 @@ import "./styles/classifier-validation.css";
 import "./styles/classifier-validation-empty.css";
 import "./styles/typography.css";
 import "./styles/impeccable-dossier.css";
+import "./styles/ask-chat-lab.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);

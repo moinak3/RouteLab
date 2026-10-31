@@ -18,6 +18,15 @@ import { simulationScopeKey } from "../core/simulationScope";
 import { mostCommonModelForTaskGroup } from "../core/distinctTasks";
 import { ScenarioMetricRows, type ScenarioMetric } from "../components/SimulationMetricRows";
 import { latestSimulationRun, saveSimulationRun, simulationRunComparisonKey } from "../core/simulationHistory";
+const simulationRequestFromSearch = (search: string) => {
+    const params = new URLSearchParams(search);
+    const mode = params.get("requestMode") === "count" ? "count" as const : "percent" as const;
+    const rawValue = Number(params.get("requestValue"));
+    return {
+        mode,
+        value: Number.isFinite(rawValue) && rawValue > 0 ? String(rawValue) : "100",
+    };
+};
 function DistinctTaskScopePicker({ buckets, selectedIds, onChange, callCounts, totalCalls }: {
     buckets: DistinctTaskBucket[];
     selectedIds: string[];
@@ -196,14 +205,15 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     workspaceId: string;
     activeEval?: ActiveEvalConfig;
 }) {
+    const initialRequest = simulationRequestFromSearch(window.location.search);
     const [distinctTaskBucketIds, setDistinctTaskBucketIds] = useState<string[]>(() => {
         const taskGroupId = taskGroupIdFromSearch(window.location.search);
         return taskGroupId ? [taskGroupId] : [];
     });
     const [strategy, setStrategy] = useState<"direct" | "family_cascade">("direct");
     const [dateRange, setDateRange] = useState<DateRange>("6m");
-    const [requestLimitMode, setRequestLimitMode] = useState<"count" | "percent">("percent");
-    const [requestLimitValue, setRequestLimitValue] = useState("100");
+    const [requestLimitMode, setRequestLimitMode] = useState<"count" | "percent">(initialRequest.mode);
+    const [requestLimitValue, setRequestLimitValue] = useState(initialRequest.value);
     const [sampleSeed, setSampleSeed] = useState(() => Date.now());
     const [liveDirect, setLiveDirect] = useState<LiveDirectState | null>(null);
     const [pendingLiveReplay, setPendingLiveReplay] = useState<PendingLiveReplay | null>(null);

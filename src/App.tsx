@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
 import { NewWorkspaceOverview } from "./components/NewWorkspaceOverview";
+import { AskChatLab } from "./components/AskChatLab";
 import { dashboardMetrics } from "./core/analysis";
 import { pageForPath, pathForPage } from "./appRoutes";
-import { OPENROUTER_AUTO_MODEL, enabledModels, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
+import { OPENROUTER_AUTO_MODEL, enabledModels, getModel, registerOpenRouterModels, updateFamilyEnabled, updateModelEnabled, updateModelPricing } from "./core/catalog";
+import { selectSimulationTraces, type AskSimulationRequest, type AskSimulationResult } from "./core/askChatLab";
 import { requiredOpenRouterModels, withRequiredOpenRouterModels } from "./core/openRouterModels";
 import { createDistinctTaskBuckets } from "./core/distinctTasks";
 import { createSimulatedGoldenDataset } from "./core/goldenDatasets";
@@ -33,6 +35,10 @@ import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
 import { demoEvalDefinitions, ensureEvalScoreAnchors } from "./core/evalDefinitions";
 import { loadActiveEvalConfig, type ActiveEvalConfig } from "./core/evalRegistry";
+import { liveRoutingStatus, runLiveDirectRouting } from "./core/liveRouting";
+import { evaluateLiveReplay } from "./core/simulationEvaluation";
+import { saveSimulationRun, simulationRunComparisonKey } from "./core/simulationHistory";
+import { simulationScopeKey } from "./core/simulationScope";
 import {
   loadEvalAutomationPolicies,
   markEvalTracesProcessed,
@@ -268,6 +274,75 @@ export default function App() {
   function openTaskGroupSimulation(bucketId: string) {
     const nextPath = `${pathForPage("Simulations")}?taskGroup=${encodeURIComponent(bucketId)}`;
     window.history.pushState({ page: "Simulations", taskGroup: bucketId }, "", nextPath);
+    setPage("Simulations");
+  }
+
+  async function runAskChatLabSimulation(request: AskSimulationRequest): Promise<AskSimulationResult> {
+    const taskGroup = distinctTaskBuckets.find((group) => group.bucket_id === request.taskGroupId);
+    const model = simulationModels.find((item) => item.id === request.candidateId) ?? getModel(request.candidateId);
+    if (!taskGroup) throw new Error("That Task Group is no longer available in this workspace.");
+    if (!model || model.deployment_type === "decision_model") throw new Error("That model cannot generate candidate responses for a simulation.");
+    if (!activeEvalConfig) throw new Error("Create and test a response-quality eval before running a live comparison.");
+    const { available, selected } = selectSimulationTraces(traces, taskGroup, request.sampleMode, request.sampleValue);
+    if (!selected.length) throw new Error("No traces are available in that Task Group.");
+    const keyStatus = liveRoutingStatus(model.id, { familyApiKeys, gatewayApiKeys, serverGatewayKeys });
+    if (!keyStatus) throw new Error(`No live provider key is configured for ${model.display_name}.`);
+    const live = await runLiveDirectRouting(selected, model.id, { familyApiKeys, gatewayApiKeys, serverGatewayKeys });
+    const evaluated = await evaluateLiveReplay({
+      workspaceId: cloudWorkspaceId,
+      activeEval: activeEvalConfig,
+      traces: selected,
+      runs: live.runs,
+      existingBaselineResults: traceJudgeResults,
+    });
+    const completedAt = new Date().toISOString();
+    const scopeKey = simulationScopeKey({
+      candidateId: model.id,
+      dateRange: "6m",
+      requestCount: selected.length,
+      taskGroupIds: [taskGroup.bucket_id],
+      traceIds: available.map((trace) => trace.id),
+    });
+    const comparisonKey = simulationRunComparisonKey({
+      scopeKey,
+      evalId: activeEvalConfig.definition.id,
+      evalVersion: activeEvalConfig.version,
+    });
+    saveSimulationRun(cloudWorkspaceId, {
+      id: `simulation_${Date.now()}`,
+      comparisonKey,
+      candidateId: model.id,
+      completedAt,
+      source: live.source,
+      label: live.label,
+      traceIds: selected.map((trace) => trace.id),
+      baselineResults: evaluated.baselineResults,
+      result: evaluated.result,
+    });
+    setCandidate(model.id);
+    const baselineScores = evaluated.baselineResults.map((result) => result.score);
+    const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+    return {
+      ...request,
+      candidateId: model.id,
+      candidateName: model.display_name,
+      completedAt,
+      traceCount: selected.length,
+      successfulRequests: live.runs.filter((run) => run.status === "success").length,
+      baselineMonthlyCost: evaluated.result.summary.baseline_cost_usd * 30,
+      candidateMonthlyCost: evaluated.result.summary.simulated_cost_usd * 30,
+      baselineLatencyMs: evaluated.result.summary.baseline_avg_latency_ms,
+      candidateLatencyMs: evaluated.result.summary.simulated_avg_latency_ms,
+      baselineAverageScore: average(baselineScores),
+      candidateAverageScore: evaluated.result.summary.average_quality_score,
+      provider: live.label,
+    };
+  }
+
+  function openAskChatLabSimulation(result: AskSimulationResult) {
+    setCandidate(result.candidateId);
+    const nextPath = `${pathForPage("Simulations")}?taskGroup=${encodeURIComponent(result.taskGroupId)}&requestMode=${result.sampleMode}&requestValue=${encodeURIComponent(String(result.sampleValue))}`;
+    window.history.pushState({ page: "Simulations", taskGroup: result.taskGroupId }, "", nextPath);
     setPage("Simulations");
   }
 
@@ -694,5 +769,17 @@ export default function App() {
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
       {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onGatewayApiKey={(gateway,key)=>setGatewayApiKeys(keys=>({...keys,[gateway]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
     </main>
+    <AskChatLab
+      workspaceLabel={activeWorkspace === "demo" ? "RouteLab demo" : "My workspace"}
+      traces={traces}
+      traceJudgeResults={traceJudgeResults}
+      taskGroups={distinctTaskBuckets}
+      models={simulationModels}
+      activeEval={activeEvalConfig ? { id: activeEvalConfig.definition.id, version: activeEvalConfig.version, name: activeEvalConfig.definition.name } : undefined}
+      onNavigate={navigateTo}
+      onOpenReview={() => navigateToReviewLane("uncovered", "task_group")}
+      onRunSimulation={runAskChatLabSimulation}
+      onOpenSimulation={openAskChatLabSimulation}
+    />
   </div>;
 }
