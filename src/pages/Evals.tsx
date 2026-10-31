@@ -87,6 +87,7 @@ export function Evals({
   traceJudgeResults,
   models,
   onReviewFilter,
+  onOpenCalibration,
   onEvalResults,
   onAutomationPoliciesChange,
 }: {
@@ -96,6 +97,7 @@ export function Evals({
   traceJudgeResults: TraceJudgeResult[];
   models: Model[];
   onReviewFilter: (filter: ReviewQueueFilter) => void;
+  onOpenCalibration: () => void;
   onEvalResults: (results: TraceJudgeResult[]) => void;
   onAutomationPoliciesChange: (policies: EvalAutomationPolicy[]) => void;
 }) {
@@ -399,6 +401,16 @@ export function Evals({
     setModal("details");
   }
 
+  function openCalibrationResults() {
+    setModal(null);
+    onOpenCalibration();
+  }
+
+  function openJudgeResults() {
+    setModal(null);
+    onReviewFilter("unusual");
+  }
+
   function toggleEvalDisabled(definition: EvalDefinition) {
     const disabling=definition.status!=="Disabled";
     const nextDefinition={...definition,status:disabling?"Disabled":"Running"};
@@ -608,6 +620,30 @@ export function Evals({
           <section className="eval-detail-section">
             <div><p className="eyebrow">Task scope</p><h3>{detailEvalDefinition.scope}</h3></div>
           </section>
+          {detailEvalDefinition.id===activeEvalDefinition?.id&&<section className="eval-detail-actions" aria-labelledby="eval-detail-actions-heading">
+            <div className="eval-detail-actions-head">
+              <div><p className="eyebrow">Response quality actions</p><h3 id="eval-detail-actions-heading">Run and review this eval</h3></div>
+              <span>Version {activeVersion?.version??1}</span>
+            </div>
+            <div className="eval-detail-action-grid">
+              <article>
+                <div><b>Run on historical traces</b><p>Apply this frozen rubric to all {traces.length.toLocaleString()} currently imported traces.</p></div>
+                <button type="button" className="primary" disabled={!supportsLiveRuns||!traces.length||historicalRunState==="running"} onClick={testHistoricalTraces}>{historicalRunState==="running"?`Running ${historicalRunProgress.processed.toLocaleString()} / ${historicalRunProgress.total.toLocaleString()}…`:"Run on historical traces"}</button>
+              </article>
+              <article>
+                <div><b>Run on new traces</b><p>Automatically score every trace ingested after this setting is enabled.</p></div>
+                <button type="button" className={automationPolicy?.runOnNewTraces?"active":"primary"} aria-pressed={Boolean(automationPolicy?.runOnNewTraces)} disabled={!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(!automationPolicy?.runOnNewTraces)}>{automationPolicy?.runOnNewTraces?"Running on new traces · On":"Run on new traces"}</button>
+              </article>
+              <article>
+                <div><b>View human calibration results</b><p>Compare this judge with human labels on the Response Quality Calibration page.</p></div>
+                <button type="button" onClick={openCalibrationResults}>View human calibration results</button>
+              </article>
+              <article>
+                <div><b>Review judge results</b><p>Open the Review Queue filtered to response-quality cases that need attention.</p></div>
+                <button type="button" onClick={openJudgeResults}>Review judge results</button>
+              </article>
+            </div>
+          </section>}
           {evaluatorUsesJudgeModel(detailEvalDefinition.evaluator_type)&&<section className="eval-prompt eval-detail-prompt" aria-labelledby="eval-prompt-heading">
             <div className="eval-detail-prompt-head"><div><p className="eyebrow">LLM judge prompt</p><h3 id="eval-prompt-heading">Instructions sent to the judge model</h3></div><span>Read only</span></div>
             <pre>{detailEvalDefinition.prompt}</pre>

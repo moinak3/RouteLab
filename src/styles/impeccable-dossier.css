@@ -723,14 +723,22 @@ body:before{
 .shell>main .eval-modal .eval-version-list article small,
 .shell>main .eval-modal .eval-version-list article p>span{color:#9fb3a8}
 .shell>main .eval-modal .eval-version-list article>div>b{color:#58f084}
-.shell>main .eval-detail-modal :is(.eval-detail-section,.eval-detail-lifecycle article,.eval-detail-prompt,.eval-detail-dimensions){
+.shell>main .eval-detail-modal :is(.eval-detail-section,.eval-detail-lifecycle article,.eval-detail-prompt,.eval-detail-dimensions,.eval-detail-actions){
   border-color:#45534e;
   background:#1d272d;
 }
-.shell>main .eval-detail-modal :is(.eval-meta-grid small,.eval-detail-section .eyebrow,.eval-detail-lifecycle small,.eval-detail-prompt .eyebrow){color:#a9bbb2}
-.shell>main .eval-detail-modal :is(.eval-meta-grid b,.eval-detail-section h3,.eval-detail-lifecycle b,.eval-detail-prompt h3,.eval-detail-dimensions h3,.eval-definition summary){color:#f4faf6}
+.shell>main .eval-detail-modal :is(.eval-meta-grid small,.eval-detail-section .eyebrow,.eval-detail-lifecycle small,.eval-detail-prompt .eyebrow,.eval-detail-actions .eyebrow){color:#a9bbb2}
+.shell>main .eval-detail-modal :is(.eval-meta-grid b,.eval-detail-section h3,.eval-detail-lifecycle b,.eval-detail-prompt h3,.eval-detail-dimensions h3,.eval-detail-actions h3,.eval-detail-action-grid b,.eval-definition summary){color:#f4faf6}
 .shell>main .eval-detail-modal .eval-generation-note{border-color:#45624f;background:#183024;color:#d9eadf}
 .shell>main .eval-detail-modal .eval-detail-lifecycle span{color:#c3d2cb}
+.shell>main .eval-detail-modal .eval-detail-actions-head>span{border-color:#52615b;color:#c3d2cb}
+.shell>main .eval-detail-modal .eval-detail-action-grid article{border-color:#45534e;background:#151e23}
+.shell>main .eval-detail-modal .eval-detail-action-grid p{color:#c3d2cb}
+.shell>main .eval-detail-modal .eval-detail-action-grid button{border-color:#607169;background:#1b262c;color:#eef7f2}
+.shell>main .eval-detail-modal .eval-detail-action-grid button:hover{border-color:#91a69b;background:#27353b;color:#fff}
+.shell>main .eval-detail-modal .eval-detail-action-grid button.primary{border-color:#58f084;background:#58f084;color:#07110b}
+.shell>main .eval-detail-modal .eval-detail-action-grid button.active{border-color:#58f084;background:#183024;color:#bff8cf}
+.shell>main .eval-detail-modal .eval-detail-action-grid button:disabled{border-color:#45534e;background:#182127;color:#82928a}
 .shell>main .eval-detail-modal .eval-definition summary::after{border-color:#52615b;color:#c3d2cb}
 .shell>main .eval-detail-modal .eval-definition pre{border-color:#45534e;background:#050b10;color:#dcebe3}
 .shell>main .eval-detail-modal .eval-detail-prompt-head>span{border-color:#52615b;color:#c3d2cb}
