@@ -186,7 +186,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-hero-copy">
           <p className="eyebrow">Model routing for AI agents</p>
           <h1>Choose the right model for each task your agent takes on.</h1>
-          <p>Use your production traces and evals to compare model quality, cost, and latency for each task, then choose the allocation that fits your needs.</p>
+          <p>RouteLab uses your production traces and human-calibrated evals to choose the right model for each recurring task.</p>
           <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a></div>
         </div>
         <aside className="home-why-now-card" id="why-now" aria-label="Why model allocation matters now">
@@ -263,6 +263,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           {stackStages.map((stage, index) => <div className="home-stack-stage" key={stage.name}><article><span>{stage.number}</span><h3>{stage.name}</h3><p>{stage.text}</p></article>{index < stackStages.length - 1 && <b aria-hidden="true">→</b>}</div>)}
         </div>
         <p className="home-stack-note">OpenRouter is the implemented runtime target today. Dynamic routers can remain the general default; RouteLab adds application-specific evidence, explicit task overrides, policy history, and conservative handling for uncovered traffic.</p>
+        <p className="home-stack-note">RouteLab validates both Task Group classification and response quality against human judgments before they influence routing.</p>
       </section>
 
       <section className="home-section home-for-teams" id="for-teams">
