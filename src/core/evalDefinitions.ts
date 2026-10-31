@@ -1,4 +1,4 @@
-import type { Trace } from "../types";
+import type { Trace } from "../types.js";
 
 export type EvalDefinition = {
   id: string;
