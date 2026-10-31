@@ -83,18 +83,18 @@ const compactMoney = (value: number) => value < .01 ? `$${value.toFixed(5)}` : m
 const scoreLabel = (value?: number) => Number.isFinite(value) ? pct((value ?? 0) * 100) : "Not scored";
 const changeLabel = (value: number) => `${value > 0 ? "+" : ""}${pct(value)}`;
 const pointChangeLabel = (value?: number) => value === undefined ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(1)} pts`;
-function TaskImpactValues({ before, after, impact, tone, pending = false }: {
+function TaskImpactCells({ before, after, impact, tone, pending = false }: {
     before: string;
     after: string;
     impact: string;
     tone: "good" | "warn";
     pending?: boolean;
 }) {
-    return <div className="task-impact-values">
-        <span><small>Before</small>{before}</span>
-        <span><small>After</small><strong aria-busy={pending}>{pending ? null : after}</strong></span>
-        <span><small>Impact</small><em className={pending ? undefined : tone} aria-busy={pending}>{pending ? null : impact}</em></span>
-    </div>;
+    return <>
+        <td className="task-impact-value before">{before}</td>
+        <td className="task-impact-value after"><strong aria-busy={pending}>{pending ? null : after}</strong></td>
+        <td className="task-impact-value impact"><em className={pending ? undefined : tone} aria-busy={pending}>{pending ? null : impact}</em></td>
+    </>;
 }
 const policySaveLabel = (state: RoutingPolicySaveState) => ({
     loading: "Loading saved draft",
@@ -458,13 +458,26 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 </div>
 <div className="task-impact-wrap">
 <table className="task-impact-table">
+<colgroup>
+<col className="task-impact-task-col" />
+<col span={6} className="task-impact-metric-col" />
+<col className="task-impact-quality-before-col" />
+<col className="task-impact-quality-after-col" />
+<col className="task-impact-quality-impact-col" />
+<col className="task-impact-action-col" />
+</colgroup>
 <thead>
 <tr>
-<th>Task Group</th>
-<th>Cost / month</th>
-<th>Average latency</th>
-<th>Quality / accuracy</th>
-<th>Model choice</th>
+<th rowSpan={2}>Task Group</th>
+<th colSpan={3} scope="colgroup">Cost / month</th>
+<th colSpan={3} scope="colgroup">Average latency</th>
+<th colSpan={3} scope="colgroup">Quality / accuracy</th>
+<th rowSpan={2}>Model choice</th>
+</tr>
+<tr className="task-impact-subhead">
+<th>Before</th><th>After</th><th>Impact</th>
+<th>Before</th><th>After</th><th>Impact</th>
+<th>Before</th><th>After</th><th>Impact</th>
 </tr>
 </thead>
 <tbody>{distinctTaskImpact.map(row => {
@@ -476,9 +489,9 @@ return <tr key={row.distinct_task_bucket_id}>
 <small>{row.trace_count.toLocaleString()} replayed trace{row.trace_count === 1 ? "" : "s"}</small>
 <small className="current-task-model">Current model: {currentModelByTaskGroup.get(row.distinct_task_bucket_id) ?? "Not recorded"}</small>
 </td>
-<td><TaskImpactValues before={money(row.cost.before_monthly_usd)} after={money(row.cost.after_monthly_usd)} impact={changeLabel(row.cost.delta_pct)} tone={row.cost.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/></td>
-<td><TaskImpactValues before={`${row.latency.before_ms.toFixed(0)}ms`} after={`${row.latency.after_ms.toFixed(0)}ms`} impact={changeLabel(row.latency.delta_pct)} tone={row.latency.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/></td>
-<td><TaskImpactValues before={row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)} after={hasMeasuredQuality ? pct(row.quality.after_pass_rate * 100) : "Not evaluated"} impact={hasMeasuredQuality ? pointChangeLabel(row.quality.delta_points) : "n/a"} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"} pending={liveReplayPending}/></td>
+<TaskImpactCells before={money(row.cost.before_monthly_usd)} after={money(row.cost.after_monthly_usd)} impact={changeLabel(row.cost.delta_pct)} tone={row.cost.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/>
+<TaskImpactCells before={`${row.latency.before_ms.toFixed(0)}ms`} after={`${row.latency.after_ms.toFixed(0)}ms`} impact={changeLabel(row.latency.delta_pct)} tone={row.latency.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/>
+<TaskImpactCells before={row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)} after={hasMeasuredQuality ? pct(row.quality.after_pass_rate * 100) : "Not evaluated"} impact={hasMeasuredQuality ? pointChangeLabel(row.quality.delta_points) : "n/a"} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"} pending={liveReplayPending}/>
 <td className="route-action">{liveReplayPending ? <><span className="route-ineligible">Simulation in progress</span><small>The model choice becomes available after the replay completes.</small></> : !hasMeasuredQuality ? <><span className="route-ineligible">Live eval required</span><small>Run the candidate and shared rubric before choosing an override.</small></> : isAutoRouter ? <><span className="route-ineligible">Default strategy only</span><small>Auto Router results are measured live but are not promoted as a fixed task override.</small></> : strategy !== "direct" ? <><span className="route-ineligible">Direct replay required</span><small>Cascades need a separate policy rule.</small></> : <><button type="button" className={candidateIsActive ? "active" : ""} disabled={candidateIsActive} onClick={() => setTaskOverride(row)}>{candidateIsActive ? "Override active" : activeOverride ? `Replace ${activeOverride.modelName}` : `Use ${candidateName}`}</button>{!candidateIsActive && <small>You decide after reviewing the measured tradeoffs.</small>}</>}</td>
 </tr>;
 })}</tbody>

@@ -16,45 +16,63 @@
   overflow-x:auto;
 }
 .task-impact-panel .task-impact-table{
-  min-width:980px;
+  min-width:1040px;
   table-layout:fixed;
 }
 .task-impact-panel .task-impact-table th,
 .task-impact-panel .task-impact-table td{
-  padding:10px 12px;
+  padding:10px 9px;
   text-align:left;
-  vertical-align:top;
+  vertical-align:middle;
 }
-.task-impact-panel .task-impact-table th:first-child{width:23%}
-.task-impact-panel .task-impact-table th:nth-child(2),
-.task-impact-panel .task-impact-table th:nth-child(3),
-.task-impact-panel .task-impact-table th:nth-child(4){width:17%}
-.task-impact-panel .task-impact-table th:last-child{width:26%}
-.task-impact-panel .task-impact-table td:nth-child(5){border-left:1px solid var(--line)}
-.task-impact-values{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:8px;
-  align-items:start;
+.task-impact-panel .task-impact-table .task-impact-task-col{width:210px}
+.task-impact-panel .task-impact-table .task-impact-metric-col{width:70px}
+.task-impact-panel .task-impact-table .task-impact-quality-before-col{width:72px}
+.task-impact-panel .task-impact-table .task-impact-quality-after-col{width:100px}
+.task-impact-panel .task-impact-table .task-impact-quality-impact-col{width:58px}
+.task-impact-panel .task-impact-table .task-impact-action-col{width:210px}
+.task-impact-panel .task-impact-table thead tr:first-child th[colspan]{text-align:center}
+.task-impact-panel .task-impact-table .task-impact-subhead th{
+  width:78px;
+  padding-left:6px;
+  padding-right:6px;
+  text-align:left;
+  white-space:nowrap;
 }
-.task-impact-values span{
-  display:grid;
-  gap:3px;
-  min-width:0;
+.task-impact-panel .task-impact-table .task-impact-subhead th:nth-child(1),
+.task-impact-panel .task-impact-table .task-impact-subhead th:nth-child(4),
+.task-impact-panel .task-impact-table .task-impact-subhead th:nth-child(7),
+.task-impact-panel .task-impact-table td:nth-child(2),
+.task-impact-panel .task-impact-table td:nth-child(5),
+.task-impact-panel .task-impact-table td:nth-child(8),
+.task-impact-panel .task-impact-table td:last-child{border-left:1px solid var(--line)}
+.task-impact-panel .task-impact-table .task-impact-value{
+  padding-left:6px;
+  padding-right:6px;
+  overflow-wrap:break-word;
+  white-space:normal;
+  font-variant-numeric:tabular-nums;
 }
-.task-impact-values small{
-  margin:0!important;
-  color:var(--muted);
-  font-size:12px;
-  font-weight:600;
-  letter-spacing:.04em;
-  text-transform:uppercase;
+.task-impact-panel .task-impact-table .task-impact-value strong,
+.task-impact-panel .task-impact-table .task-impact-value em{
+  display:block;
+  overflow-wrap:normal;
+  white-space:nowrap;
 }
-.task-impact-values strong,
-.task-impact-values em{
-  overflow-wrap:anywhere;
+.task-impact-panel .task-impact-table .task-impact-value.after strong{
+  overflow-wrap:break-word;
+  white-space:normal;
 }
+.task-impact-panel .task-impact-table .task-impact-value.after,
+.task-impact-panel .task-impact-table .task-impact-value.impact{font-weight:600}
+.task-impact-panel .task-impact-table .task-impact-value.after[aria-busy="true"],
+.task-impact-panel .task-impact-table .task-impact-value.impact[aria-busy="true"]{min-height:18px}
 .task-impact-table .current-task-model{
   color:var(--dossier-blue, var(--muted));
   overflow-wrap:anywhere;
+}
+.task-impact-panel .task-impact-table .route-action,
+.task-impact-panel .task-impact-table .route-action small{
+  overflow-wrap:anywhere;
+  white-space:normal;
 }
