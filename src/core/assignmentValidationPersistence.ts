@@ -1,4 +1,4 @@
-import { isAssignmentValidationWorkflow, type AssignmentValidationWorkflow } from "./assignmentValidation";
+import { normalizeAssignmentValidationWorkflow, type AssignmentValidationWorkflow } from "./assignmentValidation";
 
 const STORAGE_PREFIX = "routelab-assignment-validation:";
 
@@ -7,7 +7,7 @@ const storage = () => typeof window === "undefined" ? null : window.localStorage
 export function loadLocalAssignmentValidation(workspaceId: string) {
   try {
     const parsed = JSON.parse(storage()?.getItem(`${STORAGE_PREFIX}${workspaceId}`) ?? "null");
-    return isAssignmentValidationWorkflow(parsed) ? parsed : null;
+    return normalizeAssignmentValidationWorkflow(parsed);
   } catch {
     return null;
   }
@@ -29,7 +29,7 @@ export async function fetchAssignmentValidation(workspaceId: string, signal?: Ab
   const result = await payload<{ workflow: AssignmentValidationWorkflow | null }>(await fetch(endpoint(workspaceId), {
     headers: { Accept: "application/json" }, cache: "no-store", signal,
   }));
-  return result.workflow && isAssignmentValidationWorkflow(result.workflow) ? result.workflow : null;
+  return normalizeAssignmentValidationWorkflow(result.workflow);
 }
 
 export async function persistAssignmentValidation(workspaceId: string, workflow: AssignmentValidationWorkflow) {
@@ -38,7 +38,9 @@ export async function persistAssignmentValidation(workspaceId: string, workflow:
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ workflow }),
   }));
-  return result.workflow;
+  const normalized = normalizeAssignmentValidationWorkflow(result.workflow);
+  if (!normalized) throw new Error("Classifier validation storage returned an invalid workflow.");
+  return normalized;
 }
 
 export async function runStrongClassifierComparator(
