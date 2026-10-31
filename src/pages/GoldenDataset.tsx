@@ -18,7 +18,22 @@ const cellValue = (value: unknown) => value === null || value === undefined ? ""
 const pct = (value: number) => `${value.toFixed(1)}%`;
 const formatDelta = (value: number) => value ? value.toFixed(2) : "0.00";
 const PREVIEW_ROW_COUNT = 2;
-const PREFERRED_PREVIEW_COLUMNS = ["trace_id", "task_group", "human_passed", "human_score", "human_severity"];
+const PREFERRED_PREVIEW_COLUMNS = ["trace_id", "task_group", "evaluation_scope", "trajectory_status", "human_passed", "human_score"];
+
+const jsonCount = (value?: string) => {
+  if (!value) return 0;
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.length;
+    return parsed === null ? 0 : 1;
+  } catch {
+    return 0;
+  }
+};
+const prettyEvidence = (value?: string) => {
+  if (!value) return "No evidence recorded";
+  try { return JSON.stringify(JSON.parse(value), null, 2); } catch { return value; }
+};
 
 export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, onUpdate, onDelete, onOpenEvalLibrary, onOpenReviewQueue }: Props) {
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
@@ -26,6 +41,7 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
   const [uploadError, setUploadError] = useState<string | null>(null);
   const selectedDataset = datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0];
   const calibration = useMemo(() => calibrateGoldenDataset(selectedDataset, traces, traceJudgeResults), [selectedDataset, traces, traceJudgeResults]);
+  const trajectoryEvidenceRows = useMemo(() => selectedDataset?.rows.filter((row) => row.evaluation_scope === "full_trajectory" && row.evidence_fingerprint).length ?? 0, [selectedDataset]);
   const previewColumns = useMemo(() => {
     if (!selectedDataset) return [];
     if (mode === "edit") return selectedDataset.columns;
@@ -75,12 +91,12 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
     <section className="panel golden-hero">
       <div>
         <p className="eyebrow">Golden Dataset</p>
-        <h2>Upload human-labeled examples to calibrate your evals.</h2>
-      <p>Golden datasets are the ground-truth layer for RouteLab. Upload prompts, agent answers, human reference answers, and human pass or score labels, then compare them against the current LLM-as-judge eval.</p>
+        <h2>Calibrate humans and judges on the same evidence.</h2>
+      <p>Each trajectory row can include the request, instructions, conversation history, available tools, retrieved context, tool calls and results, execution spans, final response, and outcome. Human labels stay separate from that evidence and are never exposed to the judge.</p>
       </div>
       <div className="golden-hero-actions">
         <label className="upload golden-upload primary">Upload golden CSV<input type="file" accept=".csv" onChange={(event) => uploadDataset(event.target.files?.[0])} /></label>
-        <a className="ghost-link" href="/samples/routelab-simulated-golden-dataset.csv" download>Download sample CSV</a>
+        <a className="ghost-link" href="/samples/personal-agent-trajectory-golden-20.csv" download>Download 20-row trajectory CSV</a>
       </div>
     </section>
 
@@ -96,6 +112,12 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
         {selectedDataset && <span>{calibration.matched_rows.toLocaleString()} matched rows</span>}
       </div>
       {selectedDataset ? <>
+        <div className={`notice golden-evidence-parity ${trajectoryEvidenceRows === selectedDataset.row_count ? "complete" : "legacy"}`}>
+          <b>{trajectoryEvidenceRows.toLocaleString()} of {selectedDataset.row_count.toLocaleString()} rows snapshot full-trajectory evidence.</b>
+          <span>{trajectoryEvidenceRows === selectedDataset.row_count
+            ? "Human reviewers and the LLM judge can inspect the same versioned evidence packet. Fingerprints prevent changed traces from being compared silently."
+            : "Rows without a trajectory snapshot remain compatible, but they cannot prove evidence parity. Re-export or re-review them before using agreement as a routing gate."}</span>
+        </div>
         {calibration.invalid_rows > 0 && <div className="notice golden-consistency-warning" role="alert">
           <b>{calibration.invalid_rows} inconsistent golden row{calibration.invalid_rows === 1 ? "" : "s"} excluded from calibration.</b>
           <span>A failed human label cannot use the exact same candidate and reference answer. Edit the label or provide the corrected human answer.</span>
@@ -147,6 +169,28 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
                 <div><span>Agent response</span><p>{row.agent_answer}</p></div>
                 <div><span>Human reference</span><p>{row.human_answer}</p></div>
               </div>
+              {row.evidence_scope === "full_trajectory" && <details className="calibration-evidence">
+                <summary>Evidence reviewed by both human and judge</summary>
+                <div>
+                  <span><b>{jsonCount(row.system_instructions)}</b> system instruction{jsonCount(row.system_instructions) === 1 ? "" : "s"}</span>
+                  <span><b>{jsonCount(row.prior_conversation)}</b> prior message{jsonCount(row.prior_conversation) === 1 ? "" : "s"}</span>
+                  <span><b>{jsonCount(row.available_tools)}</b> available tool{jsonCount(row.available_tools) === 1 ? "" : "s"}</span>
+                  <span><b>{jsonCount(row.tool_calls)}</b> recorded tool call{jsonCount(row.tool_calls) === 1 ? "" : "s"}</span>
+                  <span><b>{jsonCount(row.tool_results)}</b> tool result{jsonCount(row.tool_results) === 1 ? "" : "s"}</span>
+                  <span><b>{jsonCount(row.execution_spans)}</b> execution span{jsonCount(row.execution_spans) === 1 ? "" : "s"}</span>
+                  <span><b>{row.trajectory_status || "unknown"}</b> trajectory status</span>
+                  <span><b>{row.evidence_match === false ? "Mismatch" : "Matched"}</b> evidence fingerprint</span>
+                </div>
+                <section className="calibration-evidence-detail">
+                  <details><summary>System instructions</summary><pre>{prettyEvidence(row.system_instructions)}</pre></details>
+                  <details><summary>Prior conversation</summary><pre>{prettyEvidence(row.prior_conversation)}</pre></details>
+                  <details><summary>Available tools</summary><pre>{prettyEvidence(row.available_tools)}</pre></details>
+                  <details><summary>Retrieved context</summary><pre>{prettyEvidence(row.retrieved_context)}</pre></details>
+                  <details><summary>Tool calls</summary><pre>{prettyEvidence(row.tool_calls)}</pre></details>
+                  <details><summary>Tool results</summary><pre>{prettyEvidence(row.tool_results)}</pre></details>
+                  <details><summary>Execution spans</summary><pre>{prettyEvidence(row.execution_spans)}</pre></details>
+                </section>
+              </details>}
             </div>
             <div className="calibration-verdicts">
               <span>Human: <b>{row.human_passed ? "pass" : "fail"}</b>{row.human_score !== undefined ? ` · ${row.human_score}` : ""}</span>
@@ -194,7 +238,7 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
             </table>
           </div>
         </div>}
-      </div> : <div className="empty-state"><h3>Upload a CSV to create your first golden dataset.</h3><p>Recommended columns: trace_id, human_passed, human_score, human_answer, and human_rationale.</p></div>}
+      </div> : <div className="empty-state"><h3>Upload a CSV to create your first golden dataset.</h3><p>Start with the trajectory sample. It includes a versioned evidence snapshot, a fingerprint, and human labels for each trace.</p></div>}
     </section>
   </div>;
 }

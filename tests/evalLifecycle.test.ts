@@ -227,6 +227,8 @@ describe("eval lifecycle", () => {
       const request = JSON.parse(String(init?.body));
       expect(request.model).toBe("openai/gpt-5.5-pro");
       expect(request.messages[1].content).toContain('"visible":"yes"');
+      expect(request.messages[1].content).toContain('"evidence_schema_version":"routelab.eval-evidence.v1"');
+      expect(request.messages[1].content).toContain('"evaluation_scope":"full_trajectory"');
       expect(request.messages[1].content).not.toContain("_internal_reference");
       return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: .9, passed: true, rationale: "The requested outcome was achieved.", severity: null }) } }] }), { status: 200 });
     });

@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { goldenEvidenceFieldsFromTrace, goldenEvidenceMatchesTrace } from "./evaluationEvidence";
 import type { FineTuneSignal, GoldenDataset, GoldenDatasetCalibration, GoldenDatasetCalibrationRow, GoldenDatasetRow, Trace, TraceJudgeResult } from "../types";
 
 export const EXTRA_CONTEXT_TOKEN_THRESHOLD = 1200;
@@ -58,6 +59,7 @@ export function adjudicateGoldenDataset(
     : `Human reviewer marked the response ${humanPassed ? "acceptable" : "incorrect or incomplete"}.`;
   const row: GoldenDatasetRow = {
     ...(existingIndex >= 0 ? dataset.rows[existingIndex] : {}),
+    ...goldenEvidenceFieldsFromTrace(trace),
     trace_id: trace.id,
     task_type: String(trace.metadata?.task_type ?? ""),
     model: trace.model,
@@ -76,7 +78,7 @@ export function adjudicateGoldenDataset(
   return { ...dataset, rows, row_count: rows.length, columns };
 }
 
-const simulatedGoldenColumns = ["trace_id", "task_type", "model", "prompt", "agent_answer", "human_answer", "human_passed", "human_score", "human_severity", "human_rationale"];
+const simulatedGoldenColumns = ["evidence_schema_version", "evaluation_scope", "evidence_fingerprint", "trace_id", "task_type", "model", "user_request", "system_instructions_json", "prior_conversation_json", "available_tools_json", "retrieved_context_json", "execution_spans_json", "tool_calls_json", "tool_results_json", "prompt", "agent_answer", "trajectory_status", "workflow_json", "evidence_metadata_json", "human_answer", "human_passed", "human_score", "human_severity", "human_rationale"];
 const simulatedGoldenTaskTypes = ["customer_support_responses", "rag_grounded_answers", "policy_compliance_reasoning", "document_review_legal_analysis"];
 
 const normalizedAnswer = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
@@ -111,6 +113,7 @@ export function createSimulatedGoldenDataset(traces: Trace[], judgeResults: Trac
     const answersMatch = normalizedAnswer(agentAnswer) === normalizedAnswer(humanAnswer);
     const humanPassed = answersMatch ? true : human.passed;
     return {
+      ...goldenEvidenceFieldsFromTrace(trace),
       trace_id: trace.id,
       task_type: String(trace.metadata?.task_type ?? ""),
       model: trace.model,
@@ -187,19 +190,34 @@ export function calibrateGoldenDataset(dataset: GoldenDataset | undefined, trace
     const humanRationale = readString(row, ["human_rationale", "reviewer_rationale", "label_reason"]);
     const humanAnswer = readString(row, ["human_answer", "reference_answer", "gold_answer"]);
     const agentAnswer = readString(row, ["agent_answer", "response", "actual_answer"]) || trace?.response_text || "";
+    const evidenceMatch = goldenEvidenceMatchesTrace(row, trace);
     const contradictoryFailure = humanPassed === false
       && Boolean(agentAnswer)
       && Boolean(humanAnswer)
       && normalizedAnswer(agentAnswer) === normalizedAnswer(humanAnswer);
-    const dataIssue = contradictoryFailure
+    const dataIssue = evidenceMatch === false
+      ? "The evidence snapshot in this golden row no longer matches the trace evidence sent to the judge. Re-export or re-review this row before calibrating."
+      : contradictoryFailure
       ? "Human label says fail, but the candidate response and human reference are identical. This row is excluded from calibration until corrected."
       : undefined;
     const agreement = dataIssue || humanPassed === undefined || judge === undefined ? undefined : humanPassed === judge.passed;
     return {
       trace_id: traceId,
-      prompt: readString(row, ["prompt", "prompt_text"]) || trace?.prompt_text || "",
+      prompt: readString(row, ["user_request", "prompt", "prompt_text"]) || trace?.prompt_text || "",
       agent_answer: agentAnswer,
       human_answer: humanAnswer || String(trace?.metadata?._internal_reference ?? ""),
+      evidence_scope: readString(row, ["evaluation_scope"]),
+      evidence_fingerprint: readString(row, ["evidence_fingerprint"]),
+      evidence_match: evidenceMatch,
+      system_instructions: readString(row, ["system_instructions_json"]),
+      prior_conversation: readString(row, ["prior_conversation_json"]),
+      available_tools: readString(row, ["available_tools_json"]),
+      retrieved_context: readString(row, ["retrieved_context_json"]),
+      execution_spans: readString(row, ["execution_spans_json"]),
+      tool_calls: readString(row, ["tool_calls_json"]),
+      tool_results: readString(row, ["tool_results_json"]),
+      trajectory_status: readString(row, ["trajectory_status"]),
+      workflow: readString(row, ["workflow_json"]),
       human_passed: humanPassed,
       human_score: humanScore,
       human_severity: humanSeverity,

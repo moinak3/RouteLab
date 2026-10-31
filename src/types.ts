@@ -212,6 +212,9 @@ export type GoldenDataset = {
 };
 export type GoldenDatasetCalibrationRow = {
   trace_id: string; prompt: string; agent_answer: string; human_answer: string;
+  evidence_scope?: string; evidence_fingerprint?: string; evidence_match?: boolean;
+  system_instructions?: string; prior_conversation?: string; available_tools?: string; retrieved_context?: string;
+  execution_spans?: string; tool_calls?: string; tool_results?: string; trajectory_status?: string; workflow?: string;
   human_passed?: boolean; human_score?: number; human_severity?: "minor" | "major" | "critical"; human_rationale?: string;
   judge_passed?: boolean; judge_score?: number; judge_severity?: "minor" | "major" | "critical"; judge_rationale?: string;
   agreement?: boolean; score_delta?: number; data_issue?: string;

@@ -1,6 +1,7 @@
 import type { GoldenDatasetRow, Trace, TraceJudgeResult } from "../types.js";
 import type { ReviewDecision } from "../types/ui.js";
 import type { ReviewLane } from "../core/reviewQueue.js";
+import { goldenEvidenceFieldsFromTrace } from "../core/evaluationEvidence.js";
 import {
   getReviewWorkflow,
   ReviewStoreUnavailableError,
@@ -23,6 +24,7 @@ function goldenRowForReview(trace: Trace, judge: TraceJudgeResult | undefined, l
   if (decision !== "correct" && decision !== "incorrect") return null;
   const humanPassed = decision === "correct";
   return {
+    ...goldenEvidenceFieldsFromTrace(trace),
     trace_id: trace.id,
     task_type: String(trace.metadata?.task_type ?? trace.metadata?.distinct_task_label ?? trace.signature_decision?.signature_label ?? ""),
     trace_signature: String(trace.metadata?.task_bucket_id ?? trace.signature_decision?.signature_id ?? ""),

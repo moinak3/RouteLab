@@ -1,4 +1,5 @@
 import { getModel } from "../core/catalog.js";
+import { buildTraceEvaluationEvidence } from "../core/evaluationEvidence.js";
 import type { EvalDefinition } from "../core/evalDefinitions.js";
 import type { Trace, TraceJudgeResult } from "../types.js";
 import { serverOpenRouterKey } from "../../api/live/_shared.js";
@@ -15,74 +16,6 @@ function sendJson(res: any, status: number, payload: unknown) {
 function runtimeModelId(model: string) {
   const configured = getModel(model);
   return configured?.pricing_source_model_id ?? model;
-}
-
-const calibrationOnly = new Set([
-  "corrected_output",
-  "expected_answer",
-  "expected_response",
-  "human_answer",
-  "human_feedback",
-  "human_passed",
-  "human_rationale",
-  "human_score",
-]);
-
-function visibleEvidence(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(visibleEvidence);
-  if (!isObject(value)) return value;
-  return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !key.startsWith("_internal") && !calibrationOnly.has(key))
-    .map(([key, item]) => [key, visibleEvidence(item)]));
-}
-
-function visibleMetadata(trace: Trace) {
-  return visibleEvidence(trace.metadata ?? {}) as Record<string, unknown>;
-}
-
-function conversationContext(trace: Trace) {
-  const messages = [...(trace.messages ?? [])];
-  let lastUserIndex = -1;
-  let finalAssistantIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (lastUserIndex < 0 && messages[index].role === "user") lastUserIndex = index;
-  }
-  for (let index = messages.length - 1; index > lastUserIndex; index -= 1) {
-    if (messages[index].role === "assistant") {
-      finalAssistantIndex = index;
-      break;
-    }
-  }
-  return messages.filter((_, index) => index !== finalAssistantIndex);
-}
-
-function visibleSpans(trace: Trace) {
-  return (trace.spans ?? []).map((span) => ({
-    id: span.id,
-    parent_id: span.parent_id ?? null,
-    type: span.type,
-    name: span.name ?? null,
-    input: visibleEvidence(span.input ?? null),
-    output: visibleEvidence(span.output ?? null),
-    metadata: visibleEvidence(span.metadata ?? {}),
-  }));
-}
-
-function traceEvidence(trace: Trace) {
-  return {
-    trace_id: trace.id,
-    user_request: trace.prompt_text,
-    agent_response: trace.response_text ?? "",
-    prior_conversation: conversationContext(trace),
-    execution_spans: visibleSpans(trace),
-    status: trace.status,
-    available_evidence: visibleMetadata(trace),
-    workflow: {
-      workflow_id: trace.workflow_id ?? null,
-      node_id: trace.node_id ?? null,
-      role: trace.workflow_role ?? null,
-    },
-  };
 }
 
 function parseJudgePayload(content: unknown) {
@@ -140,7 +73,7 @@ export async function evaluateTraceWithDefinition({
           role: "system",
           content: `${definition.prompt}\n\nReturn one JSON object with: score (0 to 1), passed (boolean), rationale (concise evidence-based string), and severity (minor, major, critical, or null). Evaluate only the supplied trace evidence.`,
         },
-        { role: "user", content: JSON.stringify(traceEvidence(trace)) },
+        { role: "user", content: JSON.stringify(buildTraceEvaluationEvidence(trace)) },
       ],
     }),
   });
