@@ -68,8 +68,10 @@ type NavDestination = {
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Groups", page: "Distinct Tasks" }] },
-  { label: "Quality", page: "Evals", pages: ["Evals", "Golden Dataset", "Review Queue"], icon: "Q", children: [{ label: "Eval Library", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }, { label: "Review Queue", page: "Review Queue" }] },
-  { label: "Routing", page: "Simulations", pages: ["Simulations", "Classifier Validation"], icon: "M", children: [{ label: "Routing Simulations", page: "Simulations" }, { label: "Classifier Validation", page: "Classifier Validation" }] },
+  { label: "Response Quality", page: "Evals", pages: ["Evals"], icon: "Q" },
+  { label: "Calibration", page: "Golden Dataset", pages: ["Golden Dataset", "Classifier Validation"], icon: "C", children: [{ label: "Response Quality Calibration", page: "Golden Dataset" }, { label: "Classifier Calibration", page: "Classifier Validation" }] },
+  { label: "Routing", page: "Simulations", pages: ["Simulations"], icon: "M", children: [{ label: "Simulations & Route Selection", page: "Simulations" }] },
+  { label: "Review", page: "Review Queue", pages: ["Review Queue"], icon: "R" },
 ];
 const advancedNav: NavDestination[] = [
   { label: "Benchmarking", page: "Benchmarking", pages: ["Benchmarking"], icon: "B" },
@@ -77,7 +79,7 @@ const advancedNav: NavDestination[] = [
 ];
 const allNav = [...workflowNav, ...advancedNav];
 const topLevelLabel = (page: Page) => allNav.find((item) => item.pages.includes(page))?.label ?? page;
-const pageTitle = (page: Page) => ["Simulations", "Classifier Validation"].includes(page)
+const pageTitle = (page: Page) => page === "Simulations"
   ? "Simulations and Route selection"
   : topLevelLabel(page);
 
@@ -92,7 +94,7 @@ function hasPreviewAccess() {
 export default function App() {
   const [page, setPage] = useState<Page>(() => pageForPath(window.location.pathname) ?? "Home");
   const [previewUnlocked, setPreviewUnlocked] = useState(hasPreviewAccess);
-  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Quality: false });
+  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Calibration: false, Routing: false });
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(loadActiveWorkspace);
   const [workspaceData, setWorkspaceData] = useState<Record<WorkspaceId, WorkspaceData>>(() => ({
     personal: loadPersonalWorkspace(),
