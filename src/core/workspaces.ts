@@ -23,6 +23,7 @@ const WORKSPACE_STORAGE_PREFIXES = [
   "routelab-eval-automation-v1:",
   "routelab-eval-runs-v1:",
   "routelab-routing-policy-draft-v2:",
+  "routelab-simulation-runs-v1:",
 ] as const;
 let inMemoryPersonalCloudWorkspaceId: string | null = null;
 

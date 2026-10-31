@@ -391,6 +391,10 @@ body:before{
 .shell>main td{border-color:var(--dossier-rule-soft);color:#26344b}.shell>main tbody tr:hover{background:rgba(33,77,134,.05)}
 .shell>main code{color:var(--dossier-blue)}
 .shell>main :is(.route,.sample,.task-summary div,.task-metrics div,.evidence-list div,.task-example,.pricing-editor,.range-tabs,.comparison,.monthly-breakdown,.scenario-metrics){border-color:var(--dossier-rule);border-radius:1px;background:rgba(255,255,255,.46)}
+.shell>main .current-baseline-grid{border-color:var(--dossier-rule);background:rgba(255,255,255,.46)}
+.shell>main .current-baseline-grid>div{border-color:var(--dossier-rule-soft)}
+.shell>main .current-baseline-grid small,.shell>main .current-baseline-grid span{color:#687386}
+.shell>main .current-baseline-grid b{color:var(--dossier-ink)}
 .shell>main :is(.comparison-head,.scenario-metric-head,.monthly-breakdown-head){border-color:var(--dossier-rule);background:rgba(33,77,134,.07);color:#5e6b7f}
 .shell>main :is(.comparison-row,.scenario-metric-row,.monthly-breakdown-row,.saving){border-color:var(--dossier-rule-soft);color:#2f3c50}
 .shell>main :is(.clusterrow b,.clusterrow strong,.comparison-row b,.comparison-row strong,.scenario-metric-row strong,.monthly-breakdown-row strong,.task-impact-table td b,.task-impact-table td strong,.policy-flow b){color:var(--dossier-ink)}

@@ -12,6 +12,36 @@
   color:var(--red);
 }
 
+.current-baseline-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  width:min(100%,960px);
+  border:1px solid var(--line);
+  background:var(--surface);
+}
+.current-baseline-grid>div{
+  display:grid;
+  gap:5px;
+  align-content:start;
+  min-width:0;
+  padding:14px 16px;
+  border-right:1px solid var(--line);
+}
+.current-baseline-grid>div:last-child{border-right:0}
+.current-baseline-grid small{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.current-baseline-grid b{
+  color:var(--text);
+  font-size:22px;
+  font-variant-numeric:tabular-nums;
+}
+.current-baseline-grid span{color:var(--muted);font-size:12px}
+
 .task-impact-panel .task-impact-wrap{
   overflow-x:auto;
 }
@@ -75,4 +105,18 @@
 .task-impact-panel .task-impact-table .route-action small{
   overflow-wrap:anywhere;
   white-space:normal;
+}
+.task-impact-panel .current-task-metrics-table{
+  min-width:760px;
+}
+.task-impact-panel .current-task-metrics-table th:nth-child(1){width:30%}
+.task-impact-panel .current-task-metrics-table th:nth-child(2),
+.task-impact-panel .current-task-metrics-table th:nth-child(3),
+.task-impact-panel .current-task-metrics-table th:nth-child(4){width:15%}
+.task-impact-panel .current-task-metrics-table th:nth-child(5){width:25%}
+
+@media(max-width:800px){
+  .current-baseline-grid{grid-template-columns:1fr}
+  .current-baseline-grid>div{border-right:0;border-bottom:1px solid var(--line)}
+  .current-baseline-grid>div:last-child{border-bottom:0}
 }
