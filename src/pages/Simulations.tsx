@@ -437,12 +437,12 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const removeTaskOverride = (taskId: string) => setDraftPolicy(policy => { const overrides = { ...policy.overrides }; delete overrides[taskId]; return reviseDraftRoutingPolicy(policy, { overrides }); });
     const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Task Group" : `${distinctTaskBucketIds.length} selected Task Groups`;
     const baselineJudges = scenarioTraces.map(trace => judgeByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
-    const baselinePassRate = baselineJudges.length ? baselineJudges.filter((judge) => judge.passed).length / baselineJudges.length : undefined;
+    const baselineAverageScore = baselineJudges.length ? average(baselineJudges.map((judge) => judge.score)) : undefined;
     const hasMeasuredQuality = Boolean(liveDirect?.result.evaluation);
     const metricRows: ScenarioMetric[] = simulation ? [
         { label: "Projected monthly cost", before: money(simulation.summary.baseline_cost_usd * MONTHLY_MULTIPLIER), after: money(simulation.summary.simulated_cost_usd * MONTHLY_MULTIPLIER), change: changeLabel(-simulation.summary.estimated_savings_pct), good: simulation.summary.estimated_savings_usd >= 0 },
         { label: "Average latency", before: `${simulation.summary.baseline_avg_latency_ms.toFixed(0)}ms`, after: `${simulation.summary.simulated_avg_latency_ms.toFixed(0)}ms`, change: changeLabel(simulation.summary.latency_delta_pct), good: simulation.summary.latency_delta_pct <= 0 },
-        { label: "Eval pass rate", before: baselinePassRate === undefined ? "Not scored" : pct(baselinePassRate * 100), after: hasMeasuredQuality ? pct(simulation.summary.pass_rate * 100) : "Not evaluated", change: hasMeasuredQuality && baselinePassRate !== undefined ? pointChangeLabel((simulation.summary.pass_rate - baselinePassRate) * 100) : "n/a", good: baselinePassRate === undefined || simulation.summary.pass_rate >= baselinePassRate },
+        { label: "Average eval score", before: baselineAverageScore === undefined ? "Not scored" : pct(baselineAverageScore * 100), after: hasMeasuredQuality ? pct(simulation.summary.average_quality_score * 100) : "Not evaluated", change: hasMeasuredQuality && baselineAverageScore !== undefined ? pointChangeLabel((simulation.summary.average_quality_score - baselineAverageScore) * 100) : "n/a", good: baselineAverageScore === undefined || simulation.summary.average_quality_score >= baselineAverageScore },
     ] : [];
     const currentCost = scenarioTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0) * MONTHLY_MULTIPLIER;
     const currentLatency = average(scenarioTraces.map((trace) => trace.latency_ms ?? 0));
@@ -457,7 +457,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
             traceCount: groupTraces.length,
             monthlyCost: groupTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0) * MONTHLY_MULTIPLIER,
             latency: average(groupTraces.map((trace) => trace.latency_ms ?? 0)),
-            passRate: groupJudges.length ? groupJudges.filter((judge) => judge.passed).length / groupJudges.length : undefined,
+            averageScore: groupJudges.length ? average(groupJudges.map((judge) => judge.score)) : undefined,
             scored: groupJudges.length,
         }];
     });
@@ -513,10 +513,10 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 </div><ScenarioMetricRows rows={metricRows} pending={liveReplayPending} requiresLiveReplay={false}/></div> : <div className="current-baseline-grid">
 <div><small>Projected monthly cost</small><b>{money(currentCost)}</b></div>
 <div><small>Average latency</small><b>{currentLatency.toFixed(0)}ms</b></div>
-<div><small>Eval pass rate</small><b>{baselinePassRate === undefined ? "Not scored" : pct(baselinePassRate * 100)}</b><span>{baselineJudges.length.toLocaleString()} of {scenarioTraces.length.toLocaleString()} traces scored</span></div>
+<div><small>Average eval score</small><b>{baselineAverageScore === undefined ? "Not scored" : pct(baselineAverageScore * 100)}</b><span>{baselineJudges.length.toLocaleString()} of {scenarioTraces.length.toLocaleString()} traces scored</span></div>
 </div>}
 <div className="scenario-foot">
-{liveReplayPending?<span>Waiting for completed candidate responses and paired eval scores.</span>:simulation && hasMeasuredQuality?<><span>Completed {new Date(liveDirect!.completedAt).toLocaleString()}</span><span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span><span>Candidate pass rate: {pct(simulation.summary.pass_rate * 100)}</span></>:<span>No candidate results are shown until a measured replay completes.</span>}{strategy === "family_cascade" && simulation && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && simulation && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
+{liveReplayPending?<span>Waiting for completed candidate responses and paired eval scores.</span>:simulation && hasMeasuredQuality?<><span>Completed {new Date(liveDirect!.completedAt).toLocaleString()}</span><span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span></>:<span>No candidate results are shown until a measured replay completes.</span>}{strategy === "family_cascade" && simulation && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && simulation && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
 <section className="panel routing-policy-builder">
 <div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Choose task overrides and configure the unmatched path</h2><p className="impact-explainer">Review the measured quality, cost, and latency for each Task Group, then decide whether to use the candidate model. Unselected tasks continue using the configured default strategy.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
 <div className="policy-flow"><div><small>Matched task override</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Use the model explicitly chosen for that Task Group</span></div><i>else</i><label className="policy-default-route"><small>Default strategy</small><select aria-label="Default strategy" value={defaultStrategyValue} onChange={event => setDefaultStrategy(event.target.value)}><option value="openrouter-auto">OpenRouter Auto Router</option><ModelOptions models={activeModels}/></select><span>Used for every request without a matched task override</span></label></div>
@@ -540,7 +540,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div>
 <p className="eyebrow">{simulation ? "Impact by Task Group" : "Current metrics by Task Group"}</p>
 <h2>{simulation ? "Before and after by Task Group" : "Observed task-group baseline"}</h2>
-<p className="impact-explainer">{simulation ? "Cost is the projected monthly run rate. Latency is the average per request. Quality is the eval pass rate; its impact is shown in percentage points." : "No candidate comparison exists for this selection yet. These values come only from the currently selected production traces."}</p>
+<p className="impact-explainer">{simulation ? "Cost is the projected monthly run rate. Latency is the average per request. Quality is the average score returned by the shared eval rubric; its impact is shown in percentage points." : "No candidate comparison exists for this selection yet. These values come only from the currently selected production traces."}</p>
 </div>
 <span>{simulation ? `${scopeName} → ${strategy === "family_cascade" ? `${candidateFamily} enabled cascade` : candidateRouteName}` : scopeName}</span>
 </div>
@@ -559,7 +559,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <th rowSpan={2}>Task Group</th>
 <th colSpan={3} scope="colgroup">Cost / month</th>
 <th colSpan={3} scope="colgroup">Average latency</th>
-<th colSpan={3} scope="colgroup">Quality / accuracy</th>
+<th colSpan={3} scope="colgroup">Average eval score</th>
 <th rowSpan={2}>Model choice</th>
 </tr>
 <tr className="task-impact-subhead">
@@ -579,17 +579,17 @@ return <tr key={row.distinct_task_bucket_id}>
 </td>
 <TaskImpactCells before={money(row.cost.before_monthly_usd)} after={money(row.cost.after_monthly_usd)} impact={changeLabel(row.cost.delta_pct)} tone={row.cost.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/>
 <TaskImpactCells before={`${row.latency.before_ms.toFixed(0)}ms`} after={`${row.latency.after_ms.toFixed(0)}ms`} impact={changeLabel(row.latency.delta_pct)} tone={row.latency.delta_pct <= 0 ? "good" : "warn"} pending={liveReplayPending}/>
-<TaskImpactCells before={row.quality.before_pass_rate === undefined ? "Not scored" : pct(row.quality.before_pass_rate * 100)} after={hasMeasuredQuality ? pct(row.quality.after_pass_rate * 100) : "Not evaluated"} impact={hasMeasuredQuality ? pointChangeLabel(row.quality.delta_points) : "n/a"} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"} pending={liveReplayPending}/>
+<TaskImpactCells before={row.quality.before_average_score === undefined ? "Not scored" : pct(row.quality.before_average_score * 100)} after={hasMeasuredQuality ? pct(row.quality.after_average_score * 100) : "Not evaluated"} impact={hasMeasuredQuality ? pointChangeLabel(row.quality.delta_points) : "n/a"} tone={(row.quality.delta_points ?? 0) >= 0 ? "good" : "warn"} pending={liveReplayPending}/>
 <td className="route-action">{liveReplayPending ? <><span className="route-ineligible">Simulation in progress</span><small>The model choice becomes available after the replay completes.</small></> : !hasMeasuredQuality ? <><span className="route-ineligible">Live eval required</span><small>Run the candidate and shared rubric before choosing an override.</small></> : isAutoRouter ? <><span className="route-ineligible">Default strategy only</span><small>Auto Router results are measured live but are not promoted as a fixed task override.</small></> : strategy !== "direct" ? <><span className="route-ineligible">Direct replay required</span><small>Cascades need a separate policy rule.</small></> : <><button type="button" className={candidateIsActive ? "active" : ""} disabled={candidateIsActive} onClick={() => setTaskOverride(row)}>{candidateIsActive ? "Override active" : activeOverride ? `Replace ${activeOverride.modelName}` : `Use ${candidateName}`}</button>{!candidateIsActive && <small>You decide after reviewing the measured tradeoffs.</small>}</>}</td>
 </tr>;
 })}</tbody>
 </table> : <table className="task-impact-table current-task-metrics-table">
-<thead><tr><th>Task Group</th><th>Current cost / month</th><th>Current latency</th><th>Current eval pass rate</th><th>Current model</th></tr></thead>
+<thead><tr><th>Task Group</th><th>Current cost / month</th><th>Current latency</th><th>Current average eval score</th><th>Current model</th></tr></thead>
 <tbody>{currentTaskMetrics.map((row) => <tr key={row.id}>
 <td><b>{row.name}</b><small>{row.traceCount.toLocaleString()} selected trace{row.traceCount === 1 ? "" : "s"}</small></td>
 <td className="task-impact-value">{money(row.monthlyCost)}</td>
 <td className="task-impact-value">{row.latency.toFixed(0)}ms</td>
-<td className="task-impact-value">{row.passRate === undefined ? "Not scored" : pct(row.passRate * 100)}<small>{row.scored.toLocaleString()} scored</small></td>
+<td className="task-impact-value">{row.averageScore === undefined ? "Not scored" : pct(row.averageScore * 100)}<small>{row.scored.toLocaleString()} scored</small></td>
 <td><span className="current-task-model">{currentModelByTaskGroup.get(row.id) ?? "Not recorded"}</span></td>
 </tr>)}</tbody>
 </table>}

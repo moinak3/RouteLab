@@ -394,7 +394,7 @@ describe("simulation and recommendations", () => {
       expect(breakdown.reduce((sum, row) => sum + row.monthly_savings_usd, 0)).toBeCloseTo(result.summary.estimated_savings_usd * MONTHLY_MULTIPLIER);
     }
   });
-  it("shows cost, latency, and eval pass-rate impact for every Distinct Task", () => {
+  it("shows cost, latency, and average eval-score impact for every Distinct Task", () => {
     const result = replay(traces, "deepseek-r1");
     const judges = createTraceJudgeResults(traces);
     const impact = distinctTaskImpactBreakdown(traces, distinctTaskBuckets, result, judges);
@@ -402,7 +402,8 @@ describe("simulation and recommendations", () => {
     expect(impact.reduce((sum, row) => sum + row.cost.before_monthly_usd, 0)).toBeCloseTo(result.summary.baseline_cost_usd * MONTHLY_MULTIPLIER);
     expect(impact.reduce((sum, row) => sum + row.cost.after_monthly_usd, 0)).toBeCloseTo(result.summary.simulated_cost_usd * MONTHLY_MULTIPLIER);
     expect(impact.every((row) => row.trace_count > 0 && row.latency.before_ms > 0 && row.latency.after_ms > 0)).toBe(true);
-    expect(impact.every((row) => row.quality.before_pass_rate !== undefined && row.quality.candidate_scored === row.trace_count)).toBe(true);
+    expect(impact.every((row) => row.quality.before_average_score !== undefined && row.quality.candidate_scored === row.trace_count)).toBe(true);
+    expect(impact.every((row) => row.quality.after_average_score >= 0 && row.quality.after_average_score <= 1)).toBe(true);
   });
   it("runs replay and cascade", () => {
     const cheap = replay(traces, "deepseek-r1");

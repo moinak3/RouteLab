@@ -20,7 +20,15 @@ export type DistinctTaskImpact = {
   trace_count: number;
   cost: { before_monthly_usd: number; after_monthly_usd: number; delta_pct: number };
   latency: { before_ms: number; after_ms: number; delta_pct: number };
-  quality: { before_pass_rate?: number; after_pass_rate: number; delta_points?: number; baseline_scored: number; candidate_scored: number };
+  quality: {
+    before_pass_rate?: number;
+    after_pass_rate: number;
+    before_average_score?: number;
+    after_average_score: number;
+    delta_points?: number;
+    baseline_scored: number;
+    candidate_scored: number;
+  };
 };
 export const MONTHLY_MULTIPLIER = 30;
 const avg = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
@@ -221,6 +229,8 @@ export function distinctTaskImpactBreakdown(
     const afterLatency = avg(selectedRuns.map((run) => run.latency_ms));
     const beforePassRate = selectedJudges.length ? selectedJudges.filter((judge) => judge.passed).length / selectedJudges.length : undefined;
     const afterPassRate = selectedEvals.length ? selectedEvals.filter((evaluation) => evaluation.passed).length / selectedEvals.length : 0;
+    const beforeAverageScore = selectedJudges.length ? avg(selectedJudges.map((judge) => judge.score)) : undefined;
+    const afterAverageScore = avg(selectedEvals.map((evaluation) => evaluation.score));
 
     return [{
       distinct_task_bucket_id: bucket.bucket_id,
@@ -231,7 +241,9 @@ export function distinctTaskImpactBreakdown(
       quality: {
         before_pass_rate: beforePassRate,
         after_pass_rate: afterPassRate,
-        delta_points: beforePassRate === undefined ? undefined : (afterPassRate - beforePassRate) * 100,
+        before_average_score: beforeAverageScore,
+        after_average_score: afterAverageScore,
+        delta_points: beforeAverageScore === undefined ? undefined : (afterAverageScore - beforeAverageScore) * 100,
         baseline_scored: selectedJudges.length,
         candidate_scored: selectedEvals.length,
       },
