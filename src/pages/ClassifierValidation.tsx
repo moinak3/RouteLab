@@ -108,6 +108,37 @@ function roundStatus(round: AssignmentValidationRound) {
   return "Complete";
 }
 
+type AgreementOutcome = "match" | "mismatch" | "abstain" | "pending";
+type AgreementCounts = Record<Exclude<AgreementOutcome, "pending">, number>;
+
+function agreementOutcome(example: { accepted: boolean; predictedSignatureId: string; reviewedSignatureId: string } | undefined): AgreementOutcome {
+  if (!example) return "pending";
+  if (!example.accepted) return "abstain";
+  return example.predictedSignatureId === example.reviewedSignatureId ? "match" : "mismatch";
+}
+
+function agreementCounts(examples: Array<{ accepted: boolean; predictedSignatureId: string; reviewedSignatureId: string }>): AgreementCounts {
+  return examples.reduce<AgreementCounts>((counts, example) => {
+    const outcome = agreementOutcome(example);
+    if (outcome !== "pending") counts[outcome] += 1;
+    return counts;
+  }, { match: 0, mismatch: 0, abstain: 0 });
+}
+
+function AgreementStack({ label, counts, compact = false }: { label: string; counts: AgreementCounts; compact?: boolean }) {
+  const total = counts.match + counts.mismatch + counts.abstain;
+  const segments = [
+    { key: "match" as const, label: "matched human", count: counts.match },
+    { key: "mismatch" as const, label: "wrong accepted", count: counts.mismatch },
+    { key: "abstain" as const, label: "abstained", count: counts.abstain },
+  ];
+  return <div className={`classifier-agreement-stack ${compact ? "compact" : ""}`.trim()} aria-label={`${label}: ${counts.match} matched human, ${counts.mismatch} wrong accepted, ${counts.abstain} abstained`}>
+    {!compact && <div><b>{label}</b><span>{total} reviewed requests</span></div>}
+    <div className="classifier-agreement-track" aria-hidden="true">{segments.map((segment) => segment.count > 0 && <i className={segment.key} style={{ width: `${total ? segment.count / total * 100 : 0}%` }} key={segment.key} />)}</div>
+    <div className="classifier-agreement-counts">{segments.map((segment) => <span className={segment.key} key={segment.key}><i />{segment.count} {segment.label}</span>)}</div>
+  </div>;
+}
+
 function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenResponseReview }: {
   workspaceId: string;
   traces: Trace[];
@@ -152,6 +183,10 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
   const thresholdBySignature = useMemo(() => Object.fromEntries(signatures.map((signature) => [signature.id, JEV_RISK_THRESHOLDS[signature.risk_level]])), [signatures]);
   const jevExamples = workflow ? classifierExamplesFromAssignments(workflow, traces, workflow.jevAssignments, thresholdBySignature) : [];
   const llmExamples = workflow ? classifierExamplesFromAssignments(workflow, traces, workflow.llmAssignments) : [];
+  const jevExampleByTrace = useMemo(() => new Map(jevExamples.map((example) => [example.id, example])), [jevExamples]);
+  const llmExampleByTrace = useMemo(() => new Map(llmExamples.map((example) => [example.id, example])), [llmExamples]);
+  const jevAgreementCounts = useMemo(() => agreementCounts(jevExamples), [jevExamples]);
+  const llmAgreementCounts = useMemo(() => agreementCounts(llmExamples), [llmExamples]);
   const reportMetadata = { datasetLabel: "Workspace held-out assignment set", signatureCatalogVersion: workflow?.catalogVersion ?? `workspace-${taskGroups.length}`, testSplit: "Blind human-reviewed set", thresholdTuningSplit: "Targeted correction examples stay separate from the blind monitoring trend" };
   const jevReport = jevExamples.length ? buildClassifierValidationReport(jevExamples, signatures, { ...reportMetadata, classifierModel: workflow?.jevAssignments[0]?.model ?? "typesafe/jev" }) : null;
   const llmReport = llmExamples.length ? buildClassifierValidationReport(llmExamples, signatures, { ...reportMetadata, classifierModel: workflow?.llmAssignments[0]?.model ?? "strong LLM" }) : null;
@@ -165,19 +200,24 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
       const human = reviewedSignatureId(label);
       const jev = jevByTrace.get(label.traceId);
       const llm = llmByTrace.get(label.traceId);
-      const jevMatch = jev?.signatureId === human;
-      const llmMatch = llm?.signatureId === human;
+      const jevStatus = agreementOutcome(jevExampleByTrace.get(label.traceId));
+      const llmStatus = agreementOutcome(llmExampleByTrace.get(label.traceId));
+      const jevMatch = jevStatus === "match";
+      const llmMatch = llmStatus === "match";
       let finding = "Waiting for both automated comparisons";
       if (jev && llm) {
         if (jevMatch && llmMatch) finding = "All three agree";
+        else if (jevStatus === "abstain" && llmMatch) finding = "Jev abstained safely; strong LLM agrees with human";
+        else if (jevMatch && llmStatus === "abstain") finding = "Jev agrees with human; strong LLM abstained";
+        else if (jevStatus === "abstain" && llmStatus === "abstain") finding = "Both automated systems abstained";
         else if (jevMatch) finding = "Jev agrees with human; strong LLM differs";
         else if (llmMatch) finding = "Strong LLM agrees with human; Jev needs correction";
         else if (jev.signatureId === llm.signatureId) finding = "Automated systems agree, but human differs";
         else finding = "Both automated systems differ from human";
       }
-      return { label, trace: traceById.get(label.traceId), jev, llm, jevMatch, llmMatch, finding };
+      return { label, trace: traceById.get(label.traceId), jev, llm, jevStatus, llmStatus, jevMatch, llmMatch, finding };
     });
-  }, [workflow, traceById]);
+  }, [workflow, traceById, jevExampleByTrace, llmExampleByTrace]);
   const recommendationCounts = useMemo(() => ({
     boundary: threeWayRows.filter((row) => row.llmMatch && !row.jevMatch).length,
     taxonomy: threeWayRows.filter((row) => row.jev && row.llm && !row.jevMatch && !row.llmMatch).length,
@@ -310,12 +350,21 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
       </section>}
 
       {(jevReport || llmReport) && <section className="classifier-comparator-grid">
-        {[{ name: "Jev", report: jevReport, examples: jevExamples }, { name: "Strong LLM comparator", report: llmReport, examples: llmExamples }].map(({ name, report, examples }) => <article className="panel" key={name}><small>{name}</small>{report ? <><b>{pct(report.acceptedPrecision * 100)}</b><span>precision among accepted assignments</span><dl><div><dt>Exact agreement</dt><dd>{examples.filter((item) => item.reviewedSignatureId === item.predictedSignatureId).length}/{examples.length}</dd></div><div><dt>Coverage</dt><dd>{pct(report.coverage * 100)}</dd></div><div><dt>Wrong accepted</dt><dd>{report.errors.filter((item) => item.accepted).length}</dd></div></dl></> : <p>Not run yet</p>}</article>)}
+        {[{ name: "Jev", report: jevReport, examples: jevExamples, counts: jevAgreementCounts }, { name: "Strong LLM comparator", report: llmReport, examples: llmExamples, counts: llmAgreementCounts }].map(({ name, report, examples, counts }) => <article className="panel" key={name}><small>{name}</small>{report ? <><b>{pct(report.acceptedPrecision * 100)}</b><span>precision among accepted assignments</span><AgreementStack label={name} counts={counts} /><dl><div><dt>Exact agreement</dt><dd>{examples.filter((item) => item.accepted && item.reviewedSignatureId === item.predictedSignatureId).length}/{examples.length}</dd></div><div><dt>Coverage</dt><dd>{pct(report.coverage * 100)}</dd></div><div><dt>Wrong accepted</dt><dd>{report.errors.filter((item) => item.accepted).length}</dd></div></dl></> : <p>Not run yet</p>}</article>)}
       </section>}
 
       {threeWayRows.some((row) => row.jev && row.llm) && <section className="panel classifier-three-way">
-        <div className="panelhead"><div><p className="eyebrow">Three-way comparison</p><h2>See exactly where human, Jev, and the strong LLM disagree</h2></div><span>Human label is truth</span></div>
-        <div className="tablewrap"><table><thead><tr><th>Request</th><th>Human</th><th>Jev</th><th>Strong LLM</th><th>Finding</th></tr></thead><tbody>{threeWayRows.map((row) => <tr key={row.label.traceId}><td><b>{row.trace?.prompt_text ?? row.label.traceId}</b><small>{workflow.laneByTraceId[row.label.traceId]?.replaceAll("_", " ")}</small></td><td>{humanAssignmentName(row.label, labelNames)}</td><td className={row.jevMatch ? "agree" : "disagree"}>{assignmentName(row.jev, labelNames)}{row.jev && <small>{pct(row.jev.confidence * 100)}</small>}</td><td className={row.llmMatch ? "agree" : "disagree"}>{assignmentName(row.llm, labelNames)}{row.llm && <small>{pct(row.llm.confidence * 100)}</small>}</td><td>{row.finding}</td></tr>)}</tbody></table></div>
+        <div className="panelhead"><div><p className="eyebrow">Three-way agreement map</p><h2>Human truth anchors every classifier decision</h2><p>Green matches the reviewed Task Group. Red is a wrong accepted route. Amber means the classifier abstained and kept the request on the default or review path.</p></div><span>Human label is truth</span></div>
+        <div className="classifier-agreement-legend" aria-label="Agreement map legend"><span className="match"><i />Match</span><span className="mismatch"><i />Wrong accepted</span><span className="abstain"><i />Abstained</span></div>
+        <div className="classifier-agreement-map" role="table" aria-label="Human, Jev, and strong LLM Task Group assignments">
+          <div className="classifier-agreement-row header" role="row"><b role="columnheader">Reviewed request</b><b role="columnheader">Human truth</b><b role="columnheader">Jev</b><b role="columnheader">Strong LLM</b></div>
+          {threeWayRows.map((row) => <article className="classifier-agreement-row" role="row" key={row.label.traceId}>
+            <div className="request" role="cell"><b>{row.trace?.prompt_text ?? row.label.traceId}</b><small>{workflow.laneByTraceId[row.label.traceId]?.replaceAll("_", " ")}</small><p>{row.finding}</p></div>
+            <div className="truth" role="cell"><small>Human reviewed</small><b>{humanAssignmentName(row.label, labelNames)}</b></div>
+            <div className={`decision ${row.jevStatus}`} role="cell"><span><i />{row.jevStatus === "match" ? "Match" : row.jevStatus === "mismatch" ? "Wrong accepted" : row.jevStatus === "abstain" ? "Abstained" : "Pending"}</span><b>{assignmentName(row.jev, labelNames)}</b>{row.jev && <small>{pct(row.jev.confidence * 100)} confidence</small>}</div>
+            <div className={`decision ${row.llmStatus}`} role="cell"><span><i />{row.llmStatus === "match" ? "Match" : row.llmStatus === "mismatch" ? "Wrong accepted" : row.llmStatus === "abstain" ? "Abstained" : "Pending"}</span><b>{assignmentName(row.llm, labelNames)}</b>{row.llm && <small>{pct(row.llm.confidence * 100)} confidence</small>}</div>
+          </article>)}
+        </div>
       </section>}
 
       {comparisonsComplete && <section className="panel classifier-improvements">
@@ -334,7 +383,7 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
         <button type="button" className="primary" onClick={createWeeklyRound}>Create next weekly round</button>
       </section>}
 
-      {roundHistory.length > 0 && <section className="panel classifier-round-history"><div className="panelhead"><div><p className="eyebrow">Validation history</p><h2>Baseline and weekly rounds</h2></div><span>{roundHistory.length} round{roundHistory.length === 1 ? "" : "s"}</span></div><div className="tablewrap"><table><thead><tr><th>Round</th><th>Catalog</th><th>Human labels</th><th>Jev</th><th>Strong LLM</th><th>Status</th></tr></thead><tbody>{roundHistory.map((round) => { const roundJevExamples = classifierExamplesFromAssignments(round, traces, round.jevAssignments, thresholdBySignature); const roundLlmExamples = classifierExamplesFromAssignments(round, traces, round.llmAssignments); const roundJev = roundJevExamples.length ? buildClassifierValidationReport(roundJevExamples, signatures, { ...reportMetadata, classifierModel: round.jevAssignments[0]?.model ?? "Jev" }) : null; const roundLlm = roundLlmExamples.length ? buildClassifierValidationReport(roundLlmExamples, signatures, { ...reportMetadata, classifierModel: round.llmAssignments[0]?.model ?? "strong LLM" }) : null; return <tr key={round.roundId}><td><b>{round.roundKind === "initial" ? "Initial baseline" : round.weekOf}</b><small>{round.roundId}</small></td><td>{round.catalogVersion}</td><td>{round.labels.length}/{round.sampleTraceIds.length}</td><td>{roundJev ? `${pct(roundJev.acceptedPrecision * 100)} precision · ${pct(roundJev.coverage * 100)} coverage` : "Pending"}</td><td>{roundLlm ? `${pct(roundLlm.acceptedPrecision * 100)} precision` : "Pending"}</td><td>{roundStatus(round)}</td></tr>; })}</tbody></table></div></section>}
+      {roundHistory.length > 0 && <section className="panel classifier-round-history"><div className="panelhead"><div><p className="eyebrow">Validation history</p><h2>Baseline and weekly rounds</h2></div><span>{roundHistory.length} round{roundHistory.length === 1 ? "" : "s"}</span></div><div className="tablewrap"><table><thead><tr><th>Round</th><th>Catalog</th><th>Human labels</th><th>Jev</th><th>Strong LLM</th><th>Status</th></tr></thead><tbody>{roundHistory.map((round) => { const roundJevExamples = classifierExamplesFromAssignments(round, traces, round.jevAssignments, thresholdBySignature); const roundLlmExamples = classifierExamplesFromAssignments(round, traces, round.llmAssignments); const roundJev = roundJevExamples.length ? buildClassifierValidationReport(roundJevExamples, signatures, { ...reportMetadata, classifierModel: round.jevAssignments[0]?.model ?? "Jev" }) : null; const roundLlm = roundLlmExamples.length ? buildClassifierValidationReport(roundLlmExamples, signatures, { ...reportMetadata, classifierModel: round.llmAssignments[0]?.model ?? "strong LLM" }) : null; return <tr key={round.roundId}><td><b>{round.roundKind === "initial" ? "Initial baseline" : round.weekOf}</b><small>{round.roundId}</small></td><td>{round.catalogVersion}</td><td>{round.labels.length}/{round.sampleTraceIds.length}</td><td>{roundJev ? <><b>{pct(roundJev.acceptedPrecision * 100)} precision</b><small>{pct(roundJev.coverage * 100)} coverage</small><AgreementStack label="Jev" counts={agreementCounts(roundJevExamples)} compact /></> : "Pending"}</td><td>{roundLlm ? <><b>{pct(roundLlm.acceptedPrecision * 100)} precision</b><AgreementStack label="Strong LLM" counts={agreementCounts(roundLlmExamples)} compact /></> : "Pending"}</td><td>{roundStatus(round)}</td></tr>; })}</tbody></table></div></section>}
     </>}
   </div>;
 }
