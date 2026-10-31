@@ -1,4 +1,5 @@
 import type { DistinctTaskBucket, GoldenDataset, Trace, TraceJudgeResult } from "../types";
+import { upgradePersonalAgentGoldenDatasets } from "./personalAgentHumanCalibration";
 import { normalizeAutomaticTaskGroupNames } from "./taskGroupDisplayNames";
 
 export type WorkspaceId = "personal" | "demo";
@@ -117,10 +118,15 @@ export function loadPersonalWorkspace(): WorkspaceData {
     const taskGroupingMethod = parsed.taskGroupingMethod === "rules" || parsed.taskGroupingMethod === "llm"
       ? parsed.taskGroupingMethod
       : inferTaskGroupingMethod(taskGroups);
+    const traces = Array.isArray(parsed.traces) ? parsed.traces : [];
+    const goldenDatasets = upgradePersonalAgentGoldenDatasets(
+      Array.isArray(parsed.goldenDatasets) ? parsed.goldenDatasets : [],
+      traces,
+    );
     return {
-      traces: Array.isArray(parsed.traces) ? parsed.traces : [],
+      traces,
       traceJudgeResults: Array.isArray(parsed.traceJudgeResults) ? parsed.traceJudgeResults : [],
-      goldenDatasets: Array.isArray(parsed.goldenDatasets) ? parsed.goldenDatasets : [],
+      goldenDatasets,
       taskGroups,
       taskGroupingMethod,
     };

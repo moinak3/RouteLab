@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildTraceEvaluationEvidence, evaluationEvidenceFingerprint, goldenEvidenceMatchesTrace } from "../src/core/evaluationEvidence";
+import { PERSONAL_AGENT_RESPONSE_QUALITY_WEIGHTS } from "../src/core/evalDefinitions";
 import { parseGoldenDatasetCsv } from "../src/core/goldenDatasets";
 import { ingestText } from "../src/core/ingestion";
 import type { Trace } from "../src/types";
@@ -34,7 +35,9 @@ describe("evaluation evidence parity", () => {
     expect(dataset.columns).toEqual(expect.arrayContaining([
       "evidence_schema_version", "evaluation_scope", "evidence_fingerprint", "system_instructions_json",
       "prior_conversation_json", "available_tools_json", "execution_spans_json", "tool_calls_json", "tool_results_json",
-      "agent_answer", "trajectory_status", "human_passed", "human_rationale",
+      "agent_answer", "trajectory_status", "human_passed", "human_rationale", "human_rubric_id",
+      "human_rubric_version", "human_review_scope", "human_evidence_fingerprint", "human_dimension_scores_json",
+      "human_hard_failures_json",
     ]));
     expect(new Set(dataset.rows.map((row) => row.task_group)).size).toBe(10);
     expect(dataset.rows.some((row) => row.human_passed === true)).toBe(true);
@@ -47,9 +50,23 @@ describe("evaluation evidence parity", () => {
       expect(goldenEvidenceMatchesTrace(row, trace)).toBe(true);
       expect(goldenEvidenceMatchesTrace(row, importedById.get(String(row.trace_id)))).toBe(true);
       expect(row.evidence_fingerprint).toBe(evaluationEvidenceFingerprint(buildTraceEvaluationEvidence(trace!)));
+      expect(row.human_evidence_fingerprint).toBe(row.evidence_fingerprint);
+      expect(row.human_review_scope).toBe("full_trajectory");
+      expect(row.human_rubric_id).toBe("personal_agent_outcome_and_control_v1");
+      const dimensionScores = JSON.parse(String(row.human_dimension_scores_json)) as Record<string, number>;
+      const weightedScore = Number(Object.entries(PERSONAL_AGENT_RESPONSE_QUALITY_WEIGHTS)
+        .reduce((sum, [key, weight]) => sum + dimensionScores[key] * weight, 0).toFixed(2));
+      expect(row.human_score).toBe(weightedScore);
       expect(() => JSON.parse(String(row.execution_spans_json))).not.toThrow();
       expect(() => JSON.parse(String(row.tool_calls_json))).not.toThrow();
       expect(() => JSON.parse(String(row.tool_results_json))).not.toThrow();
     }
+    const calendar = dataset.rows.find((row) => row.trace_id === "pa_0001_calendar_scheduling");
+    expect(calendar?.human_passed).toBe(false);
+    expect(String(calendar?.human_rationale)).toContain("calendar.create_event");
+    expect(JSON.parse(String(calendar?.human_hard_failures_json))).toContain(
+      "Claims an action completed when no successful tool result supports the claim.",
+    );
+    expect(dataset.rows.find((row) => row.trace_id === "pa_0002_reminders_routines")?.human_passed).toBe(true);
   });
 });

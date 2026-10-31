@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearWorkspaceBrowserState, clearWorkspaceTraces, emptyPersonalWorkspace, inferTaskGroupingMethod, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, resetPersonalCloudWorkspaceId, saveActiveWorkspace, savePersonalWorkspace, workspaceStorageKeys } from "../src/core/workspaces";
 
@@ -80,6 +81,30 @@ describe("workspace persistence", () => {
     };
     savePersonalWorkspace({ ...emptyPersonalWorkspace(), taskGroups: [{ bucket_id: "one", bucket_name: "My Carefully Chosen Support Name", name_source: "user", task }] as never[] });
     expect(loadPersonalWorkspace().taskGroups[0].bucket_name).toBe("My Carefully Chosen Support Name");
+  });
+
+  it("migrates the known personal-agent golden fixture to full-trajectory rubric labels", () => {
+    useMemoryStorage();
+    const trace = fs.readFileSync("datasets/personal-agent/personal-agent-traces-300.jsonl", "utf8")
+      .trim().split("\n").map((line) => JSON.parse(line)).find((item) => item.id === "pa_0001_calendar_scheduling");
+    savePersonalWorkspace({
+      ...emptyPersonalWorkspace(),
+      traces: [trace] as never[],
+      goldenDatasets: [{
+        id: "fixture",
+        name: "personal-agent-trajectory-golden-20.csv",
+        created_at: "2026-10-01T00:00:00.000Z",
+        row_count: 1,
+        columns: ["trace_id", "human_passed"],
+        rows: [{ trace_id: trace.id, human_passed: true }],
+      }],
+    });
+
+    const row = loadPersonalWorkspace().goldenDatasets[0].rows[0];
+    expect(row.human_passed).toBe(false);
+    expect(row.human_review_scope).toBe("full_trajectory");
+    expect(row.human_evidence_fingerprint).toBe(row.evidence_fingerprint);
+    expect(String(row.human_rationale)).toContain("calendar.create_event");
   });
 
   it("imports traces without creating classifications or judge results", () => {

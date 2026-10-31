@@ -170,7 +170,7 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
                 <div><span>Human reference</span><p>{row.human_answer}</p></div>
               </div>
               {row.evidence_scope === "full_trajectory" && <details className="calibration-evidence">
-                <summary>Evidence reviewed by both human and judge</summary>
+                <summary>Same trajectory evidence and response-quality rubric reviewed by both human and judge</summary>
                 <div>
                   <span><b>{jsonCount(row.system_instructions)}</b> system instruction{jsonCount(row.system_instructions) === 1 ? "" : "s"}</span>
                   <span><b>{jsonCount(row.prior_conversation)}</b> prior message{jsonCount(row.prior_conversation) === 1 ? "" : "s"}</span>
