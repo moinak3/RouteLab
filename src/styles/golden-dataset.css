@@ -122,20 +122,23 @@
 }
 .golden-browser{
   display:grid;
-  grid-template-columns:minmax(220px,260px) minmax(0,1fr);
-  gap:18px;
+  grid-template-columns:minmax(0,1fr);
+  gap:16px;
   align-items:start;
   min-width:0;
 }
 .dataset-list{
   display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));
   align-content:start;
   gap:8px;
+  min-width:0;
 }
 .dataset-list button{
   display:grid;
   gap:5px;
   width:100%;
+  min-width:0;
   padding:12px;
   text-align:left;
   border-color:var(--line);
@@ -146,9 +149,12 @@
   background:rgba(88,240,132,.1);
 }
 .dataset-list b{
+  display:block;
+  min-width:0;
   color:#fff;
   font-size:13px;
   overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .dataset-list span,
 .dataset-summary span{
@@ -157,6 +163,8 @@
 }
 .dataset-preview{
   min-width:0;
+  max-width:100%;
+  overflow:hidden;
   display:grid;
   gap:12px;
 }
