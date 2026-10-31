@@ -80,6 +80,21 @@ const chartPoint = (index: number, total: number, score: number) => {
   return { x, y };
 };
 
+type EvalActionIconName = "history" | "new-traces" | "calibration" | "review";
+
+function EvalActionIcon({ name }: { name: EvalActionIconName }) {
+  if (name === "history") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68M4 4v4.68h4.68" /><path d="M12 7.5V12l3 1.8" /></svg>;
+  }
+  if (name === "new-traces") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9l5 5v10H5z" /><path d="M14 4.5v5h5M9 14h6M12 11v6" /></svg>;
+  }
+  if (name === "calibration") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2" /><path d="m3 7 6-4 6 6 6-5" /></svg>;
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7zM9.5 4V2.5h5V4" /><path d="m9.5 12 1.7 1.7 3.8-4M9.5 17h5" /></svg>;
+}
+
 export function Evals({
   workspaceId,
   workspace,
@@ -117,7 +132,7 @@ export function Evals({
   const failing = activeTraceJudgeResults.filter((result) => !result.passed).length;
   const enabledEvalCount=evalDefinitions.filter((definition)=>definition.status!=="Disabled").length;
   const history = monthlyEvalHistory(activeTraceJudgeResults);
-  const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.passRate) }));
+  const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const [modal,setModal]=useState<"import"|"create"|"edit"|"details"|"versions"|null>(null);
   const [detailEvalId,setDetailEvalId]=useState<string|null>(null);
@@ -131,6 +146,7 @@ export function Evals({
   const [historicalRunProgress,setHistoricalRunProgress]=useState({processed:0,scored:0,total:0});
   const [lifecycleMessage,setLifecycleMessage]=useState<string|null>(null);
   const [deleteConfirmEvalId,setDeleteConfirmEvalId]=useState<string|null>(null);
+  const [openRowMenuId,setOpenRowMenuId]=useState<string|null>(null);
   const automationPolicy=activeEvalDefinition ? automationPolicies.find((policy)=>policy.evalId===activeEvalDefinition.id) : undefined;
   const latestHistoricalRun=activeEvalDefinition
     ? runHistory.find((run)=>run.evalId===activeEvalDefinition.id&&run.mode==="historical_test")
@@ -496,25 +512,67 @@ export function Evals({
         </div>
       </section>
 
-      <section className="eval-run-summary" aria-label="Eval library summary">
-        <article className="panel eval-summary-card">
-          <small>Active evals</small>
-          <b>{enabledEvalCount.toLocaleString()}</b>
-          <span>quality checks in this workspace</span>
-        </article>
-        <article className="panel eval-summary-card">
-          <small>Trace coverage</small>
-          <b>{pct(activeCoverage * 100)}</b>
-          <span>scored by the current eval</span>
-        </article>
-        <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("unusual")}>
-          <small>Needs attention</small>
-          <b>{failing.toLocaleString()}</b>
-          <span>current results below threshold</span>
-        </button>
+      <section className="eval-overview-grid" aria-label="Response quality overview">
+        <div className="eval-run-summary" aria-label="Eval library summary">
+          <button type="button" className="panel eval-summary-card eval-summary-action eval-summary-primary" onClick={()=>enabledEvalCount?document.getElementById("workspace-evals")?.scrollIntoView({behavior:"smooth",block:"start"}):openCreateModal()}>
+            <small>Active evals</small>
+            <b>{enabledEvalCount.toLocaleString()}</b>
+            <span>{enabledEvalCount?"Browse active definitions":"Create an eval to get started"}</span>
+          </button>
+          <article className="panel eval-summary-card">
+            <small>Trace coverage</small>
+            <b>{pct(activeCoverage * 100)}</b>
+            <span>scored by the current eval</span>
+          </article>
+          <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("unusual")}>
+            <small>Needs attention</small>
+            <b>{failing.toLocaleString()}</b>
+            <span>results below threshold</span>
+          </button>
+        </div>
+
+        <section className="panel eval-history eval-history-compact">
+          <div className="eval-history-head">
+            <div>
+              <p className="eyebrow">Quality history</p>
+              <h3>Average eval score over time</h3>
+            </div>
+            <span>{history.length} month{history.length===1?"":"s"}</span>
+          </div>
+          {history.length?<div className="eval-history-chart" aria-label="Monthly average eval score line chart">
+            <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Average eval score by month">
+              {[0,.25,.5,.75,1].map((value)=><text className="eval-axis-label" key={value} x="4" y={evalChart.top+(1-value)*(evalChart.height-evalChart.top-evalChart.bottom)+4}>{pct(value*100)}</text>)}
+              <g className="eval-history-grid">
+                {[.25, .5, .75].map((value) => {
+                  const y = evalChart.top + (1 - value) * (evalChart.height - evalChart.top - evalChart.bottom);
+                  return <line key={value} x1={evalChart.left} x2={evalChart.width - evalChart.right} y1={y} y2={y} />;
+                })}
+              </g>
+              <polyline points={historyLine} />
+              {historyPoints.map((month) => (
+                <g className="eval-history-point" key={month.key} transform={`translate(${month.x} ${month.y})`} tabIndex={0}>
+                  <circle r="7" />
+                  <foreignObject x="-58" y="-76" width="132" height="68" className="eval-history-tooltip-wrap">
+                    <div className="eval-history-tooltip">
+                      <b>{month.label} · {pct(month.averageScore * 100)}</b>
+                      <span>{month.count.toLocaleString()} scored traces</span>
+                      <span>{month.passing.toLocaleString()} above threshold</span>
+                    </div>
+                  </foreignObject>
+                </g>
+              ))}
+              {historyPoints.map((month) => (
+                <text className="eval-history-label" key={`${month.key}-label`} x={month.x} y={evalChart.height - 10}>{month.label}</text>
+              ))}
+            </svg>
+          </div>:<div className="eval-history-empty">
+            <b>No eval scores yet</b>
+            <span>Run the active eval on historical traces to establish a quality baseline.</span>
+          </div>}
+        </section>
       </section>
 
-      <section className="panel eval-library">
+      <section className="panel eval-library" id="workspace-evals">
         <div className="eval-library-head">
           <div><p className="eyebrow">Workspace evals</p><h2>{evalDefinitions.length} eval{evalDefinitions.length===1?"":"s"}</h2></div>
           <p>Open an eval for its definition, versions, and advanced controls.</p>
@@ -522,7 +580,7 @@ export function Evals({
         {lifecycleMessage&&<p className="eval-lifecycle-message" role="status">{lifecycleMessage}</p>}
         {evalDefinitions.length?<div className="eval-library-table" role="table" aria-label="Workspace evals">
           <div className="eval-library-row eval-library-header" role="row">
-            <span role="columnheader">Eval</span><span role="columnheader">Scope</span><span role="columnheader">Readiness</span><span role="columnheader">Last run</span><span role="columnheader">Coverage</span><span role="columnheader">Next action</span><span aria-hidden="true" />
+            <span role="columnheader">Eval definition</span><span role="columnheader">Scope</span><span role="columnheader">Readiness</span><span role="columnheader">Last run</span><span role="columnheader">Coverage</span><span role="columnheader">Actions</span><span aria-hidden="true" />
           </div>
           {evalDefinitions.map((definition)=>{
             const definitionResults=traceJudgeResults.filter((result)=>result.eval_id===definition.id||(!result.eval_id&&result.evaluator_type.startsWith(definition.id)));
@@ -545,21 +603,27 @@ export function Evals({
                 ?`${(definitionHistoricalRun?.traceCount??definitionResults.length).toLocaleString()} / ${traces.length.toLocaleString()} before stop`
                 :definitionRun?new Date(definitionRun.completedAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):definitionResults.length?`${definitionResults.length.toLocaleString()} scored`:"Never";
             return <div className={`eval-library-row ${isCurrent?"current":""}`} role="row" key={definition.id}>
-              <span role="cell"><button type="button" className="eval-name-button" onClick={()=>openDetails(definition)}><b>{definition.name}</b><small>{definition.evaluator_type}</small></button></span>
+              <span role="cell"><button type="button" className="eval-name-button" onClick={()=>openDetails(definition)} title="Open definition and results"><b>{definition.name}</b><small>{definition.evaluator_type} · Open definition</small></button></span>
               <span role="cell">{definition.scope}</span>
               <span role="cell"><span className={`eval-readiness eval-readiness-${readiness.toLowerCase().replace(/\s+/g,"-")}`}>{readiness}</span></span>
               <span role="cell">{runLabel}</span>
               <span role="cell">{pct(coverage*100)}</span>
-              <span className="eval-next-action" role="cell">
-                {definition.status==="Disabled"?<button type="button" onClick={()=>openDetails(definition)}>View details</button>
-                  :isHistoricalRunning?<button type="button" className="primary" disabled>{`Testing ${historicalRunProgress.processed.toLocaleString()} / ${historicalRunProgress.total.toLocaleString()}…`}</button>
-                  :needsHistoricalRetry?<button type="button" className="primary" disabled={!supportsLiveRuns||!traces.length} onClick={testHistoricalTraces}>Retry historical</button>
-                  :isCurrent&&!hasHistoricalEvidence?<button type="button" className="primary" disabled={!supportsLiveRuns||!traces.length} onClick={testHistoricalTraces}>Test historical</button>
-                  :isCurrent&&!isLive?<button type="button" className="primary" disabled={!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(true)}>Run on new traces</button>
-                  :isCurrent?<button type="button" onClick={()=>onReviewFilter("unusual")}>Review results</button>
-                  :<button type="button" onClick={()=>openDetails(definition)}>View details</button>}
+              <span className="eval-row-actions" role="cell" aria-label={`Frequent actions for ${definition.name}`}>
+                <button type="button" className="eval-icon-action" data-tooltip={isHistoricalRunning?`Testing ${historicalRunProgress.processed.toLocaleString()} of ${historicalRunProgress.total.toLocaleString()} traces`:needsHistoricalRetry?"Retry on all historical traces":"Run on all historical traces"} aria-label={needsHistoricalRetry?"Retry on historical traces":"Run on historical traces"} disabled={!isCurrent||definition.status==="Disabled"||!supportsLiveRuns||!traces.length||isHistoricalRunning} onClick={testHistoricalTraces}><EvalActionIcon name="history" /></button>
+                <button type="button" className={`eval-icon-action ${isLive?"active":""}`} data-tooltip={isLive?"Scoring new traces is on. Click to turn it off.":"Run this eval on every new trace"} aria-label={isLive?"Stop running on new traces":"Run on new traces"} aria-pressed={isLive} disabled={!isCurrent||definition.status==="Disabled"||!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(!isLive)}><EvalActionIcon name="new-traces" /></button>
+                <button type="button" className="eval-icon-action" data-tooltip="View human calibration results" aria-label="View human calibration results" onClick={openCalibrationResults}><EvalActionIcon name="calibration" /></button>
+                <button type="button" className="eval-icon-action" data-tooltip="Review judge results" aria-label="Review judge results" onClick={openJudgeResults}><EvalActionIcon name="review" /></button>
               </span>
-              <button type="button" className="eval-row-menu" aria-label={`More options for ${definition.name}`} onClick={()=>openDetails(definition)}>•••</button>
+              <div className="eval-row-menu-wrap" onBlur={(event)=>{if(!event.currentTarget.contains(event.relatedTarget))setOpenRowMenuId(null)}}>
+                <button type="button" className="eval-row-menu" aria-label={`More options for ${definition.name}`} aria-expanded={openRowMenuId===definition.id} onClick={()=>setOpenRowMenuId((current)=>current===definition.id?null:definition.id)}>•••</button>
+                {openRowMenuId===definition.id&&<div className="eval-row-menu-popover" role="menu">
+                  <button type="button" role="menuitem" onClick={()=>{setOpenRowMenuId(null);openDetails(definition)}}>View definition</button>
+                  <button type="button" role="menuitem" onClick={()=>{setOpenRowMenuId(null);openEdit(definition)}}>Edit definition</button>
+                  <button type="button" role="menuitem" onClick={()=>{setOpenRowMenuId(null);downloadDefinition(definition)}}>Download JSON</button>
+                  {isCurrent&&<button type="button" role="menuitem" disabled={evalVersions.length<2} onClick={()=>{setOpenRowMenuId(null);setModal("versions")}}>Manage versions</button>}
+                  <button type="button" role="menuitem" onClick={()=>{setOpenRowMenuId(null);toggleEvalDisabled(definition)}}>{definition.status==="Disabled"?"Enable eval":"Disable eval"}</button>
+                </div>}
+              </div>
             </div>;
           })}
         </div>:<article className="eval-empty-state">
@@ -570,43 +634,6 @@ export function Evals({
         </article>}
       </section>
 
-      {history.length>0&&<section className="panel eval-history">
-        <div className="eval-history-head">
-          <div>
-            <p className="eyebrow">Historical quality</p>
-            <h3>Month-over-month eval pass rate</h3>
-          </div>
-          <span>{history.length} months</span>
-        </div>
-        <div className="eval-history-chart" aria-label="Monthly eval pass-rate line chart">
-          <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Eval pass rate by month">
-            {[0,.25,.5,.75,1].map((value)=><text className="eval-axis-label" key={value} x="4" y={evalChart.top+(1-value)*(evalChart.height-evalChart.top-evalChart.bottom)+4}>{pct(value*100)}</text>)}
-            <g className="eval-history-grid">
-              {[.25, .5, .75].map((value) => {
-                const y = evalChart.top + (1 - value) * (evalChart.height - evalChart.top - evalChart.bottom);
-                return <line key={value} x1={evalChart.left} x2={evalChart.width - evalChart.right} y1={y} y2={y} />;
-              })}
-            </g>
-            <polyline points={historyLine} />
-            {historyPoints.map((month) => (
-              <g className="eval-history-point" key={month.key} transform={`translate(${month.x} ${month.y})`} tabIndex={0}>
-                <circle r="7" />
-                <foreignObject x="-58" y="-76" width="132" height="68" className="eval-history-tooltip-wrap">
-                  <div className="eval-history-tooltip">
-                    <b>{month.label} · {pct(month.passRate * 100)}</b>
-                    <span>{month.count.toLocaleString()} traces</span>
-                    <span>{month.passing.toLocaleString()} passed</span>
-                    <span>{month.failing.toLocaleString()} failed</span>
-                  </div>
-                </foreignObject>
-              </g>
-            ))}
-            {historyPoints.map((month) => (
-              <text className="eval-history-label" key={`${month.key}-label`} x={month.x} y={evalChart.height - 10}>{month.label}</text>
-            ))}
-          </svg>
-        </div>
-      </section>}
       {modal&&<div className="modal-layer" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setModal(null)}}>
         {modal==="details"&&detailEvalDefinition?<section className="eval-modal eval-detail-modal" role="dialog" aria-modal="true" aria-labelledby="eval-detail-heading">
           <div className="modal-head"><div><p className="eyebrow">Eval details</p><h2 id="eval-detail-heading">{detailEvalDefinition.name}</h2></div><button type="button" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
