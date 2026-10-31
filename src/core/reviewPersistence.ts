@@ -89,20 +89,22 @@ async function workflowResponse(response: Response) {
   return payload;
 }
 
-export async function fetchReviewWorkflow(signal?: AbortSignal) {
-  return workflowResponse(await fetch("/api/reviews", { headers: { Accept: "application/json" }, cache: "no-store", signal }));
+const reviewEndpoint = (workspaceId: string) => `/api/reviews?workspace=${encodeURIComponent(workspaceId)}`;
+
+export async function fetchReviewWorkflow(workspaceId: string, signal?: AbortSignal) {
+  return workflowResponse(await fetch(reviewEndpoint(workspaceId), { headers: { Accept: "application/json" }, cache: "no-store", signal }));
 }
 
-export async function persistWeeklyReviewBudget(weeklyBudget: number) {
-  return workflowResponse(await fetch("/api/reviews", {
+export async function persistWeeklyReviewBudget(workspaceId: string, weeklyBudget: number) {
+  return workflowResponse(await fetch(reviewEndpoint(workspaceId), {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ weeklyBudget: normalizedReviewBudget(weeklyBudget) }),
   }));
 }
 
-export async function persistReview(input: SaveReviewInput) {
-  return responseJson<{ review: PersistedReview }>(await fetch("/api/reviews", {
+export async function persistReview(workspaceId: string, input: SaveReviewInput) {
+  return responseJson<{ review: PersistedReview }>(await fetch(reviewEndpoint(workspaceId), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(input),

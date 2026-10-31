@@ -14,6 +14,8 @@ import taskGroupNamesHandler from "../src/server/taskGroupNames.js";
 import waitlistHandler from "../src/server/waitlist.js";
 import reviewHandler from "../src/server/reviews.js";
 import evalRunHandler from "../src/server/evalRuns.js";
+import classifierValidationHandler from "../src/server/classifierValidation.js";
+import classifierComparatorHandler from "../src/server/classifierComparator.js";
 import { routingPolicyWorkspaceId } from "./routing-policy/_config.js";
 
 export const maxDuration = 300;
@@ -105,6 +107,8 @@ export default async function handler(req: any, res: any) {
     if (action === "waitlist") return waitlistHandler(req, res);
     if (action === "reviews") return reviewHandler(req, res);
     if (action === "eval-run") return evalRunHandler(req, res);
+    if (action === "classifier-validation") return classifierValidationHandler(req, res);
+    if (action === "classifier-comparator") return classifierComparatorHandler(req, res);
     if (action === "runtime-traces") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
       const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500),workspaceId);

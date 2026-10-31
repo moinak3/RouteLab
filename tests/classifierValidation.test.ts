@@ -25,24 +25,20 @@ describe("classifier validation", () => {
     expect(examples.every((example) => example.usesOnlyPreInferenceInformation)).toBe(true);
   });
 
-  it("keeps workspace validation blank until routing evidence, overrides, a signed policy, and reviewed labels exist", () => {
+  it("keeps workspace validation blank until human labels and Jev comparisons exist", () => {
     const empty = classifierValidationReadiness({
-      simulationEvidenceCount: 0,
-      overrideCount: 0,
-      signedPolicyCount: 0,
       reviewedLabelCount: 0,
+      jevComparisonCount: 0,
     });
     expect(empty.ready).toBe(false);
     expect(empty.completedCount).toBe(0);
     expect(empty.prerequisites.every((item) => !item.complete)).toBe(true);
 
     const ready = classifierValidationReadiness({
-      simulationEvidenceCount: 2,
-      overrideCount: 2,
-      signedPolicyCount: 1,
       reviewedLabelCount: 40,
+      jevComparisonCount: 40,
     });
     expect(ready.ready).toBe(true);
-    expect(ready.completedCount).toBe(4);
+    expect(ready.completedCount).toBe(2);
   });
 });

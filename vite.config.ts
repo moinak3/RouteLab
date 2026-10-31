@@ -18,6 +18,8 @@ import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./api/llm-groupin
 import taskGroupNamesHandler from "./src/server/taskGroupNames";
 import waitlistHandler from "./src/server/waitlist";
 import evalRunHandler from "./src/server/evalRuns";
+import classifierValidationHandler from "./src/server/classifierValidation";
+import classifierComparatorHandler from "./src/server/classifierComparator";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -214,6 +216,8 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use("/api/task-group-names", (req, res) => runApiHandler(taskGroupNamesHandler, req, res));
       server.middlewares.use("/api/waitlist", (req, res) => runApiHandler(waitlistHandler, req, res));
       server.middlewares.use("/api/evals/run", (req, res) => runApiHandler(evalRunHandler, req, res));
+      server.middlewares.use("/api/classifier-validation", (req, res) => runApiHandler(classifierValidationHandler, req, res));
+      server.middlewares.use("/api/classifier-comparator", (req, res) => runApiHandler(classifierComparatorHandler, req, res));
     },
   }],
   test: { environment: "node" },

@@ -40,45 +40,27 @@ export type ClassifierValidationReport = {
 };
 
 export type ClassifierValidationReadiness = {
-  simulationEvidenceCount: number;
-  overrideCount: number;
-  signedPolicyCount: number;
   reviewedLabelCount: number;
+  jevComparisonCount: number;
 };
 
 export function classifierValidationReadiness(input: ClassifierValidationReadiness) {
   const prerequisites = [
     {
-      id: "simulation",
-      label: "Measure routing candidates",
-      complete: input.simulationEvidenceCount > 0,
-      detail: input.simulationEvidenceCount > 0
-        ? `${input.simulationEvidenceCount} promoted simulation result${input.simulationEvidenceCount === 1 ? "" : "s"}`
-        : "Run a routing simulation and promote at least one measured result.",
-    },
-    {
-      id: "overrides",
-      label: "Approve task overrides",
-      complete: input.overrideCount > 0,
-      detail: input.overrideCount > 0
-        ? `${input.overrideCount} approved task override${input.overrideCount === 1 ? "" : "s"}`
-        : "No task-specific model allocation has been approved.",
-    },
-    {
-      id: "policy",
-      label: "Sign a policy version",
-      complete: input.signedPolicyCount > 0,
-      detail: input.signedPolicyCount > 0
-        ? `${input.signedPolicyCount} signed policy version${input.signedPolicyCount === 1 ? "" : "s"}`
-        : "The draft routing policy has not been signed.",
-    },
-    {
       id: "labels",
-      label: "Add independently reviewed labels",
+      label: "Blind human labeling",
       complete: input.reviewedLabelCount > 0,
       detail: input.reviewedLabelCount > 0
         ? `${input.reviewedLabelCount} reviewed classifier label${input.reviewedLabelCount === 1 ? "" : "s"}`
-        : "Classifier accuracy requires a held-out set of human-reviewed task labels.",
+        : "Review a held-out set without seeing Jev or LLM predictions.",
+    },
+    {
+      id: "jev",
+      label: "Compare Jev with humans",
+      complete: input.jevComparisonCount > 0,
+      detail: input.jevComparisonCount > 0
+        ? `${input.jevComparisonCount} Jev assignment${input.jevComparisonCount === 1 ? "" : "s"} compared with human truth`
+        : "Run Jev on the same held-out requests after human labeling is complete.",
     },
   ];
   return {

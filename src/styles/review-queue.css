@@ -1,4 +1,5 @@
 .review-page{display:grid;gap:22px}
+.review-objective-switcher{display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,.8fr);gap:24px;align-items:center}.review-objective-switcher h2{margin:5px 0 7px}.review-objective-switcher p:last-child{margin:0}.review-objective-switcher>div:last-child{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.review-objective-switcher button{display:grid;gap:5px;text-align:left;padding:13px}.review-objective-switcher button span{font-size:12px;font-weight:400;line-height:1.4}.review-objective-switcher button.active{border-color:#4c8f5d;background:rgba(76,143,93,.12)}
 .review-budget{padding:20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:28px;align-items:end}
 .review-budget h2{margin:4px 0 8px;font-size:28px;letter-spacing:-.02em}
 .review-budget p{margin:0;max-width:760px;line-height:1.5}
@@ -53,6 +54,7 @@
 .review-correction>div:last-child{display:flex;justify-content:flex-end;gap:8px}
 .review-correction>div:last-child button:last-child{border-color:rgba(255,125,98,.62);background:rgba(255,125,98,.16)}
 @media(max-width:700px){
+  .review-objective-switcher{grid-template-columns:1fr}.review-objective-switcher>div:last-child{grid-template-columns:1fr}
   .review-budget{grid-template-columns:1fr;padding:16px;gap:18px}
   .review-budget h2{font-size:22px}
   .review-tabs{grid-template-columns:1fr}

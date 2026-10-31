@@ -1,9 +1,25 @@
-import { useEffect, useId, useMemo, useState, type FocusEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FocusEvent, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { buildClassifierValidationReport, classifierValidationReadiness, createDemoClassifierValidationExamples } from "../core/classifierValidation";
-import { loadDraftRoutingPolicy } from "../core/routingDraft";
-import { fetchPublishedPolicyHistory, fetchRoutingPolicyDraft } from "../core/routingPolicyPersistence";
-import type { KnownTaskSignature } from "../types";
+import {
+  appendAssignmentValidationSample,
+  classifierExamplesFromAssignments,
+  decisionAssignments,
+  emptyAssignmentValidationWorkflow,
+  taskGroupSignatures,
+  type AssignmentValidationLabel,
+  type AssignmentValidationWorkflow,
+  type HumanAssignmentOutcome,
+} from "../core/assignmentValidation";
+import {
+  fetchAssignmentValidation,
+  loadLocalAssignmentValidation,
+  persistAssignmentValidation,
+  runStrongClassifierComparator,
+  saveLocalAssignmentValidation,
+} from "../core/assignmentValidationPersistence";
+import { classifyTraceSignaturesWithJev, JEV_RISK_THRESHOLDS } from "../core/jevSignatureGate";
+import type { DistinctTaskBucket, KnownTaskSignature, Trace } from "../types";
 import { pct } from "../lib/format";
 
 const shortLabel = (value: string) => value === "unknown" || value === "abstain"
@@ -66,72 +82,190 @@ function matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, 
   return `Reviewers labeled ${countLabel(count, "example")} as “${actualLabel},” but Jev classified ${count === 1 ? "it" : "them"} as “${predictedLabel}” after the confidence gate. ${count === 1 ? "This is an accepted misclassification" : "These are accepted misclassifications"}.`;
 }
 
-type PersonalValidationEvidence = {
-  state: "loading" | "ready" | "unavailable";
-  simulationEvidenceCount: number;
-  overrideCount: number;
-  signedPolicyCount: number;
+const outcomeLabels: Record<HumanAssignmentOutcome, string> = {
+  task_group: "Known Task Group",
+  unknown: "Unknown",
+  ambiguous: "Ambiguous",
+  needs_new_group: "Needs new group",
 };
 
-function PersonalClassifierValidation({ workspaceId, defaultModelId, onOpenSimulations }: {
+function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenResponseReview }: {
   workspaceId: string;
-  defaultModelId: string;
-  onOpenSimulations: () => void;
+  traces: Trace[];
+  taskGroups: DistinctTaskBucket[];
+  onOpenResponseReview: () => void;
 }) {
-  const localDraft = useMemo(() => loadDraftRoutingPolicy(defaultModelId, workspaceId), [defaultModelId, workspaceId]);
-  const localOverrides = Object.values(localDraft.overrides);
-  const [evidence, setEvidence] = useState<PersonalValidationEvidence>({
-    state: "loading",
-    simulationEvidenceCount: localOverrides.filter((override) => override.replayCount > 0).length,
-    overrideCount: localOverrides.length,
-    signedPolicyCount: 0,
-  });
+  const signatures = useMemo(() => taskGroupSignatures(taskGroups), [taskGroups]);
+  const traceById = useMemo(() => new Map(traces.map((trace) => [trace.id, trace])), [traces]);
+  const [workflow, setWorkflow] = useState<AssignmentValidationWorkflow | null>(() => loadLocalAssignmentValidation(workspaceId));
+  const [sampleSize, setSampleSize] = useState("50");
+  const [outcome, setOutcome] = useState<HumanAssignmentOutcome>("task_group");
+  const [selectedSignature, setSelectedSignature] = useState("");
+  const [rationale, setRationale] = useState("");
+  const [state, setState] = useState<"loading" | "ready" | "saving" | "running" | "unavailable">("loading");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    let active = true;
-    Promise.allSettled([
-      fetchRoutingPolicyDraft(workspaceId, controller.signal),
-      fetchPublishedPolicyHistory(workspaceId, controller.signal),
-    ]).then(([draftResult, historyResult]) => {
-      if (!active) return;
-      const draft = draftResult.status === "fulfilled" && draftResult.value.draft
-        ? draftResult.value.draft
-        : localDraft;
-      const overrides = Object.values(draft.overrides);
-      setEvidence({
-        state: draftResult.status === "rejected" && historyResult.status === "rejected" ? "unavailable" : "ready",
-        simulationEvidenceCount: overrides.filter((override) => override.replayCount > 0).length,
-        overrideCount: overrides.length,
-        signedPolicyCount: historyResult.status === "fulfilled" ? historyResult.value.versions.length : 0,
-      });
-    });
-    return () => { active = false; controller.abort(); };
-  }, [localDraft, workspaceId]);
+    setWorkflow(loadLocalAssignmentValidation(workspaceId));
+    setState("loading");
+    fetchAssignmentValidation(workspaceId, controller.signal).then((saved) => {
+      if (saved) {
+        saveLocalAssignmentValidation(workspaceId, saved);
+        setWorkflow(saved);
+      }
+      setState("ready");
+    }).catch(() => setState(loadLocalAssignmentValidation(workspaceId) ? "unavailable" : "ready"));
+    return () => controller.abort();
+  }, [workspaceId]);
 
-  const readiness = classifierValidationReadiness({
-    simulationEvidenceCount: evidence.simulationEvidenceCount,
-    overrideCount: evidence.overrideCount,
-    signedPolicyCount: evidence.signedPolicyCount,
-    reviewedLabelCount: 0,
-  });
+  const sampledTraces = useMemo(() => (workflow?.sampleTraceIds ?? []).map((id) => traceById.get(id)).filter((trace): trace is Trace => Boolean(trace)), [workflow?.sampleTraceIds, traceById]);
+  const labelByTrace = useMemo(() => new Map((workflow?.labels ?? []).map((label) => [label.traceId, label])), [workflow?.labels]);
+  const currentTrace = sampledTraces.find((trace) => !labelByTrace.has(trace.id));
+  const labelingComplete = Boolean(workflow?.sampleTraceIds.length) && (workflow?.labels.length ?? 0) >= (workflow?.sampleTraceIds.length ?? 0);
+  const thresholdBySignature = useMemo(() => Object.fromEntries(signatures.map((signature) => [signature.id, JEV_RISK_THRESHOLDS[signature.risk_level]])), [signatures]);
+  const jevExamples = workflow ? classifierExamplesFromAssignments(workflow, traces, workflow.jevAssignments, thresholdBySignature) : [];
+  const llmExamples = workflow ? classifierExamplesFromAssignments(workflow, traces, workflow.llmAssignments) : [];
+  const reportMetadata = { datasetLabel: "Workspace held-out assignment set", signatureCatalogVersion: `workspace-${taskGroups.length}`, testSplit: "Blind human-reviewed set", thresholdTuningSplit: "Keep threshold tuning separate from this report" };
+  const jevReport = jevExamples.length ? buildClassifierValidationReport(jevExamples, signatures, { ...reportMetadata, classifierModel: workflow?.jevAssignments[0]?.model ?? "typesafe/jev" }) : null;
+  const llmReport = llmExamples.length ? buildClassifierValidationReport(llmExamples, signatures, { ...reportMetadata, classifierModel: workflow?.llmAssignments[0]?.model ?? "strong LLM" }) : null;
+  const labelNames = useMemo(() => new Map(signatures.map((signature) => [signature.id, signature.label])), [signatures]);
+  const meaningfulJevLabels = jevReport?.labels.filter((label) => label === "abstain" || label === "unknown" || jevExamples.some((example) => example.reviewedSignatureId === label || example.predictedSignatureId === label)) ?? [];
 
-  return <div className="classifier-validation-page classifier-validation-empty">
-    <section className="panel classifier-validation-empty-card">
-      <p className="eyebrow">Classifier validation</p>
-      <h2>No workspace validation report yet</h2>
-      <p>RouteLab will not show bundled classifier metrics in My Workspace. Validation appears only from this workspace's measured routing evidence and an independently reviewed set of task labels.</p>
-      <div className="classifier-validation-readiness" aria-label="Classifier validation prerequisites">
-        {readiness.prerequisites.map((item, index) => <article className={item.complete ? "complete" : "pending"} key={item.id}>
-          <span>{item.complete ? "✓" : String(index + 1).padStart(2, "0")}</span>
-          <div><b>{item.label}</b><small>{item.detail}</small></div>
-        </article>)}
-      </div>
-      <div className="classifier-validation-empty-actions">
-        <button type="button" className="primary" onClick={onOpenSimulations}>Open Routing Simulations</button>
-        <span>{evidence.state === "loading" ? "Checking workspace evidence…" : evidence.state === "unavailable" ? "Cloud evidence is unavailable; local draft checked." : `${readiness.completedCount} of ${readiness.prerequisites.length} prerequisites complete`}</span>
-      </div>
+  async function save(next: AssignmentValidationWorkflow) {
+    saveLocalAssignmentValidation(workspaceId, next);
+    setWorkflow(next);
+    setState("saving");
+    try {
+      const saved = await persistAssignmentValidation(workspaceId, next);
+      saveLocalAssignmentValidation(workspaceId, saved);
+      setWorkflow(saved);
+      setState("ready");
+    } catch (saveError) {
+      setState("unavailable");
+      setError(saveError instanceof Error ? `${saveError.message} Saved in this browser.` : "Saved in this browser; cloud storage is unavailable.");
+    }
+  }
+
+  function createSet() {
+    setError(null);
+    if (!traces.length || !taskGroups.length) {
+      setError("Import traces and create Task Groups before starting assignment validation.");
+      return;
+    }
+    void save(emptyAssignmentValidationWorkflow(traces, taskGroups, Number(sampleSize) || 50));
+  }
+
+  function submitLabel(event: FormEvent) {
+    event.preventDefault();
+    if (!workflow || !currentTrace) return;
+    if (outcome === "task_group" && !selectedSignature) {
+      setError("Choose the Task Group that best matches this request.");
+      return;
+    }
+    const label: AssignmentValidationLabel = {
+      traceId: currentTrace.id,
+      outcome,
+      signatureId: outcome === "task_group" ? selectedSignature : null,
+      rationale: rationale.trim() || null,
+      reviewedAt: new Date().toISOString(),
+    };
+    const next = { ...workflow, labels: [...workflow.labels.filter((item) => item.traceId !== label.traceId), label], updatedAt: label.reviewedAt };
+    setSelectedSignature("");
+    setOutcome("task_group");
+    setRationale("");
+    setError(null);
+    void save(next);
+  }
+
+  async function runJev() {
+    if (!workflow || !labelingComplete) return;
+    setState("running");
+    setError(null);
+    try {
+      const result = await classifyTraceSignaturesWithJev(sampledTraces, signatures);
+      await save({ ...workflow, jevAssignments: decisionAssignments(result.decisions), updatedAt: new Date().toISOString() });
+    } catch (runError) {
+      setState("ready");
+      setError(runError instanceof Error ? runError.message : "Jev comparison failed.");
+    }
+  }
+
+  async function runComparator() {
+    if (!workflow || !labelingComplete) return;
+    setState("running");
+    setError(null);
+    try {
+      const result = await runStrongClassifierComparator(workspaceId, sampledTraces, signatures);
+      await save({ ...workflow, llmAssignments: result.assignments, updatedAt: new Date().toISOString() });
+    } catch (runError) {
+      setState("ready");
+      setError(runError instanceof Error ? runError.message : "Strong-model comparison failed.");
+    }
+  }
+
+  function addRecentTraces() {
+    if (!workflow) return;
+    const next = appendAssignmentValidationSample(workflow, traces, taskGroups, 15);
+    if (next.sampleTraceIds.length === workflow.sampleTraceIds.length) setError("No new traces are available for the ongoing validation set.");
+    else void save(next);
+  }
+
+  const readiness = classifierValidationReadiness({ reviewedLabelCount: workflow?.labels.length ?? 0, jevComparisonCount: workflow?.jevAssignments.length ?? 0 });
+  return <div className="classifier-validation-page">
+    <section className="panel classifier-evidence-map">
+      <div><p className="eyebrow">Two evidence loops</p><h2>Humans establish truth; automated systems are measured against it</h2><p>Task assignment and response quality are different decisions. RouteLab keeps their labels, calibration reports, and ongoing metrics separate.</p></div>
+      <div className="classifier-evidence-grid"><b>Decision</b><b>Human truth</b><b>Calibration</b><b>Ongoing monitoring</b><span>Request → Task Group</span><span>Blind assignment labels</span><span>Human vs Jev vs strong LLM</span><span>New and drifting requests</span><span>Request + response → quality</span><span>Correctness and corrected answer</span><span>Judge vs human agreement</span><button type="button" onClick={onOpenResponseReview}>Open response review</button></div>
     </section>
+
+    {!workflow ? <section className="panel classifier-validation-empty-card">
+      <p className="eyebrow">Task Group assignment validation</p><h2>Create an independently reviewed validation set</h2>
+      <p>RouteLab selects a balanced held-out set across your Task Groups. Reviewers see only the request and pre-inference context; Jev and comparator predictions stay hidden until the human label is saved.</p>
+      <div className="classifier-validation-readiness">{readiness.prerequisites.map((item, index) => <article className={item.complete ? "complete" : "pending"} key={item.id}><span>{String(index + 1).padStart(2, "0")}</span><div><b>{item.label}</b><small>{item.detail}</small></div></article>)}</div>
+      <div className="classifier-create-set"><label>Initial review budget<input type="number" min="10" max={Math.max(10, traces.length)} value={sampleSize} onChange={(event) => setSampleSize(event.target.value)} /></label><button type="button" className="primary" onClick={createSet}>Create validation set</button></div>
+      {error && <div className="review-error">{error}</div>}
+    </section> : <>
+      <section className="panel classifier-workflow-status"><div><p className="eyebrow">Assignment validation</p><h2>{workflow.labels.length} of {workflow.sampleTraceIds.length} independently reviewed</h2><p>Predictions remain hidden until each human decision is recorded.</p></div><div className="classifier-progress"><i style={{ width: `${workflow.sampleTraceIds.length ? workflow.labels.length / workflow.sampleTraceIds.length * 100 : 0}%` }} /><span>{state === "saving" ? "Saving…" : state === "running" ? "Running comparison…" : state === "unavailable" ? "Saved locally" : "Saved"}</span></div></section>
+      {error && <div className="review-error">{error}</div>}
+      {currentTrace ? <section className="panel assignment-labeler">
+        <div className="panelhead"><div><p className="eyebrow">Blind human label</p><h2>What outcome is this request trying to achieve?</h2></div><span>{workflow.labels.length + 1} of {workflow.sampleTraceIds.length}</span></div>
+        <article><small>Request</small><p>{currentTrace.prompt_text}</p>{currentTrace.messages.filter((message) => message.role !== "assistant").length > 1 && <details><summary>Prior conversation and system context</summary>{currentTrace.messages.filter((message) => message.role !== "assistant").map((message, index) => <p key={`${message.role}-${index}`}><b>{message.role}</b> {message.content}</p>)}</details>}</article>
+        <form onSubmit={submitLabel}>
+          <fieldset><legend>Human decision</legend>{(Object.keys(outcomeLabels) as HumanAssignmentOutcome[]).map((value) => <label className={outcome === value ? "selected" : ""} key={value}><input type="radio" name="assignment-outcome" value={value} checked={outcome === value} onChange={() => setOutcome(value)} />{outcomeLabels[value]}</label>)}</fieldset>
+          {outcome === "task_group" && <label>Task Group<select value={selectedSignature} onChange={(event) => setSelectedSignature(event.target.value)}><option value="">Choose the best match</option>{signatures.map((signature) => <option value={signature.id} key={signature.id}>{signature.label}</option>)}</select></label>}
+          <label>Reviewer note <span>(optional)</span><textarea rows={3} value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder={outcome === "needs_new_group" ? "Describe the missing group boundary." : "Record why this label fits or what made it ambiguous."} /></label>
+          <button type="submit" className="primary" disabled={state === "saving"}>Save label and continue</button>
+        </form>
+      </section> : <section className="panel classifier-comparison-controls">
+        <div><p className="eyebrow">Human baseline complete</p><h2>Now compare automated assignment against the same held-out labels</h2><p>Jev and the strong comparator receive the same request-only evidence and the same Task Group catalog. Human labels remain the source of truth.</p></div>
+        <div><button type="button" className="primary" onClick={runJev} disabled={state === "running"}>{workflow.jevAssignments.length ? "Rerun Jev" : "Run Jev comparison"}</button><button type="button" onClick={runComparator} disabled={state === "running"}>{workflow.llmAssignments.length ? "Rerun strong LLM" : "Run strong LLM comparison"}</button></div>
+      </section>}
+      {(jevReport || llmReport) && <section className="classifier-comparator-grid">
+        {[{ name: "Jev", report: jevReport, examples: jevExamples }, { name: "Strong LLM", report: llmReport, examples: llmExamples }].map(({ name, report, examples }) => <article className="panel" key={name}><small>{name}</small>{report ? <><b>{pct(report.acceptedPrecision * 100)}</b><span>precision among accepted assignments</span><dl><div><dt>Exact agreement</dt><dd>{examples.filter((item) => item.reviewedSignatureId === item.predictedSignatureId).length}/{examples.length}</dd></div><div><dt>Coverage</dt><dd>{pct(report.coverage * 100)}</dd></div><div><dt>Wrong accepted</dt><dd>{report.errors.filter((item) => item.accepted).length}</dd></div></dl></> : <p>Not run yet</p>}</article>)}
+      </section>}
+      {jevReport && <section className="panel classifier-signature-table"><div className="panelhead"><div><p className="eyebrow">Human vs Jev</p><h2>Performance by Task Group</h2></div><span>{jevExamples.length} reviewed examples</span></div><p className="classifier-interaction-hint">Hover, tap, or focus a metric to see exactly how the reviewed examples produced it.</p><div className="tablewrap"><table><thead><tr><th>Task Group</th><th><HoverExplanation explanation="Of the requests Jev confidently assigned to this Task Group, precision is the share that human reviewers assigned to the same group.">Accepted precision</HoverExplanation></th><th><HoverExplanation explanation="Of the requests humans assigned to this Task Group, recall is the share Jev correctly found and confidently accepted.">Recall</HoverExplanation></th><th><HoverExplanation explanation="The number of independently reviewed requests whose human label was this Task Group.">Human-reviewed examples</HoverExplanation></th></tr></thead><tbody>{jevReport.perSignature.filter((row) => row.support || row.acceptedPredictionCount).map((row) => {
+        const precisionExplanation = row.acceptedPredictionCount
+          ? `Jev confidently assigned ${countLabel(row.acceptedPredictionCount, "request")} to “${row.label}.” Humans agreed on ${row.correctAcceptedCount}. Precision = ${row.correctAcceptedCount} ÷ ${row.acceptedPredictionCount} = ${pct(row.precision * 100)}.`
+          : `Jev did not confidently assign any reviewed request to “${row.label},” so accepted precision is not yet measurable.`;
+        const recallExplanation = row.support
+          ? `Humans assigned ${countLabel(row.support, "request")} to “${row.label}.” Jev correctly found and accepted ${row.correctAcceptedCount}. Recall = ${row.correctAcceptedCount} ÷ ${row.support} = ${pct(row.recall * 100)}.`
+          : `Humans did not assign any held-out request to “${row.label},” so recall is not yet measurable.`;
+        return <tr key={row.signatureId}><td><b>{row.label}</b></td><td><HoverExplanation className="classifier-metric-explainer" explanation={precisionExplanation}>{pct(row.precision * 100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={recallExplanation}>{pct(row.recall * 100)}</HoverExplanation></td><td><HoverExplanation className="classifier-metric-explainer" explanation={`${countLabel(row.support, "held-out request")} ${row.support === 1 ? "was" : "were"} independently reviewed as “${row.label}.”`}>{row.support}</HoverExplanation></td></tr>;
+      })}</tbody></table></div></section>}
+      {jevReport && <details className="panel classifier-advanced">
+        <summary><span><small>Assignment errors</small><b>See the human vs Jev confusion matrix</b></span><i aria-hidden="true">+</i></summary>
+        <div className="classifier-advanced-body"><section className="classifier-confusion"><div className="panelhead"><div><p className="eyebrow">Error structure</p><h2>Which Task Groups does Jev confuse?</h2></div><span>Rows = human label · columns = Jev decision</span></div><p className="classifier-interaction-hint">The diagonal shows agreement. A value outside the diagonal is a specific mismatch to investigate. An abstention means Jev kept the request on the default or review path.</p><div className="tablewrap"><table><thead><tr><th>Human-reviewed Task Group</th>{meaningfulJevLabels.map((label) => <th title={labelNames.get(label) ?? label} key={label}>{shortLabel(label)}</th>)}</tr></thead><tbody>{meaningfulJevLabels.filter((label) => label !== "abstain").map((actual) => {
+          const actualLabel = labelNames.get(actual) ?? actual;
+          const reviewedCount = Object.values(jevReport.confusion[actual] ?? {}).reduce((sum, value) => sum + value, 0);
+          return <tr key={actual}><th title={actualLabel}>{actualLabel}</th>{meaningfulJevLabels.map((predicted) => {
+            const count = jevReport.confusion[actual]?.[predicted] ?? 0;
+            const predictedLabel = labelNames.get(predicted) ?? predicted;
+            return <td className={actual === predicted ? "correct" : count ? "error" : ""} key={predicted}><HoverExplanation className="classifier-cell-explainer" explanation={matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, isCorrect: actual === predicted })}>{count}</HoverExplanation></td>;
+          })}</tr>;
+        })}</tbody></table></div></section></div>
+      </details>}
+      {labelingComplete && <section className="panel classifier-next-step"><div><p className="eyebrow">Ongoing validation</p><h2>Keep the assignment set current as traffic changes</h2><p>Add a small held-out batch from new traffic. RouteLab preserves the original baseline and recomputes drift and per-group performance after review.</p></div><button type="button" onClick={addRecentTraces}>Add 15 recent traces</button></section>}
+    </>}
   </div>;
 }
 
@@ -232,15 +366,16 @@ function DemoClassifierValidation({ signatures, onOpenCalibration }: { signature
   </div>;
 }
 
-export function ClassifierValidation({ signatures, workspace, workspaceId, defaultModelId, onOpenSimulations, onOpenCalibration = onOpenSimulations }: {
+export function ClassifierValidation({ signatures, workspace, workspaceId, traces, taskGroups, onOpenResponseReview, onOpenCalibration = onOpenResponseReview }: {
   signatures: KnownTaskSignature[];
   workspace: "personal" | "demo";
   workspaceId: string;
-  defaultModelId: string;
-  onOpenSimulations: () => void;
+  traces: Trace[];
+  taskGroups: DistinctTaskBucket[];
+  onOpenResponseReview: () => void;
   onOpenCalibration?: () => void;
 }) {
   return workspace === "demo"
     ? <DemoClassifierValidation signatures={signatures} onOpenCalibration={onOpenCalibration} />
-    : <PersonalClassifierValidation workspaceId={workspaceId} defaultModelId={defaultModelId} onOpenSimulations={onOpenSimulations} />;
+    : <PersonalClassifierValidation workspaceId={workspaceId} traces={traces} taskGroups={taskGroups} onOpenResponseReview={onOpenResponseReview} />;
 }

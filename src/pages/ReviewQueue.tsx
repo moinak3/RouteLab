@@ -35,6 +35,7 @@ export function ReviewQueue({
   persistenceError = null,
   onWeeklyBudgetChange,
   onSaveReview,
+  onOpenClassifierValidation,
 }: {
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
@@ -48,6 +49,7 @@ export function ReviewQueue({
   persistenceError: string | null;
   onWeeklyBudgetChange: (weeklyBudget: number) => Promise<void>;
   onSaveReview: (input: SaveReviewInput) => Promise<PersistedReview>;
+  onOpenClassifierValidation: () => void;
 }) {
   const [index, setIndex] = useState(0);
   const [budgetDraft, setBudgetDraft] = useState(String(weeklyBudget));
@@ -144,6 +146,10 @@ export function ReviewQueue({
   }
 
   return <div className="review-page">
+    <section className="panel review-objective-switcher">
+      <div><p className="eyebrow">Review objective</p><h2>Review the right human decision</h2><p>Task assignment and response quality use different labels and produce different calibration reports.</p></div>
+      <div><button type="button" onClick={onOpenClassifierValidation}><b>Task Group assignment</b><span>Did the request map to the right group?</span></button><button type="button" className="active"><b>Response quality</b><span>Was the agent answer correct?</span></button></div>
+    </section>
     <section className="review-budget panel">
       <div><p className="eyebrow">Weekly review plan</p><h2>How many conversations can your team review each week?</h2><p>RouteLab uses this budget to build three review lanes. The split stays explicit so representative quality measurement is not mixed with targeted failure finding.</p></div>
       <form onSubmit={saveBudget}>

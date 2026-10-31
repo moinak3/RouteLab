@@ -14,7 +14,7 @@ const MAX_WEEKLY_REVIEW_BUDGET = 300;
 const lanes: ReviewLane[] = ["representative", "unusual", "uncovered"];
 const decisions: ReviewDecision[] = ["correct", "incorrect", "escalate", "skip"];
 
-const workspaceId = () => String(process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
+const workspaceId = (req: any) => String(req.query?.workspace ?? process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
 const databaseUrl = () => String(process.env.DATABASE_URL ?? "").trim();
 const isObject = (value: unknown): value is Record<string, any> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const normalizedReviewBudget = (value: number) => Math.min(MAX_WEEKLY_REVIEW_BUDGET, Math.max(MIN_WEEKLY_REVIEW_BUDGET, Math.round(Number.isFinite(value) ? value : DEFAULT_WEEKLY_REVIEW_BUDGET)));
@@ -47,11 +47,11 @@ export default async function reviewHandler(req: any, res: any) {
   try {
     if (req.method === "GET") {
       res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
-      return sendJson(res, 200, await getReviewWorkflow(databaseUrl(), workspaceId(), DEFAULT_WEEKLY_REVIEW_BUDGET));
+      return sendJson(res, 200, await getReviewWorkflow(databaseUrl(), workspaceId(req), DEFAULT_WEEKLY_REVIEW_BUDGET));
     }
     if (req.method === "PUT") {
       const weeklyBudget = normalizedReviewBudget(Number(req.body?.weeklyBudget));
-      return sendJson(res, 200, await saveWeeklyReviewBudget(databaseUrl(), workspaceId(), weeklyBudget, DEFAULT_WEEKLY_REVIEW_BUDGET));
+      return sendJson(res, 200, await saveWeeklyReviewBudget(databaseUrl(), workspaceId(req), weeklyBudget, DEFAULT_WEEKLY_REVIEW_BUDGET));
     }
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
 
@@ -68,7 +68,7 @@ export default async function reviewHandler(req: any, res: any) {
 
     const goldenRow = goldenRowForReview(trace, judge, lane, decision, correctAnswer, rationale);
     const review = await saveReviewResult({
-      databaseUrl: databaseUrl(), workspaceId: workspaceId(), traceId: trace.id, lane, decision,
+      databaseUrl: databaseUrl(), workspaceId: workspaceId(req), traceId: trace.id, lane, decision,
       correctAnswer, rationale, trace, judge: judge ?? null, goldenRow,
     });
     return sendJson(res, 200, { review });
