@@ -1,7 +1,9 @@
 .golden-page{
   display:grid;
   gap:14px;
+  min-width:0;
 }
+.golden-page>*{min-width:0}
 .golden-hero{
   display:flex;
   justify-content:space-between;
@@ -247,6 +249,8 @@
   padding:20px;
   border:1px solid var(--line);
   border-radius:18px;
+  max-width:100%;
+  overflow:hidden;
   background:linear-gradient(135deg,rgba(88,240,132,.08),rgba(116,85,255,.06)),rgba(255,255,255,.04);
 }
 .fine-tune-rec-card.compact{
@@ -255,9 +259,14 @@
   text-align:left;
   background:rgba(255,255,255,.04);
 }
+.fine-tune-rec-card.compact .rec-card-head>div{min-width:0}
+.fine-tune-rec-card.compact .rec-card-head h3,
+.fine-tune-rec-card.compact .rec-card-head span,
+.fine-tune-rec-card.compact>p{overflow-wrap:anywhere}
+.fine-tune-rec-card.compact .rec-card-head strong{flex:0 0 auto;font-size:26px}
 .rec-card-head{
-  display:flex;
-  justify-content:space-between;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
   gap:16px;
   align-items:flex-start;
 }
@@ -363,15 +372,20 @@
 }
 .fine-tune-signature-grid{
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-columns:repeat(2,minmax(0,1fr));
   gap:12px;
 }
 .fine-tune-signature-grid button{
+  display:block;
+  min-width:0;
+  width:100%;
   padding:0;
   border:0;
   background:transparent;
   color:inherit;
+  white-space:normal;
 }
+.fine-tune-signature-grid button *{white-space:normal}
 .prompt-cache-card{
   display:grid;
   gap:14px;
@@ -380,6 +394,8 @@
   border:1px solid var(--line);
   border-radius:16px;
   background:linear-gradient(135deg,rgba(88,240,132,.07),rgba(116,85,255,.05)),rgba(255,255,255,.035);
+  max-width:100%;
+  overflow:hidden;
 }
 .prompt-cache-card.add_cache_control{
   border-color:rgba(88,240,132,.26);
@@ -440,7 +456,11 @@
 .prompt-cache-marker{
   display:grid;
   gap:8px;
+  width:100%;
+  max-width:100%;
+  overflow:hidden;
 }
+.prompt-cache-marker>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
 .prompt-cache-marker code{
   width:max-content;
   max-width:100%;
@@ -873,6 +893,8 @@
   .calibration-evidence>div{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:650px){
+  .rec-card-head{grid-template-columns:1fr}
+  .fine-tune-rec-card.compact .rec-card-head strong{justify-self:start}
   .signal-stats{
     grid-template-columns:1fr;
   }

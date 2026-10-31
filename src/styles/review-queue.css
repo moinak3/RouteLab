@@ -24,6 +24,7 @@
 .review-tabs a b small{font-size:12px;font-weight:600;color:#a9bab2}
 .review-tabs a p{grid-column:1/-1;margin:0;color:#c7d8d0;font-size:13px;line-height:1.45}
 .review-tabs a.active{border-color:rgba(88,240,132,.58);background:rgba(88,240,132,.09)}
+.shell>main .review-tabs a.active :is(span,b,p){color:#173923}
 .review-method{padding:18px;display:grid;gap:10px}
 .review-method-head{display:flex;align-items:end;justify-content:space-between;gap:16px}
 .review-method-head h2{margin:4px 0 0;font-size:28px;letter-spacing:-.02em;color:#fff}
@@ -35,6 +36,7 @@
 .review-task-filter nav{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
 .review-task-filter button{padding:8px 11px;white-space:nowrap}
 .review-task-filter button.active{border-color:var(--green);background:rgba(88,240,132,.12)}
+.shell>main .review-task-filter button.active{color:#173923}
 .review-task-filter button b{margin-left:5px}
 .review-shortfall,.review-method-note{color:#afc0b8;line-height:1.45}
 .review-shortfall{color:#f4d9aa}

@@ -170,7 +170,7 @@ body:before{
 
 .home-allocation-ledger{grid-column:1/-1;border-block:2px solid var(--dossier-blue);background:rgba(251,248,240,.62)}
 .home-ledger-head{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--dossier-blue)}
-.home-ledger-head b{font-family:var(--font-editorial);font-size:20px;font-weight:600}.home-ledger-head span{color:#667183;font-size:12px}.home-ledger-head small{padding:5px 7px;background:var(--dossier-green);color:#173923;font:600 12px var(--font-mono);text-transform:uppercase}
+.home-ledger-head b{font-family:var(--font-editorial);font-size:20px;font-weight:600}.home-ledger-head span{color:#526075;font-size:12px}.home-ledger-head small{padding:5px 7px;background:var(--dossier-green);color:#173923;font:600 12px var(--font-mono);text-transform:uppercase}
 .home-ledger-row{display:grid;grid-template-columns:1fr 2.1fr 1fr 1.15fr;gap:18px;align-items:center;padding:13px 12px;border-bottom:1px solid var(--dossier-rule-soft);font-size:12px}
 .home-ledger-row:last-child{border-bottom:0}.home-ledger-row b{font-size:13px}.home-ledger-row span{color:#566173}.home-ledger-row strong{color:var(--dossier-blue);font-size:12px}.home-ledger-row em{color:#3c7650;font-style:normal;font-weight:700}
 .home-ledger-columns{padding-block:8px;color:#637089;font:600 12px var(--font-mono);text-transform:uppercase;letter-spacing:.05em;background:rgba(33,77,134,.06)}
@@ -235,14 +235,14 @@ body:before{
 .home-flow-traces i{background:var(--dossier-blue)}
 .home-flow-arrow{color:#697384}.home-flow-arrow svg path{stroke:var(--dossier-red)}
 .home-flow-cloud{border-color:var(--dossier-blue);background:rgba(33,77,134,.045)}
-.home-flow-cloud header{border-bottom-color:var(--dossier-rule)}.home-flow-cloud header img{border-radius:2px}.home-flow-cloud header span{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:18px;font-weight:600}.home-flow-cloud header small{color:#687386;font-family:var(--font-mono)}
-.home-flow-cloud li{border-bottom-color:var(--dossier-rule-soft)}.home-flow-cloud li>span{color:var(--dossier-red)}.home-flow-cloud li b{color:var(--dossier-ink)}.home-flow-cloud li small{color:#687386}
+.home-flow-cloud header{border-bottom-color:var(--dossier-rule)}.home-flow-cloud header img{border-radius:2px}.home-flow-cloud header span{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:18px;font-weight:600}.home-flow-cloud header small{color:#526075;font-family:var(--font-mono)}
+.home-flow-cloud li{border-bottom-color:var(--dossier-rule-soft)}.home-flow-cloud li>span{color:var(--dossier-red)}.home-flow-cloud li b{color:var(--dossier-ink)}.home-flow-cloud li small{color:#526075}
 .home-flow-policy{border-color:#4c8f5d;background:#e7f2e5}.home-flow-policy span{color:#2f6640}.home-flow-policy b{color:#173923}
-.home-runtime-request,.home-runtime-decision{border-color:var(--dossier-rule);background:rgba(255,255,255,.42)}.home-runtime-request span,.home-runtime-decision span{color:#667183;font-family:var(--font-mono)}.home-runtime-request b,.home-runtime-decision b{color:var(--dossier-ink)}
+.home-runtime-request,.home-runtime-decision{border-color:var(--dossier-rule);background:rgba(255,255,255,.42)}.home-runtime-request span,.home-runtime-decision span{color:#526075;font-family:var(--font-mono)}.home-runtime-request b,.home-runtime-decision b{color:var(--dossier-ink)}
 .home-flow-runtime li{color:#536075}.home-flow-runtime li span{border-color:var(--dossier-blue);color:var(--dossier-blue)}
 .home-runtime-decision{border-color:#4c8f5d;background:#e7f2e5}
 .home-flow-review{border-top-color:var(--dossier-red);background:rgba(209,76,49,.05)}.home-flow-review span{color:var(--dossier-red)}.home-flow-review b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:16px;font-weight:600}.home-flow-review li{border-color:rgba(168,59,40,.38);color:#783729;background:rgba(255,255,255,.38)}.home-flow-review p{color:#626c7b}
-.home-workflow-illustration figcaption{border-top-color:var(--dossier-rule);color:#667183;font-family:var(--font-mono)}
+.home-workflow-illustration figcaption{border-top-color:var(--dossier-rule);color:#526075;font-family:var(--font-mono)}
 .home-boundaries{
   border:1px solid var(--dossier-red);
   border-radius:0;
@@ -339,13 +339,13 @@ body:before{
 .shell>main .panelhead span,.shell>main :is(.strategy,.provider){border-color:var(--dossier-rule);border-radius:0;background:rgba(33,77,134,.07);color:#53627a}
 .shell>main .stat:after{border-radius:0;background:transparent;border:1px solid var(--dossier-rule)}
 .shell>main .stat p{color:#677186}.shell>main .stat b{color:var(--dossier-ink);font-family:var(--font-editorial);font-weight:600}
-.shell>main .stat small,.shell>main :is(.count,.strategy,.provider,.scenario-note,.scenario-foot,.comparison-row span,.route span){color:#687386}
+.shell>main .stat small,.shell>main :is(.count,.strategy,.provider,.scenario-note,.scenario-foot,.comparison-row span,.route span){color:#526075}
 .shell>main .overview-routing-summary article{
   border-color:var(--dossier-rule);
   border-radius:1px;
   background:rgba(255,255,255,.48);
 }
-.shell>main .overview-routing-summary small{color:#687386}
+.shell>main .overview-routing-summary small{color:#526075}
 .shell>main .overview-routing-summary strong{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:22px;font-weight:600}
 .shell>main .overview-routing-summary span{color:#5f6d7d}
 .shell>main .overview-route-list>div{border-color:var(--dossier-rule-soft);border-radius:1px;background:rgba(33,77,134,.035)}
@@ -372,7 +372,7 @@ body:before{
 .shell>main .task-signature-method-status{color:#657184}.shell>main .task-signature-method-status b{color:#2f6640}
 .shell>main .task-signature-empty{border-color:var(--dossier-rule);border-radius:1px;background:rgba(255,255,255,.36)}
 .shell>main .task-signature-empty b{color:var(--dossier-ink)}.shell>main .task-signature-empty span{color:#657184}
-.shell>main :is(button,select,input):disabled{color:#687386;opacity:.72}
+.shell>main :is(button,select,input):disabled{color:#526075;opacity:.78}
 .shell>main .scenario-builder{grid-template-columns:minmax(0,1fr);gap:10px;padding-block:18px}
 .shell>main .projection{min-width:0;overflow-wrap:anywhere}
 .shell>main button,.shell>main .upload,.shell>main .search,.shell>main select,.shell>main input,.shell>main textarea{
@@ -393,7 +393,7 @@ body:before{
 .shell>main :is(.route,.sample,.task-summary div,.task-metrics div,.evidence-list div,.task-example,.pricing-editor,.range-tabs,.comparison,.monthly-breakdown,.scenario-metrics){border-color:var(--dossier-rule);border-radius:1px;background:rgba(255,255,255,.46)}
 .shell>main .current-baseline-grid{border-color:var(--dossier-rule);background:rgba(255,255,255,.46)}
 .shell>main .current-baseline-grid>div{border-color:var(--dossier-rule-soft)}
-.shell>main .current-baseline-grid small,.shell>main .current-baseline-grid span{color:#687386}
+.shell>main .current-baseline-grid small,.shell>main .current-baseline-grid span{color:#526075}
 .shell>main .current-baseline-grid b{color:var(--dossier-ink)}
 .shell>main :is(.comparison-head,.scenario-metric-head,.monthly-breakdown-head){border-color:var(--dossier-rule);background:rgba(33,77,134,.07);color:#5e6b7f}
 .shell>main :is(.comparison-row,.scenario-metric-row,.monthly-breakdown-row,.saving){border-color:var(--dossier-rule-soft);color:#2f3c50}
@@ -600,6 +600,8 @@ body:before{
 .shell>main .frontier-summary-table td:first-child small,
 .shell>main .frontier-matrix>tbody>tr>th span,
 .shell>main .frontier-case-summary small{color:#526075}
+.shell>main .frontier-run-bar span.ready{color:#315f43}
+.shell>aside .workspace-switcher small{color:#91a99d}
 .shell>main .frontier-routing article :is(b,p){color:#526075}
 .shell>main .frontier-routing article strong{color:#216437}
 
@@ -986,4 +988,13 @@ body:before{
 }
 @media(max-width:760px){
   .shell>main .scenario-controls{grid-template-columns:1fr}
+  .shell .header-workspace-control{min-width:0;max-width:128px}
+  .shell .mobile-workspace-select{width:100%;max-width:128px}
+  .shell>main .recommendations-page .export{display:flex;flex-wrap:wrap;width:100%}
+  .shell>main .recommendations-page .export button{flex:1 1 140px;min-width:0}
 }
+
+.shell>main .monthly-saving.zero b{color:#526075}
+.shell>main .calibration-disagreements code{overflow-wrap:anywhere;white-space:normal}
+.shell>main .task-signature-generate span{color:#526075}
+.shell>main .eval-library-head>p{color:#4c5d54}

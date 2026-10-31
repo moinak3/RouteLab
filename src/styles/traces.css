@@ -42,3 +42,8 @@
     grid-template-columns:1fr;
   }
 }
+
+/* The source chooser stays dark inside the paper dossier. */
+.shell>main .trace-source-bar .eyebrow{color:#dce8e2}
+.shell>main .trace-source-bar>div:first-child small,
+.shell>main .trace-source-actions button span{color:#b9cbc2}

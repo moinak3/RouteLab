@@ -1,4 +1,4 @@
-.task-signatures-page{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:860px}
+.task-signatures-page{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
 .task-signature-config{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;padding:24px 26px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(120deg,rgba(154,108,255,.1),rgba(88,240,132,.055))}
 .task-signature-config-head{display:flex;justify-content:space-between;align-items:flex-start;gap:28px}
 .task-signature-config-head h2{margin:6px 0 8px;color:#fff;font-size:22px;letter-spacing:0}
@@ -16,4 +16,12 @@
 .task-signature-method-status{display:flex;gap:10px;align-items:center;padding-top:2px;color:#83978d;font-size:12px}.task-signature-method-status b{color:#cbd9d2}.task-signature-method-status span{padding-left:10px;border-left:1px solid var(--line)}
 .task-signature-empty{display:grid;place-items:center;align-content:center;gap:7px;min-height:280px;padding:32px;border:1px dashed var(--line-strong);border-radius:10px;background:rgba(255,255,255,.018);text-align:center}.task-signature-empty b{color:#e5f0ea}.task-signature-empty span{color:#82968c;font-size:12px}
 .task-signatures-page>.panel{margin-bottom:0}
-@media(max-width:1000px){.task-signatures-page{min-width:760px}.task-signature-config-head{display:grid}.task-signature-generate{grid-template-columns:1fr auto;align-items:center;justify-items:start}.task-signature-method-status{align-items:flex-start;flex-direction:column}.task-signature-method-status span{padding:0;border:0}}
+@media(max-width:1000px){.task-signature-config-head{display:grid}.task-signature-generate{grid-template-columns:1fr auto;align-items:center;justify-items:start}.task-signature-method-status{align-items:flex-start;flex-direction:column}.task-signature-method-status span{padding:0;border:0}}
+@media(max-width:650px){
+  .task-signature-config{padding:18px 16px}
+  .task-signature-config-head{gap:18px}
+  .task-signature-config-head h2{font-size:20px}
+  .task-signature-generate{grid-template-columns:1fr;width:100%}
+  .task-signature-generate button{width:100%;min-width:0}
+  .task-signature-methods{grid-template-columns:1fr}
+}

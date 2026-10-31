@@ -693,9 +693,10 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
   position:absolute;
   z-index:90;
   top:calc(100% + 8px);
-  left:0;
+  left:auto;
   right:0;
-  min-width:min(520px,calc(100vw - 48px));
+  width:min(520px,calc(100vw - 48px));
+  min-width:0;
   padding:10px;
   border:1px solid var(--line-strong);
   border-radius:12px;
@@ -1233,7 +1234,9 @@ dt{font-size:12px}dd{font-size:12px}.sample{font-size:12px}
 	  border-radius:14px;
 	  padding:12px;
 	  text-align:left;
+  white-space:normal;
 	}
+.scope-option b,.scope-option small{white-space:normal;overflow-wrap:anywhere}
 	.review-choice b{
 	  color:#fff;
 	  font-size:14px;
