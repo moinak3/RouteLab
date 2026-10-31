@@ -1,4 +1,4 @@
-import type { GoldenDatasetRow, Message, Trace } from "../types";
+import type { GoldenDatasetRow, Message, Trace } from "../types.js";
 
 export const EVALUATION_EVIDENCE_SCHEMA_VERSION = "routelab.eval-evidence.v1";
 export const EVALUATION_EVIDENCE_SCOPE = "full_trajectory";
