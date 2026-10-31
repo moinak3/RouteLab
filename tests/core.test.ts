@@ -439,7 +439,7 @@ describe("simulation and recommendations", () => {
     expect(queue.reviewItems[4].reviewReason).toContain("existing evaluator flagged this response for review");
     expect(queue.coverage.coveredSignatures).toBeLessThan(queue.coverage.totalSignatures);
     expect(queue.reviewItems.filter((item) => item.lane === "uncovered")
-      .every((item) => item.reviewReason.includes("No human-labeled golden eval example"))).toBe(true);
+      .every((item) => item.reviewReason.includes("Eval coverage gap"))).toBe(true);
     const thumbsDownReviews = queue.reviewItems.filter((item) => item.lane === "unusual" && traceUserFeedback(item.trace) === "thumbs_down");
     expect(thumbsDownReviews.length).toBeGreaterThanOrEqual(2);
     expect(thumbsDownReviews.every((item) => item.reviewReason.includes("thumbs down"))).toBe(true);
@@ -473,7 +473,9 @@ describe("simulation and recommendations", () => {
     expect(queue.available.unusual).toBe(2);
     expect(queue.reviewItems.some((item) => item.lane === "unusual" && item.reviewReason.includes("Latency 5,000 ms"))).toBe(true);
     expect(queue.reviewItems.some((item) => item.lane === "unusual" && item.reviewReason.includes("negative feedback"))).toBe(true);
-    expect(queue.available.uncovered).toBe(0);
+    expect(queue.available.uncovered).toBe(peers.length);
+    expect(queue.reviewItems.filter((item) => item.lane === "uncovered")
+      .every((item) => item.requiredTasks.includes("task_group"))).toBe(true);
   });
   it("closes a signature coverage gap when a human-labeled example is added", () => {
     const judges = createTraceJudgeResults(traces);

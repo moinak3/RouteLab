@@ -14,13 +14,20 @@ import {
   fetchReviewWorkflow,
   HUMAN_REVIEW_DATASET_ID,
   persistReview,
+  persistReviewCycle,
+  persistTaskGroupReview,
   persistWeeklyReviewBudget,
   reviewLaneFromSearch,
   reviewLaneHref,
+  reviewTaskFromSearch,
   reviewsAsGoldenDataset,
   type PersistedReview,
+  type PersistedTaskGroupReview,
+  type ReviewCycle,
+  type ReviewTaskFilter,
   type ReviewWorkflowState,
   type SaveReviewInput,
+  type SaveTaskGroupReviewInput,
 } from "./core/reviewPersistence";
 import { createSeedTraces, knownDistinctTaskSignatures } from "./core/seed";
 import { createTraceJudgeResults } from "./core/traceJudge";
@@ -148,8 +155,11 @@ export default function App() {
   const [gatewayApiKeys, setGatewayApiKeys] = useState<Partial<Record<GatewayProvider, string>>>({});
   const [serverGatewayKeys, setServerGatewayKeys] = useState<Partial<Record<GatewayProvider, boolean>>>({});
   const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>(() => reviewLaneFromSearch(window.location.search));
+  const [reviewTaskFilter, setReviewTaskFilter] = useState<ReviewTaskFilter>(() => reviewTaskFromSearch(window.location.search));
   const [weeklyReviewBudget, setWeeklyReviewBudget] = useState(DEFAULT_WEEKLY_REVIEW_BUDGET);
   const [persistedReviews, setPersistedReviews] = useState<PersistedReview[]>([]);
+  const [persistedTaskGroupReviews, setPersistedTaskGroupReviews] = useState<PersistedTaskGroupReview[]>([]);
+  const [currentReviewCycle, setCurrentReviewCycle] = useState<ReviewCycle | null>(null);
   const [reviewPersistenceState, setReviewPersistenceState] = useState<"loading" | "ready" | "saving" | "unavailable">("loading");
   const [reviewPersistenceError, setReviewPersistenceError] = useState<string | null>(null);
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
@@ -271,11 +281,14 @@ export default function App() {
         : "Your workspace is ready for its first trace import");
   }
 
-  function navigateToReviewLane(lane: ReviewQueueFilter, options?: { replace?: boolean }) {
-    const nextPath = reviewLaneHref(lane);
+  function navigateToReviewLane(lane: ReviewQueueFilter, taskOrOptions?: ReviewTaskFilter | { replace?: boolean; task?: ReviewTaskFilter }) {
+    const options = typeof taskOrOptions === "string" ? { task: taskOrOptions } : taskOrOptions;
+    const task = options?.task ?? reviewTaskFilter;
+    const nextPath = reviewLaneHref(lane, task);
     const currentPath = `${window.location.pathname}${window.location.search}`;
-    if (currentPath !== nextPath) window.history[options?.replace ? "replaceState" : "pushState"]({ page: "Review Queue", lane }, "", nextPath);
+    if (currentPath !== nextPath) window.history[options?.replace ? "replaceState" : "pushState"]({ page: "Review Queue", lane, task }, "", nextPath);
     setReviewQueueFilter(lane);
+    setReviewTaskFilter(task);
     setPage("Review Queue");
   }
 
@@ -290,7 +303,10 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const nextPage = pageForPath(window.location.pathname) ?? "Home";
-      if (nextPage === "Review Queue") setReviewQueueFilter(reviewLaneFromSearch(window.location.search));
+      if (nextPage === "Review Queue") {
+        setReviewQueueFilter(reviewLaneFromSearch(window.location.search));
+        setReviewTaskFilter(reviewTaskFromSearch(window.location.search));
+      }
       setPage(nextPage);
     };
     window.addEventListener("popstate", handlePopState);
@@ -300,6 +316,8 @@ export default function App() {
   const applyReviewWorkflow = useCallback((workflow: ReviewWorkflowState) => {
     setWeeklyReviewBudget(workflow.weeklyBudget);
     setPersistedReviews(workflow.reviews);
+    setPersistedTaskGroupReviews(workflow.taskGroupReviews);
+    setCurrentReviewCycle(workflow.currentCycle);
     const humanDataset = reviewsAsGoldenDataset(workflow.reviews);
     setGoldenDatasets((items) => {
       const withoutHumanReviews = items.filter((item) => item.id !== HUMAN_REVIEW_DATASET_ID);
@@ -445,9 +463,12 @@ export default function App() {
     setEvalAutomationPolicies([]);
     setWeeklyReviewBudget(DEFAULT_WEEKLY_REVIEW_BUDGET);
     setPersistedReviews([]);
+    setPersistedTaskGroupReviews([]);
+    setCurrentReviewCycle(null);
     setReviewPersistenceState("ready");
     setReviewPersistenceError(null);
     setReviewQueueFilter("representative");
+    setReviewTaskFilter("all");
     setFineTuneJobs([]);
     navigateTo("Overview");
     setNotice("My workspace reset · traces, task groups, evals, reviews, and routing settings cleared");
@@ -492,6 +513,20 @@ export default function App() {
     }
   }
 
+  async function saveReviewCycle(cycle: ReviewCycle) {
+    setReviewPersistenceState("saving");
+    setReviewPersistenceError(null);
+    try {
+      const workflow = await persistReviewCycle(cloudWorkspaceId, cycle.weeklyBudget, cycle);
+      applyReviewWorkflow(workflow);
+      setReviewPersistenceState("ready");
+    } catch (error) {
+      setReviewPersistenceState("unavailable");
+      setReviewPersistenceError(error instanceof Error ? error.message : "The weekly review batch could not be saved.");
+      throw error;
+    }
+  }
+
   async function saveHumanReview(input: SaveReviewInput) {
     setReviewPersistenceState("saving");
     setReviewPersistenceError(null);
@@ -510,6 +545,22 @@ export default function App() {
     } catch (error) {
       setReviewPersistenceState("unavailable");
       setReviewPersistenceError(error instanceof Error ? error.message : "Review persistence is unavailable.");
+      throw error;
+    }
+  }
+
+  async function saveTaskGroupHumanReview(input: SaveTaskGroupReviewInput) {
+    setReviewPersistenceState("saving");
+    setReviewPersistenceError(null);
+    try {
+      const { review } = await persistTaskGroupReview(cloudWorkspaceId, input);
+      setPersistedTaskGroupReviews((items) => [review, ...items.filter((item) => item.traceId !== review.traceId)]);
+      setReviewPersistenceState("ready");
+      setNotice("Task Group label saved · classifier calibration updated");
+      return review;
+    } catch (error) {
+      setReviewPersistenceState("unavailable");
+      setReviewPersistenceError(error instanceof Error ? error.message : "The Task Group label could not be saved.");
       throw error;
     }
   }
@@ -633,10 +684,10 @@ export default function App() {
       {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview key={`overview-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
       {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} taskGroupingMethod={taskGroupingMethod} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
-      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={navigateToReviewLane} onEvalResults={addEvalResults} onAutomationPoliciesChange={setEvalAutomationPolicies} />}
-      {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} onOpenEvalLibrary={() => navigateTo("Evals")} onOpenReviewQueue={() => navigateToReviewLane("unusual")} />}
-      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveReview={saveHumanReview} onOpenClassifierValidation={() => navigateTo("Classifier Validation")} />}
-      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} traces={traces} taskGroups={distinctTaskBuckets} onOpenResponseReview={() => navigateToReviewLane("representative")} onOpenCalibration={() => navigateTo("Golden Dataset")} />}
+      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={(lane) => navigateToReviewLane(lane, "response_quality")} onEvalResults={addEvalResults} onAutomationPoliciesChange={setEvalAutomationPolicies} />}
+      {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} onOpenEvalLibrary={() => navigateTo("Evals")} onOpenReviewQueue={() => navigateToReviewLane("unusual", "response_quality")} />}
+      {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} taskFilter={reviewTaskFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistedTaskGroupReviews={persistedTaskGroupReviews} currentCycle={currentReviewCycle} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveCycle={saveReviewCycle} onSaveReview={saveHumanReview} onSaveTaskGroupReview={saveTaskGroupHumanReview} onOpenClassifierValidation={() => navigateTo("Classifier Validation")} />}
+      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} traces={traces} taskGroups={distinctTaskBuckets} onOpenResponseReview={() => navigateToReviewLane("representative", "task_group")} onOpenCalibration={() => navigateTo("Golden Dataset")} />}
       {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} activeEval={activeEvalConfig} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}

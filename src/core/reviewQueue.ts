@@ -2,12 +2,16 @@ import type { DistinctTaskBucket, GoldenDataset, Trace, TraceJudgeResult } from 
 import { traceUserFeedback } from "./traceFeedback";
 
 export type ReviewLane = "representative" | "unusual" | "uncovered";
+export type ReviewTask = "task_group" | "response_quality";
+export type ReviewCoverageGap = "classifier" | "response_eval";
 export type ReviewQueueItem = {
   trace: Trace;
   bucket?: DistinctTaskBucket;
   judge?: TraceJudgeResult;
   lane: ReviewLane;
   reviewReason: string;
+  requiredTasks: ReviewTask[];
+  coverageGaps: ReviewCoverageGap[];
 };
 export type ReviewQueueResult = {
   reviewItems: ReviewQueueItem[];
@@ -111,7 +115,7 @@ export function buildReviewQueue(
   const judgeByTrace = new Map(judgeResults.map((result) => [result.trace_id, result]));
   const items: ReviewQueueItem[] = traces.map((trace) => ({
     trace, bucket: bucketByTrace.get(trace.id), judge: judgeByTrace.get(trace.id),
-    lane: "representative", reviewReason: "",
+    lane: "representative", reviewReason: "", requiredTasks: ["task_group", "response_quality"], coverageGaps: [],
   }));
   const requested = Math.min(Math.max(0, Math.floor(maxItems)), items.length);
   const third = Math.floor(requested / 3);
@@ -131,12 +135,33 @@ export function buildReviewQueue(
     }
   }
   const allSignatures = new Set(items.map(signature));
-  const uncoveredCandidates = items.filter((item) => !coveredSignatures.has(signature(item)))
+  const hasClassifierCoverage = (item: ReviewQueueItem) => {
+    if (!item.bucket) return false;
+    const decision = item.trace.signature_decision;
+    // Imported legacy traces can already belong to a confirmed Task Group even
+    // when they predate request-time gate metadata. An explicit low-confidence
+    // or unknown Jev result is still a real classifier coverage gap.
+    return !decision || (decision.status === "matched" && decision.routing_action === "signature_route");
+  };
+  const uncoveredCandidates = items.filter((item) => !coveredSignatures.has(signature(item)) || !hasClassifierCoverage(item))
     .map((item): ReviewQueueItem => ({
       ...item, lane: "uncovered",
-      reviewReason: goldenDatasets.length
-        ? "No human-labeled golden eval example covers the " + signatureName(item) + " signature. Review this trace to decide whether to add that signature to the eval set."
-        : "No human-labeled golden eval set is loaded. The " + signatureName(item) + " signature needs reference examples before its judge can be calibrated.",
+      coverageGaps: [
+        ...(!hasClassifierCoverage(item) ? ["classifier" as const] : []),
+        ...(!coveredSignatures.has(signature(item)) ? ["response_eval" as const] : []),
+      ],
+      requiredTasks: [
+        ...(!hasClassifierCoverage(item) ? ["task_group" as const] : []),
+        ...(!coveredSignatures.has(signature(item)) ? ["response_quality" as const] : []),
+      ],
+      reviewReason: [
+        !hasClassifierCoverage(item) ? "Classifier coverage gap: Jev did not produce a confident accepted Task Group assignment." : "",
+        !coveredSignatures.has(signature(item))
+          ? goldenDatasets.length
+            ? "Eval coverage gap: no human-labeled response-quality example covers " + signatureName(item) + "."
+            : "Eval coverage gap: no human-labeled golden dataset is loaded for " + signatureName(item) + "."
+          : "",
+      ].filter(Boolean).join(" "),
     }));
 
   const latencyByPeer = new Map<string, number[]>();
@@ -207,7 +232,17 @@ export function buildReviewQueue(
       priority += 2;
     }
     if (item.judge && !item.judge.passed) { reasons.push("An existing evaluator flagged this response for review."); priority += 1; }
-    return reasons.length ? [{ ...item, lane: "unusual" as const, reviewReason: reasons.join(" "), priority }] : [];
+    const classifierNeedsReview = !hasClassifierCoverage(item);
+    return reasons.length ? [{
+      ...item,
+      lane: "unusual" as const,
+      reviewReason: reasons.join(" "),
+      requiredTasks: classifierNeedsReview
+        ? ["task_group", "response_quality"] as ReviewTask[]
+        : ["response_quality"] as ReviewTask[],
+      coverageGaps: [],
+      priority,
+    }] : [];
   }).sort((a, b) => b.priority - a.priority || observedAt(b.trace) - observedAt(a.trace) || a.trace.id.localeCompare(b.trace.id));
 
   const selected: ReviewQueueItem[] = [];

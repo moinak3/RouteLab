@@ -1,11 +1,14 @@
 import type { GoldenDatasetRow, Trace, TraceJudgeResult } from "../types.js";
 import type { ReviewDecision } from "../types/ui.js";
 import type { ReviewLane } from "../core/reviewQueue.js";
+import type { ReviewCycle, TaskGroupReviewOutcome } from "../core/reviewPersistence.js";
 import { goldenEvidenceFieldsFromTrace } from "../core/evaluationEvidence.js";
 import {
   getReviewWorkflow,
   ReviewStoreUnavailableError,
   saveReviewResult,
+  saveReviewCycle,
+  saveTaskGroupReviewResult,
   saveWeeklyReviewBudget,
 } from "./reviewStore.js";
 
@@ -14,6 +17,7 @@ const MIN_WEEKLY_REVIEW_BUDGET = 3;
 const MAX_WEEKLY_REVIEW_BUDGET = 300;
 const lanes: ReviewLane[] = ["representative", "unusual", "uncovered"];
 const decisions: ReviewDecision[] = ["correct", "incorrect", "escalate", "skip"];
+const taskGroupOutcomes: TaskGroupReviewOutcome[] = ["task_group", "unknown", "ambiguous", "needs_new_group"];
 
 const workspaceId = (req: any) => String(req.query?.workspace ?? process.env.ROUTELAB_POLICY_WORKSPACE_ID ?? "demo").trim() || "demo";
 const databaseUrl = () => String(process.env.DATABASE_URL ?? "").trim();
@@ -53,6 +57,10 @@ export default async function reviewHandler(req: any, res: any) {
     }
     if (req.method === "PUT") {
       const weeklyBudget = normalizedReviewBudget(Number(req.body?.weeklyBudget));
+      const cycle = req.body?.cycle as ReviewCycle | undefined;
+      if (cycle && typeof cycle.id === "string" && Array.isArray(cycle.assignments)) {
+        return sendJson(res, 200, await saveReviewCycle(databaseUrl(), workspaceId(req), { ...cycle, weeklyBudget }, DEFAULT_WEEKLY_REVIEW_BUDGET));
+      }
       return sendJson(res, 200, await saveWeeklyReviewBudget(databaseUrl(), workspaceId(req), weeklyBudget, DEFAULT_WEEKLY_REVIEW_BUDGET));
     }
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
@@ -65,6 +73,19 @@ export default async function reviewHandler(req: any, res: any) {
     const rationale = String(req.body?.rationale ?? "").trim() || null;
     if (!isObject(trace) || typeof trace.id !== "string" || !trace.id.trim()) return sendJson(res, 400, { error: "A valid trace is required." });
     if (!lanes.includes(lane)) return sendJson(res, 400, { error: "A valid review lane is required." });
+    if (req.body?.reviewTask === "task_group") {
+      const outcome = req.body?.outcome as TaskGroupReviewOutcome;
+      const taskGroupId = String(req.body?.taskGroupId ?? "").trim() || null;
+      const taskGroupName = String(req.body?.taskGroupName ?? "").trim() || null;
+      const taskRationale = String(req.body?.rationale ?? "").trim() || null;
+      if (!taskGroupOutcomes.includes(outcome)) return sendJson(res, 400, { error: "Choose a valid Task Group review outcome." });
+      if (outcome === "task_group" && !taskGroupId) return sendJson(res, 400, { error: "Choose the Task Group that best matches this request." });
+      const review = await saveTaskGroupReviewResult({
+        databaseUrl: databaseUrl(), workspaceId: workspaceId(req), traceId: trace.id, lane, outcome,
+        taskGroupId, taskGroupName, rationale: taskRationale, trace,
+      });
+      return sendJson(res, 200, { review });
+    }
     if (!decisions.includes(decision)) return sendJson(res, 400, { error: "A valid review decision is required." });
     if (decision === "incorrect" && !correctAnswer) return sendJson(res, 400, { error: "Provide the corrected answer before adding this conversation to the golden dataset." });
 

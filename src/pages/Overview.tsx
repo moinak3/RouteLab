@@ -52,7 +52,7 @@ const policyDate = (value?: string | null) => value && Number.isFinite(Date.pars
   : "Not available";
 const ratio = (value: number, total: number) => total ? value / total * 100 : 0;
 
-export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResults, evaluationEvidenceCount = 0, workflowCount, onNavigate, onReviewQueue, personalWorkspace = false, workspaceId }: { metrics: ReturnType<typeof dashboardMetrics>; distinctTaskBuckets: DistinctTaskBucket[]; traces: Trace[]; traceJudgeResults: TraceJudgeResult[]; evaluationEvidenceCount?: number; workflowCount: number; onNavigate: (page: Page) => void; onReviewQueue: (filter: ReviewQueueFilter) => void; personalWorkspace?: boolean; workspaceId: string }) {
+export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResults, evaluationEvidenceCount = 0, workflowCount, onNavigate, onReviewQueue, personalWorkspace = false, workspaceId }: { metrics: ReturnType<typeof dashboardMetrics>; distinctTaskBuckets: DistinctTaskBucket[]; traces: Trace[]; traceJudgeResults: TraceJudgeResult[]; evaluationEvidenceCount?: number; workflowCount: number; onNavigate: (page: Page) => void; onReviewQueue: (filter: ReviewQueueFilter, task?: "all" | "task_group" | "response_quality" | "both") => void; personalWorkspace?: boolean; workspaceId: string }) {
   const [segmentType,setSegmentType]=useState<"all"|"model"|"task">("all");
   const [segmentValue,setSegmentValue]=useState("all");
   const max = Math.max(...Object.values(metrics.byModel).map((item) => item.cost));
@@ -121,9 +121,9 @@ export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResul
   const scoredTraceIds=new Set(traceJudgeResults.map(result=>result.trace_id));
   const unscoredGroups=distinctTaskBuckets.filter(bucket=>!bucket.traces.some(traceId=>scoredTraceIds.has(traceId))).length;
   const attentionItems=[
-    coverage.unknown?{label:`${coverage.unknown.toLocaleString()} unknown or low-confidence requests`,detail:"Review outside-coverage conversations",action:()=>onReviewQueue("uncovered")} : null,
-    failingCount?{label:`${failingCount.toLocaleString()} responses below the quality threshold`,detail:"Review unusual covered conversations",action:()=>onReviewQueue("unusual")} : null,
-    unscoredGroups?{label:`${unscoredGroups.toLocaleString()} task groups have no scored traces`,detail:"Review outside-coverage conversations",action:()=>onReviewQueue("uncovered")} : null,
+    coverage.unknown?{label:`${coverage.unknown.toLocaleString()} unknown or low-confidence requests`,detail:"Review outside-coverage conversations",action:()=>onReviewQueue("uncovered", "task_group")} : null,
+    failingCount?{label:`${failingCount.toLocaleString()} responses below the quality threshold`,detail:"Review unusual covered conversations",action:()=>onReviewQueue("unusual", "response_quality")} : null,
+    unscoredGroups?{label:`${unscoredGroups.toLocaleString()} task groups have no scored traces`,detail:"Review outside-coverage conversations",action:()=>onReviewQueue("uncovered", "response_quality")} : null,
     draftUpdatedAfterDeployment?{label:"Saved draft changed after the active policy was published",detail:"Review and publish the draft",action:()=>onNavigate("Simulations")} : null,
     !activeSummary&&publishedState==="ready"&&overrideCount>0?{label:"No signed policy is deployed",detail:"Publish a routing policy",action:()=>onNavigate("Simulations")} : null,
   ].filter((item):item is NonNullable<typeof item>=>Boolean(item));

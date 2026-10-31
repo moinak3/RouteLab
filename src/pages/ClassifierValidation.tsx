@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { buildClassifierValidationReport, classifierValidationReadiness, createDemoClassifierValidationExamples } from "../core/classifierValidation";
 import {
   classifierExamplesFromAssignments,
-  createWeeklyAssignmentValidationRound,
   decisionAssignments,
   emptyAssignmentValidationWorkflow,
   reviewedSignatureId,
@@ -149,7 +148,6 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
   const traceById = useMemo(() => new Map(traces.map((trace) => [trace.id, trace])), [traces]);
   const [workflow, setWorkflow] = useState<AssignmentValidationWorkflow | null>(() => loadLocalAssignmentValidation(workspaceId));
   const [sampleSize, setSampleSize] = useState("20");
-  const [weeklyBudget, setWeeklyBudget] = useState("20");
   const [outcome, setOutcome] = useState<HumanAssignmentOutcome>("task_group");
   const [selectedSignature, setSelectedSignature] = useState("");
   const [rationale, setRationale] = useState("");
@@ -164,7 +162,6 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
       if (saved) {
         saveLocalAssignmentValidation(workspaceId, saved);
         setWorkflow(saved);
-        setWeeklyBudget(String(saved.weeklyBudget));
       }
       setState("ready");
     }).catch(() => setState(loadLocalAssignmentValidation(workspaceId) ? "unavailable" : "ready"));
@@ -234,7 +231,6 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
       const saved = await persistAssignmentValidation(workspaceId, next);
       saveLocalAssignmentValidation(workspaceId, saved);
       setWorkflow(saved);
-      setWeeklyBudget(String(saved.weeklyBudget));
       setState("ready");
     } catch (saveError) {
       setState("unavailable");
@@ -295,20 +291,6 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
       setState("ready");
       setError(runError instanceof Error ? runError.message : "Automated classifier comparison failed.");
     }
-  }
-
-  function createWeeklyRound() {
-    if (!workflow || !comparisonsComplete) return;
-    const next = createWeeklyAssignmentValidationRound(workflow, traces, taskGroups, Number(weeklyBudget) || 20);
-    if (!next.sampleTraceIds.length) {
-      setError("No unseen traces are available for the next weekly validation round.");
-      return;
-    }
-    setError(null);
-    setSelectedSignature("");
-    setOutcome("task_group");
-    setRationale("");
-    void save(next);
   }
 
   const readiness = classifierValidationReadiness({ reviewedLabelCount: workflow?.labels.length ?? 0, jevComparisonCount: workflow?.jevAssignments.length ?? 0 });
@@ -377,10 +359,9 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
       {jevReport && <details className="panel classifier-advanced"><summary><span><small>Assignment errors</small><b>See the human vs Jev confusion matrix</b></span><i aria-hidden="true">+</i></summary><div className="classifier-advanced-body"><section className="classifier-confusion"><div className="panelhead"><div><p className="eyebrow">Error structure</p><h2>Which Task Groups does Jev confuse?</h2></div><span>Rows = human label · columns = Jev decision</span></div><p className="classifier-interaction-hint">The diagonal shows agreement. A value outside the diagonal is a mismatch to investigate. An abstention stays on the default or review path.</p><div className="tablewrap"><table><thead><tr><th>Human-reviewed Task Group</th>{meaningfulJevLabels.map((label) => <th title={labelNames.get(label) ?? label} key={label}>{shortLabel(label)}</th>)}</tr></thead><tbody>{meaningfulJevLabels.filter((label) => label !== "abstain").map((actual) => { const actualLabel = labelNames.get(actual) ?? actual; const reviewedCount = Object.values(jevReport.confusion[actual] ?? {}).reduce((sum, value) => sum + value, 0); return <tr key={actual}><th title={actualLabel}>{actualLabel}</th>{meaningfulJevLabels.map((predicted) => { const count = jevReport.confusion[actual]?.[predicted] ?? 0; const predictedLabel = labelNames.get(predicted) ?? predicted; return <td className={actual === predicted ? "correct" : count ? "error" : ""} key={predicted}><HoverExplanation className="classifier-cell-explainer" explanation={matrixExplanation({ actualLabel, predictedLabel, count, reviewedCount, isCorrect: actual === predicted })}>{count}</HoverExplanation></td>; })}</tr>; })}</tbody></table></div></section></div></details>}
 
       {comparisonsComplete && <section className="panel classifier-weekly-plan">
-        <div><p className="eyebrow">Ongoing classifier review</p><h2>Set a separate weekly Task Group review budget</h2><p>RouteLab puts 60% into a blind, stratified monitoring lane and 40% into targeted corrections such as low confidence, close runner-up, unknown, error, and high-risk requests.</p></div>
-        <label>Classifier conversations per week<input type="number" min="5" max={Math.max(5, traces.length)} value={weeklyBudget} onChange={(event) => setWeeklyBudget(event.target.value)} /></label>
-        <div className="classifier-weekly-split"><span><b>{Math.ceil((Number(weeklyBudget) || 20) * .6)}</b> blind monitoring</span><span><b>{Math.floor((Number(weeklyBudget) || 20) * .4)}</b> targeted corrections</span></div>
-        <button type="button" className="primary" onClick={createWeeklyRound}>Create next weekly round</button>
+        <div><p className="eyebrow">Ongoing classifier review</p><h2>Continue in the shared weekly review batch</h2><p>The one workspace review budget now covers both Task Group labels and response-quality judgments. Representative requests maintain an unbiased classifier trend; unusual and coverage-gap requests target low confidence, unknowns, drift, and missing Task Groups.</p></div>
+        <div className="classifier-weekly-split"><span><b>Representative</b> blind accuracy trend</span><span><b>Targeted</b> unusual and coverage gaps</span></div>
+        <button type="button" className="primary" onClick={onOpenResponseReview}>Open weekly review batch</button>
       </section>}
 
       {roundHistory.length > 0 && <section className="panel classifier-round-history"><div className="panelhead"><div><p className="eyebrow">Validation history</p><h2>Baseline and weekly rounds</h2></div><span>{roundHistory.length} round{roundHistory.length === 1 ? "" : "s"}</span></div><div className="tablewrap"><table><thead><tr><th>Round</th><th>Catalog</th><th>Human labels</th><th>Jev</th><th>Strong LLM</th><th>Status</th></tr></thead><tbody>{roundHistory.map((round) => { const roundJevExamples = classifierExamplesFromAssignments(round, traces, round.jevAssignments, thresholdBySignature); const roundLlmExamples = classifierExamplesFromAssignments(round, traces, round.llmAssignments); const roundJev = roundJevExamples.length ? buildClassifierValidationReport(roundJevExamples, signatures, { ...reportMetadata, classifierModel: round.jevAssignments[0]?.model ?? "Jev" }) : null; const roundLlm = roundLlmExamples.length ? buildClassifierValidationReport(roundLlmExamples, signatures, { ...reportMetadata, classifierModel: round.llmAssignments[0]?.model ?? "strong LLM" }) : null; return <tr key={round.roundId}><td><b>{round.roundKind === "initial" ? "Initial baseline" : round.weekOf}</b><small>{round.roundId}</small></td><td>{round.catalogVersion}</td><td>{round.labels.length}/{round.sampleTraceIds.length}</td><td>{roundJev ? <><b>{pct(roundJev.acceptedPrecision * 100)} precision</b><small>{pct(roundJev.coverage * 100)} coverage</small><AgreementStack label="Jev" counts={agreementCounts(roundJevExamples)} compact /></> : "Pending"}</td><td>{roundLlm ? <><b>{pct(roundLlm.acceptedPrecision * 100)} precision</b><AgreementStack label="Strong LLM" counts={agreementCounts(roundLlmExamples)} compact /></> : "Pending"}</td><td>{roundStatus(round)}</td></tr>; })}</tbody></table></div></section>}

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_WEEKLY_REVIEW_BUDGET,
   MIN_WEEKLY_REVIEW_BUDGET,
+  currentReviewCycleId,
   normalizedReviewBudget,
   reviewLaneFromSearch,
   reviewLaneHref,
+  reviewTaskFromSearch,
   reviewWorkflowErrorMessage,
   reviewsAsGoldenDataset,
   type PersistedReview,
@@ -13,9 +15,18 @@ import {
 describe("review workflow persistence", () => {
   it("builds stable deep links for all three review lanes", () => {
     expect(reviewLaneHref("representative")).toBe("/quality/review-queue?lane=representative");
+    expect(reviewLaneHref("unusual", "task_group", "trace_123")).toBe("/quality/review-queue?lane=unusual&task=task_group&trace=trace_123");
     expect(reviewLaneFromSearch("?lane=unusual")).toBe("unusual");
     expect(reviewLaneFromSearch("?lane=uncovered")).toBe("uncovered");
     expect(reviewLaneFromSearch("?lane=not-a-lane")).toBe("representative");
+    expect(reviewTaskFromSearch("?lane=representative&task=response_quality")).toBe("response_quality");
+    expect(reviewTaskFromSearch("?task=both")).toBe("both");
+    expect(reviewTaskFromSearch("?task=not-a-task")).toBe("all");
+  });
+
+  it("uses stable ISO week identifiers for frozen review batches", () => {
+    expect(currentReviewCycleId(new Date("2026-10-31T12:00:00.000Z"))).toBe("2026-W44");
+    expect(currentReviewCycleId(new Date("2027-01-01T12:00:00.000Z"))).toBe("2026-W53");
   });
 
   it("keeps weekly review budgets within the supported range", () => {
