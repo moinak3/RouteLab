@@ -105,6 +105,12 @@ const policySaveLabel = (state: RoutingPolicySaveState) => ({
     offline: "Saved in this browser",
     conflict: "Newer cloud draft found",
 })[state];
+function RunMetricPair({ current, candidate, label }: { current: string; candidate: string; label: string }) {
+    return <div className="live-replay-comparison" aria-label={`Current ${label}: ${current}. Candidate ${label}: ${candidate}.`}>
+      <span><small>Current</small><b>{current}</b></span>
+      <span><small>Candidate</small><b>{candidate}</b></span>
+    </div>;
+}
 function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     liveDirect: LiveDirectState | null;
     pendingLiveReplay: PendingLiveReplay | null;
@@ -129,9 +135,14 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     const afterLatency = average(rows.map(row => row.run.latency_ms));
     const label = liveDirect?.label ?? pendingLiveReplay?.label ?? "candidate model";
     const selectedModels = [...new Set(rows.map((row) => row.run.selected_model).filter(Boolean))] as string[];
+    const evaluation = liveDirect?.result.evaluation;
     return <div className="live-replay-details">
     <div className="live-replay-head">
-      <div><p className="eyebrow">Live candidate requests</p><h3>{traces.length.toLocaleString()} traces sent · {completedCount.toLocaleString()} completed</h3></div>
+      <div><p className="eyebrow">Live candidate requests</p><h3>{traces.length.toLocaleString()} traces sent · {completedCount.toLocaleString()} completed</h3>
+        <p className="live-replay-eval-proof">{evaluation
+          ? <><b>Actual judge run:</b> {evaluation.eval_name} v{evaluation.eval_version} · {evaluation.judge_model}</>
+          : "The active eval will grade each candidate response after it returns."}</p>
+      </div>
       <span>{label}</span>
     </div>
     <div className="live-replay-summary">
@@ -156,15 +167,15 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
           <td>{preview(stripJudgeMarker(trace.response_text ?? ""), 220)}</td>
           <td><span className="status pending">pending</span><p>Sent to {label}; waiting for candidate response.</p></td>
           <td><b>{scoreLabel(judgeByTraceId.get(trace.id)?.score)} → pending</b><small>Eval runs after the candidate response returns.</small></td>
-          <td>{compactMoney(trace.cost_usd ?? 0)} → pending</td>
-          <td>{(trace.latency_ms ?? 0).toFixed(0)}ms → pending</td>
+          <td><RunMetricPair label="cost" current={compactMoney(trace.cost_usd ?? 0)} candidate="Pending" /></td>
+          <td><RunMetricPair label="latency" current={`${(trace.latency_ms ?? 0).toFixed(0)}ms`} candidate="Pending" /></td>
         </tr>)}{rows.map(row => <tr key={row.run.id}>
           <td><b>{row.trace.id}</b><small>{preview(row.trace.prompt_text, 180)}</small></td>
           <td>{preview(stripJudgeMarker(row.trace.response_text ?? ""), 220)}</td>
           <td><span className={`status ${row.run.status}`}>{row.run.status}</span>{row.run.selected_model&&<small>Selected {row.run.selected_model}</small>}<p>{preview(stripJudgeMarker(row.run.response_text), 260)}</p></td>
           <td><b>{scoreLabel(row.beforeScore)} → {scoreLabel(row.evaluation?.score)}</b><small>{row.evaluation?.explanation ?? "No eval rationale returned."}</small></td>
-          <td>{compactMoney(row.trace.cost_usd ?? 0)} → {compactMoney(row.run.cost_usd)}</td>
-          <td>{(row.trace.latency_ms ?? 0).toFixed(0)}ms → {row.run.latency_ms.toFixed(0)}ms</td>
+          <td><RunMetricPair label="cost" current={compactMoney(row.trace.cost_usd ?? 0)} candidate={compactMoney(row.run.cost_usd)} /></td>
+          <td><RunMetricPair label="latency" current={`${(row.trace.latency_ms ?? 0).toFixed(0)}ms`} candidate={`${row.run.latency_ms.toFixed(0)}ms`} /></td>
         </tr>)}</tbody>
       </table>
     </div>

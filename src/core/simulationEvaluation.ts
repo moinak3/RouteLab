@@ -41,6 +41,14 @@ async function scorePopulation({
   if (results.length !== traces.length) {
     throw new Error(`The judge scored ${results.length.toLocaleString()} of ${traces.length.toLocaleString()} ${mode === "simulation_candidate" ? "candidate" : "baseline"} responses.`);
   }
+  const mismatchedResult = results.find((result) =>
+    result.eval_id !== activeEval.definition.id
+    || result.eval_version !== activeEval.version
+    || result.run_mode !== mode,
+  );
+  if (mismatchedResult) {
+    throw new Error(`The judge returned a result from a different eval identity. Expected ${activeEval.definition.id} v${activeEval.version} in ${mode} mode.`);
+  }
   return results;
 }
 

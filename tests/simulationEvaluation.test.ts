@@ -70,7 +70,7 @@ describe("paired simulation evaluation", () => {
       const request = JSON.parse(String(init?.body));
       expect(request.mode).toBe("simulation_candidate");
       expect(request.evalVersion).toBe(activeEval.version);
-      expect(request.definition.id).toBe(activeEval.definition.id);
+      expect(request.definition).toEqual(activeEval.definition);
       expect(request.traces[0].response_text).toBe(run.response_text);
       return new Response(JSON.stringify({
         run: { id: "candidate_run", evalId: activeEval.definition.id, evalName: activeEval.definition.name, evalVersion: 2, mode: "simulation_candidate", status: "completed", traceCount: 1, passed: 1, failed: 0, averageScore: .9, startedAt: "now", completedAt: "now" },
@@ -123,5 +123,22 @@ describe("paired simulation evaluation", () => {
 
     expect(new Set(modes)).toEqual(new Set(["simulation_baseline", "simulation_candidate"]));
     expect(evaluated.baselineResults[0]).toMatchObject({ score: .7, eval_version: 2 });
+  });
+
+  it("rejects candidate scores returned under a different eval identity", async () => {
+    const baseline = judgeResult("simulation_baseline", .61);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      run: { id: "candidate_run", evalId: "other_eval", evalName: "Other eval", evalVersion: 1, mode: "simulation_candidate", status: "completed", traceCount: 1, passed: 1, failed: 0, averageScore: .9, startedAt: "now", completedAt: "now" },
+      results: [{ ...judgeResult("simulation_candidate", .9), eval_id: "other_eval", eval_version: 1 }],
+      errors: [],
+    }), { status: 200 })));
+
+    await expect(evaluateLiveReplay({
+      workspaceId: "workspace_1",
+      activeEval,
+      traces: [trace],
+      runs: [run],
+      existingBaselineResults: [baseline],
+    })).rejects.toThrow("different eval identity");
   });
 });
