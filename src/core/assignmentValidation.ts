@@ -1,5 +1,14 @@
-import type { DistinctTaskBucket, KnownTaskSignature, Trace, TraceSignatureDecision } from "../types";
-import type { ClassifierValidationExample } from "./classifierValidation";
+import type { DistinctTaskBucket, KnownTaskSignature, Trace, TraceSignatureDecision } from "../types.js";
+
+type ClassifierValidationExample = {
+  id: string;
+  promptPreview: string;
+  reviewedSignatureId: string;
+  predictedSignatureId: string;
+  confidence: number;
+  accepted: boolean;
+  usesOnlyPreInferenceInformation: boolean;
+};
 
 export type HumanAssignmentOutcome = "task_group" | "unknown" | "ambiguous" | "needs_new_group";
 
