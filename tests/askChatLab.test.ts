@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, workspaceCoverageSummary } from "../src/core/askChatLab";
-import type { DistinctTaskBucket, Model, Trace } from "../src/types";
+import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, workspaceCoverageSummary, workspaceMetricSummary } from "../src/core/askChatLab";
+import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../src/types";
 
 const traces = Array.from({ length: 10 }, (_, index): Trace => ({
   id: `trace_${index}`,
@@ -84,5 +84,20 @@ describe("AskChatLab", () => {
     expect(summary.classifierGaps).toHaveLength(5);
     expect(summary.evalGaps).toHaveLength(10);
     expect(summary.topReasons[0]).toEqual(["No Task Group assignment", 5]);
+  });
+
+  it("includes legacy unversioned demo scores in the active-eval summary", () => {
+    const result: TraceJudgeResult = {
+      id: "judge_0",
+      trace_id: "trace_0",
+      evaluator_type: "trace_quality_llm_judge",
+      created_at: traces[0].timestamp,
+      score: 0.8,
+      passed: true,
+      rationale: "Complete",
+    };
+    const summary = workspaceMetricSummary(traces, [result], { id: "active_eval", version: 2 });
+    expect(summary.scored).toBe(1);
+    expect(summary.averageScore).toBe(0.8);
   });
 });

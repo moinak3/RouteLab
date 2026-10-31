@@ -102,10 +102,17 @@ export function resolveModel(query: string, models: Model[]) {
 
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
+function resultsForActiveEval(results: TraceJudgeResult[], traceIds: Set<string>, activeEval?: { id: string; version: number }) {
+  const workspaceResults = results.filter((result) => traceIds.has(result.trace_id));
+  if (!activeEval) return workspaceResults;
+  return workspaceResults.filter((result) => (
+    result.eval_id === activeEval.id && result.eval_version === activeEval.version
+  ) || (!result.eval_id && result.eval_version === undefined));
+}
+
 export function workspaceMetricSummary(traces: Trace[], results: TraceJudgeResult[], activeEval?: { id: string; version: number }) {
   const traceIds = new Set(traces.map((trace) => trace.id));
-  const matchingResults = results.filter((result) => traceIds.has(result.trace_id)
-    && (!activeEval || (result.eval_id === activeEval.id && result.eval_version === activeEval.version)));
+  const matchingResults = resultsForActiveEval(results, traceIds, activeEval);
   const latest = traces.reduce((max, trace) => Math.max(max, Date.parse(trace.timestamp) || 0), 0);
   const recentStart = latest - 7 * 24 * 60 * 60 * 1000;
   const priorStart = recentStart - 7 * 24 * 60 * 60 * 1000;
@@ -127,9 +134,7 @@ export function workspaceMetricSummary(traces: Trace[], results: TraceJudgeResul
 
 export function workspaceCoverageSummary(traces: Trace[], groups: DistinctTaskBucket[], results: TraceJudgeResult[], activeEval?: { id: string; version: number }) {
   const grouped = new Set(groups.flatMap((group) => group.traces));
-  const evaluated = new Set(results
-    .filter((result) => !activeEval || (result.eval_id === activeEval.id && result.eval_version === activeEval.version))
-    .map((result) => result.trace_id));
+  const evaluated = new Set(resultsForActiveEval(results, new Set(traces.map((trace) => trace.id)), activeEval).map((result) => result.trace_id));
   const classifierGaps = traces.filter((trace) => !grouped.has(trace.id)
     || Boolean(trace.signature_decision && (
       trace.signature_decision.status !== "matched"
