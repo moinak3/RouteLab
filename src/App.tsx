@@ -709,7 +709,7 @@ export default function App() {
   return <div className="shell">
     <aside>
       <a className="brand" href="/" aria-label="RouteLab home"><span className="brandmark">R</span><div><b>RouteLab</b><small>Routing intelligence</small></div></a>
-      <label className="workspace-switcher"><span>Workspace</span><select value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select><small>{activeWorkspace === "demo" ? "Sample data · changes reset" : traces.length ? `${traces.length.toLocaleString()} imported traces` : "No data added yet"}</small></label>
+      <label className="workspace-switcher"><span>Workspace</span><select value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select>{activeWorkspace === "demo" && <small>Sample data · changes reset</small>}</label>
       <nav aria-label="Primary navigation">
         <small className="nav-group-label">Workflow</small>
         {workflowNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
