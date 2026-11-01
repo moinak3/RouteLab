@@ -11,6 +11,11 @@
   border-color:var(--red);
   color:var(--red);
 }
+.simulation-run-status.success{
+  border-color:#2f7a4b;
+  background:#e8f6ec;
+  color:#17462b;
+}
 
 .current-baseline-grid{
   display:grid;

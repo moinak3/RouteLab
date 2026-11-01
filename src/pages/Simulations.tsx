@@ -136,14 +136,7 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
     });
     const pendingRows = traces.filter(trace => !runsByTraceId.has(trace.id));
     const completedCount = rows.length;
-    const beforeScores = rows.map(row => row.beforeScore).filter((value): value is number => typeof value === "number");
-    const afterScores = rows.map(row => row.evaluation?.score).filter((value): value is number => typeof value === "number");
-    const beforeCost = rows.reduce((sum, row) => sum + (row.trace.cost_usd ?? 0), 0);
-    const afterCost = rows.reduce((sum, row) => sum + row.run.cost_usd, 0);
-    const beforeLatency = average(rows.map(row => row.trace.latency_ms ?? 0));
-    const afterLatency = average(rows.map(row => row.run.latency_ms));
     const label = liveDirect?.label ?? pendingLiveReplay?.label ?? "candidate model";
-    const selectedModels = [...new Set(rows.map((row) => row.run.selected_model).filter(Boolean))] as string[];
     const evaluation = liveDirect?.result.evaluation;
     return <div className="live-replay-details">
     <div className="live-replay-head">
@@ -153,12 +146,6 @@ function LiveReplayDetails({ liveDirect, pendingLiveReplay, judgeByTraceId }: {
           : "The active eval will grade each candidate response after it returns."}</p>
       </div>
       <span>{label}</span>
-    </div>
-    <div className="live-replay-summary">
-      <div><small>Quality</small><b>{completedCount ? `${scoreLabel(average(beforeScores))} → ${scoreLabel(average(afterScores))}` : "Waiting for eval"}</b></div>
-      <div><small>Cost</small><b>{completedCount ? `${compactMoney(beforeCost)} → ${compactMoney(afterCost)}` : "Waiting for response"}</b></div>
-      <div><small>Latency</small><b>{completedCount ? `${beforeLatency.toFixed(0)}ms → ${afterLatency.toFixed(0)}ms` : "Waiting for response"}</b></div>
-      <div><small>Models selected</small><b>{selectedModels.length ? selectedModels.join(", ") : "Waiting for response"}</b></div>
     </div>
     <div className="live-replay-table-wrap">
       <table className="live-replay-table">
@@ -218,7 +205,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const [liveDirect, setLiveDirect] = useState<LiveDirectState | null>(null);
     const [pendingLiveReplay, setPendingLiveReplay] = useState<PendingLiveReplay | null>(null);
     const [liveStatus, setLiveStatus] = useState<{
-        state: "idle" | "running" | "error";
+        state: "idle" | "running" | "success" | "error";
         message: string;
     }>({ state: "idle", message: "" });
     const liveAbortRef = useRef<AbortController | null>(null);
@@ -396,7 +383,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
                 result: evaluated.result,
             });
             setPendingLiveReplay(null);
-            setLiveStatus({ state: failures ? "error" : "idle", message: failures ? `${failures.toLocaleString()} of ${live.runs.length.toLocaleString()} live requests failed; failed requests count as unsuccessful outcomes.` : `Live replay and paired eval completed through ${live.label}.` });
+            setLiveStatus({ state: failures ? "error" : "success", message: failures ? `${failures.toLocaleString()} of ${live.runs.length.toLocaleString()} live requests failed; failed requests count as unsuccessful outcomes.` : `Live replay and paired eval completed through ${live.label}.` });
         }
         catch (error) {
             if (controller.signal.aborted) {
