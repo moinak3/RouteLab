@@ -677,8 +677,8 @@
   z-index:8;
   right:0;
   bottom:calc(100% + 8px);
-  width:max-content;
-  max-width:220px;
+  width:190px;
+  max-width:min(220px,calc(100vw - 32px));
   padding:7px 9px;
   border:1px solid #263c31;
   border-radius:5px;
@@ -688,6 +688,9 @@
   font-size:12px;
   font-weight:500;
   line-height:1.35;
+  overflow-wrap:anywhere;
+  text-align:left;
+  white-space:normal;
   opacity:0;
   pointer-events:none;
   transform:translateY(3px);
