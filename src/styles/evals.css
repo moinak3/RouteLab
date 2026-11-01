@@ -537,7 +537,7 @@
 }
 .eval-library-table{
   min-width:0;
-  overflow:hidden;
+  overflow:visible;
   border:1px solid #d8e1da;
   border-radius:10px;
   background:#fff;
@@ -723,8 +723,9 @@
 .eval-row-menu-popover{
   position:absolute;
   z-index:12;
-  top:calc(100% + 6px);
+  top:auto;
   right:0;
+  bottom:calc(100% + 6px);
   display:grid;
   width:190px;
   padding:6px;
