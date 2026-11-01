@@ -62,8 +62,45 @@
 .evidence-list div{
   grid-template-columns:160px minmax(0,1fr);
 }
+.llm-task-definition>p{
+  margin:0;
+  line-height:1.55;
+}
+.llm-task-definition .llm-definition-grid{
+  margin-top:4px;
+}
+.llm-task-definition .llm-definition-grid section{
+  padding:14px;
+}
+.llm-task-definition .llm-definition-grid p{
+  margin:6px 0 0;
+  line-height:1.5;
+}
+.llm-task-definition-block{
+  display:grid;
+  gap:8px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+}
+.llm-task-definition-block>p{
+  margin:0;
+  line-height:1.5;
+}
+.llm-task-definition .llm-text-link{
+  min-height:auto;
+}
+.llm-counterexample{
+  display:grid;
+  grid-template-columns:minmax(130px,.3fr) minmax(0,1fr);
+  gap:12px;
+  padding:9px 0;
+  border-bottom:1px solid var(--line);
+}
+.llm-counterexample:last-child{border-bottom:0}
+.llm-counterexample :is(b,span){min-width:0;overflow-wrap:anywhere}
 @media(max-width:650px){
   .task-summary,
   .task-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .evidence-list div{grid-template-columns:1fr}
+  .evidence-list div,
+  .llm-counterexample{grid-template-columns:1fr}
 }

@@ -702,7 +702,6 @@ body:before{
 .shell>main .task-detail-body .task-action-message{border-color:#7fb18b;background:#e7f2e5;color:#31543b}
 .shell>main .task-detail-body .task-edit-form{border-color:var(--dossier-rule);background:#f7f4ec}
 .shell>main .task-detail-body .task-edit-form label{color:#44536a}
-
 /* Portaled Task Group drawer keeps the dossier treatment outside the app shell. */
 .task-detail-layer{background:rgba(17,27,51,.4)}
 .task-detail{
@@ -743,6 +742,17 @@ body:before{
 .task-detail-body .task-action-message{border-color:#7fb18b;background:#e7f2e5;color:#31543b}
 .task-detail-body .task-edit-form{border-color:var(--dossier-rule);background:#f7f4ec}
 .task-detail-body .task-edit-form label{color:#44536a}
+.task-detail-body .llm-task-definition>p,
+.task-detail-body .llm-task-definition-block>p{color:#45546a}
+.task-detail-body .llm-task-definition .llm-definition-grid section{border-color:var(--dossier-rule);background:#f7f4ec}
+.task-detail-body .llm-task-definition .llm-definition-grid p{color:#45546a}
+.task-detail-body .llm-task-definition .llm-tags span{border-color:#a8c9ae;background:#e7f2e5;color:#31543b}
+.task-detail-body .llm-task-definition-block,
+.task-detail-body .llm-counterexample{border-color:var(--dossier-rule-soft)}
+.task-detail-body .llm-task-definition .llm-text-link b,
+.task-detail-body .llm-counterexample b{color:var(--dossier-ink)}
+.task-detail-body .llm-task-definition .llm-text-link span,
+.task-detail-body .llm-counterexample span{color:#526075}
 .shell>main .eval-modal .modal-head h2,
 .shell>main .eval-modal .eval-version-list article strong,
 .shell>main .eval-modal .eval-version-list article>div>span{color:#fff}

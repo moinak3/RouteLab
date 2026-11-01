@@ -15,11 +15,12 @@ import {
   runLLMGroupingExperiment,
   type LLMGroupingProgress,
 } from "../core/llmGroupingPersistence";
-import type { DistinctTaskBucket, Trace } from "../types";
+import type { DistinctTaskBucket, Trace, TraceJudgeResult } from "../types";
 import { DistinctTasks } from "./DistinctTasks";
 
 type Props = {
   traces: Trace[];
+  traceJudgeResults?: TraceJudgeResult[];
   workspaceId: string;
   serverGatewayKey?: boolean;
   embedded?: boolean;
@@ -52,7 +53,7 @@ function Distribution({ values, label }: { values: number[]; label: string }) {
   </section>;
 }
 
-export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTaskGroups = [], embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange, onRunSimulation }: Props) {
+export function LLMGroupedTasks({ traces, traceJudgeResults = [], workspaceId, serverGatewayKey, savedTaskGroups = [], embedded = false, runToken = 0, onRunningChange, onTaskGroupsChange, onRunSimulation }: Props) {
   const [run, setRun] = useState<LLMGroupingRun | null>(null);
   const [view, setView] = useState<View>("groups");
   const [loading, setLoading] = useState(true);
@@ -60,7 +61,6 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
   const [progress, setProgress] = useState<LLMGroupingProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [existingFilter, setExistingFilter] = useState("all");
   const [llmFilter, setLlmFilter] = useState("all");
@@ -72,9 +72,15 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
   const comparison = useMemo(() => run ? compareLLMGrouping(existingBuckets, run) : null, [existingBuckets, run]);
   const currentSnapshot = useMemo(() => createLLMGroupingSnapshot(traces), [traces]);
   const stale = Boolean(run && isLLMGroupingRunOutdated(run, traces));
+  const runBuckets = useMemo(() => run && !stale ? createTaskBucketsFromLLMGrouping(traces, run) : [], [run, stale, traces]);
+  const displayedBuckets = useMemo(() => {
+    if (!runBuckets.length) return runBuckets;
+    const runIds = new Set(runBuckets.map((bucket) => bucket.bucket_id));
+    const savedMatch = runBuckets.every((bucket) => savedTaskGroups.some((saved) => saved.bucket_id === bucket.bucket_id));
+    return savedMatch ? savedTaskGroups.filter((bucket) => runIds.has(bucket.bucket_id)) : runBuckets;
+  }, [runBuckets, savedTaskGroups]);
   const traceById = useMemo(() => new Map(traces.map((trace) => [trace.id, trace])), [traces]);
   const groupById = useMemo(() => new Map((run?.groups ?? []).map((group) => [group.id, group])), [run]);
-  const selectedGroup = selectedGroupId ? groupById.get(selectedGroupId) : undefined;
   const selectedTrace = selectedTraceId ? traceById.get(selectedTraceId) : undefined;
   const selectedAssignment = run?.assignments.find((item) => item.traceId === selectedTraceId);
   const selectedExisting = existingBuckets.find((bucket) => bucket.traces.includes(selectedTraceId ?? ""));
@@ -86,7 +92,6 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
       .then((latest) => {
         const compact = latest ? compactLLMGroupingRunNames(traces, latest) : null;
         setRun(compact);
-        setSelectedGroupId(compact?.groups[0]?.id ?? null);
       })
       .catch((loadError) => {
         if (controller.signal.aborted) return;
@@ -114,7 +119,6 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
       const completed = await runLLMGroupingExperiment(traces, workspaceId, setProgress, controller.signal);
       const compact = compactLLMGroupingRunNames(traces, completed);
       setRun(compact);
-      setSelectedGroupId(compact.groups[0]?.id ?? null);
       setView("groups");
     } catch (runError) {
       if (controller.signal.aborted) setError("Run cancelled. No partial result was saved.");
@@ -197,32 +201,7 @@ export function LLMGroupedTasks({ traces, workspaceId, serverGatewayKey, savedTa
         <button type="button" role="tab" aria-selected={view === "compare"} className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>Compare methods</button>
       </div>
 
-      {view === "groups" ? <div className="llm-group-workspace">
-        <section className="llm-group-list" aria-label="Discovered task groups">
-          {run.groups.map((group) => {
-            const assignments = run.assignments.filter((item) => item.groupId === group.id);
-            return <button type="button" className={selectedGroupId === group.id ? "active" : ""} onClick={() => setSelectedGroupId(group.id)} key={group.id}>
-              <span><b>{group.name}</b><small>{group.description}</small></span>
-              <strong>{assignments.length}</strong>
-            </button>;
-          })}
-          {(run.coverage.ambiguous > 0 || run.coverage.unassigned > 0) && <button type="button" onClick={() => { setView("compare"); setAmbiguousOnly(true); }}><span><b>Ambiguous and unassigned</b><small>Inspect traces that did not receive a confident primary group.</small></span><strong>{run.coverage.ambiguous + run.coverage.unassigned}</strong></button>}
-        </section>
-        {selectedGroup && <section className="llm-group-detail">
-          <header><div><p className="eyebrow">Group definition</p><h3>{selectedGroup.name}</h3></div><code>{selectedGroup.id}</code></header>
-          <p className="llm-definition">{selectedGroup.description}</p>
-          <div className="llm-definition-grid">
-            <section><h4>Include when</h4>{selectedGroup.inclusionCriteria.map((item) => <p key={item}>{item}</p>)}</section>
-            <section><h4>Exclude when</h4>{selectedGroup.exclusionCriteria.map((item) => <p key={item}>{item}</p>)}</section>
-          </div>
-          <section className="llm-attribute-section"><h4>Task attributes</h4>{Object.entries(selectedGroup.attributes).filter(([label]) => label !== "grounding").map(([label, values]) => <div key={label}><span>{label.replace(/([A-Z])/g, " $1")}</span><p>{values.length ? values.join(" · ") : "Not specified"}</p></div>)}</section>
-          <section><h4>Suggested evaluation dimensions</h4><div className="llm-tags">{selectedGroup.suggestedEvaluationDimensions.map((item) => <span key={item}>{item}</span>)}</div></section>
-          <section><h4>Routing relevance</h4><p>{selectedGroup.routingRationale}</p></section>
-          <section><h4>Nearest groups</h4>{selectedGroup.nearestNeighbors.length ? selectedGroup.nearestNeighbors.map((neighbor) => <button type="button" className="llm-text-link" onClick={() => setSelectedGroupId(neighbor.groupId)} key={neighbor.groupId}><b>{groupById.get(neighbor.groupId)?.name ?? neighbor.groupId}</b><span>{neighbor.distinction}</span></button>) : <p>No confusing neighbor was identified.</p>}</section>
-          <section><h4>Representative traces</h4><div className="llm-trace-links">{selectedGroup.representativeTraceIds.map((traceId) => <button type="button" onClick={() => setSelectedTraceId(traceId)} key={traceId}>{traceId}</button>)}</div></section>
-          <section><h4>Confusing counterexamples</h4>{selectedGroup.confusingCounterexamples.length ? selectedGroup.confusingCounterexamples.map((item) => <button type="button" className="llm-text-link" onClick={() => setSelectedTraceId(item.traceId)} key={item.traceId}><b>{item.traceId}</b><span>{item.explanation}</span></button>) : <p>No counterexample was retained.</p>}</section>
-        </section>}
-      </div> : comparison && <div className="llm-comparison">
+      {view === "groups" ? <DistinctTasks traces={traces} traceJudgeResults={traceJudgeResults} buckets={displayedBuckets} groupDefinitions={groupById} onBucketsChange={onTaskGroupsChange} onRunSimulation={onRunSimulation} embedded /> : comparison && <div className="llm-comparison">
         <section className="llm-method-comparison">
           <div><p className="eyebrow">Existing RouteLab grouping</p><h3>{existingBuckets.length} signatures</h3><span>{comparison.existingAssigned} traces assigned using the unchanged deterministic taxonomy.</span></div>
           <div><p className="eyebrow">Independent LLM grouping</p><h3>{run.groups.length} groups</h3><span>{comparison.llmAssigned} assigned · {comparison.ambiguous} ambiguous · {comparison.unassigned} unassigned.</span></div>

@@ -74,6 +74,6 @@ export function TaskSignatures({ traces, traceJudgeResults, workspaceId, serverG
     {method === "rules" ? rulesRunToken > 0 || taskGroups.length > 0
       ? <DistinctTasks key={rulesRunToken} traces={traces} traceJudgeResults={traceJudgeResults} buckets={taskGroups.length ? taskGroups : undefined} onBucketsChange={saveRuleGroups} onRunSimulation={onRunSimulation} embedded />
       : <section className="task-signature-empty"><b>No RouteLab rule groups generated yet</b><span>Choose Generate Task Groups to classify the current trace snapshot.</span></section>
-      : <LLMGroupedTasks traces={traces} workspaceId={workspaceId} serverGatewayKey={serverGatewayKey} savedTaskGroups={taskGroups} embedded runToken={llmRunToken} onRunningChange={setLlmRunning} onTaskGroupsChange={saveLLMGroups} onRunSimulation={onRunSimulation} />}
+      : <LLMGroupedTasks traces={traces} traceJudgeResults={traceJudgeResults} workspaceId={workspaceId} serverGatewayKey={serverGatewayKey} savedTaskGroups={taskGroups} embedded runToken={llmRunToken} onRunningChange={setLlmRunning} onTaskGroupsChange={saveLLMGroups} onRunSimulation={onRunSimulation} />}
   </div>;
 }

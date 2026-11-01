@@ -106,6 +106,10 @@ export function createTaskBucketsFromLLMGrouping(traces: Trace[], run: LLMGroupi
     const representative = [...inferred].sort((left, right) => right.trace_count - left.trace_count)[0];
     const totalCost = groupedTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0);
     const latencies = groupedTraces.flatMap((trace) => trace.latency_ms === undefined ? [] : [trace.latency_ms]);
+    const representativeTraceIds = [
+      ...group.representativeTraceIds,
+      ...groupedTraces.map((trace) => trace.id),
+    ].filter((traceId, index, values) => values.indexOf(traceId) === index && traceById.has(traceId));
     return [{
       bucket_id: group.id,
       bucket_name: group.name,
@@ -124,11 +128,14 @@ export function createTaskBucketsFromLLMGrouping(traces: Trace[], run: LLMGroupi
       risk_level: representative.risk_level,
       customer_facing: inferred.some((bucket) => bucket.customer_facing),
       evidence: representative.evidence,
-      examples: groupedTraces.slice(0, 3).map((trace) => ({
-        trace_id: trace.id,
-        prompt_preview: trace.prompt_text.slice(0, 140),
-        response_preview: (trace.response_text ?? "").slice(0, 140),
-      })),
+      examples: representativeTraceIds.slice(0, 3).flatMap((traceId) => {
+        const trace = traceById.get(traceId);
+        return trace ? [{
+          trace_id: trace.id,
+          prompt_preview: trace.prompt_text.slice(0, 140),
+          response_preview: (trace.response_text ?? "").slice(0, 140),
+        }] : [];
+      }),
     }];
   }).sort((left, right) => right.trace_count - left.trace_count);
   return normalizeAutomaticTaskGroupNames(buckets);

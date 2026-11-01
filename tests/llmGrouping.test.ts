@@ -6,6 +6,7 @@ import {
   LLM_GROUPING_SCHEMA_VERSION,
   compactLLMGroupingRunNames,
   compareLLMGrouping,
+  createTaskBucketsFromLLMGrouping,
   createLLMGroupingInputSnapshot,
   createLLMGroupingSnapshot,
   isLLMGroupingRunOutdated,
@@ -174,6 +175,16 @@ describe("LLM grouping validation and persistence", () => {
     const names = compact.groups.map((item) => item.name);
     expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(2);
     expect(names.every((name) => name.split(/\s+/).length <= 4 && !name.includes(","))).toBe(true);
+  });
+
+  it("uses the LLM-selected representative traces as modal examples", () => {
+    const traces = [trace("t1"), trace("t2"), trace("t3")];
+    const run = fixtureRun(["t1", "t2", "t3"]);
+    const firstGroup = run.groups[0];
+    firstGroup.representativeTraceIds = ["t3", "t1"];
+    run.assignments[2].groupId = firstGroup.id;
+    const bucket = createTaskBucketsFromLLMGrouping(traces, run).find((item) => item.bucket_id === firstGroup.id);
+    expect(bucket?.examples.map((example) => example.trace_id)).toEqual(["t3", "t1"]);
   });
 });
 
