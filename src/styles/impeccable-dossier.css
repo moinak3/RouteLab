@@ -513,6 +513,31 @@ body:before{
 .shell>main .llm-group-list button.active small{color:#c3d4cc}
 .shell>main .llm-group-list button.active strong{background:#3a5748;color:#fff}
 
+/* LLM generation status sits on the paper surface, so it needs paper-theme text. */
+.shell>main .llm-progress{
+  border-color:#b8d9bd;
+  background:#eef6e9;
+  color:var(--dossier-ink);
+}
+.shell>main .llm-progress-head,
+.shell>main .llm-progress-head b{color:var(--dossier-ink)}
+.shell>main .llm-progress-head span{color:#526179}
+.shell>main .llm-progress-head button{
+  border-color:#d5a99e;
+  background:#fffaf5;
+  color:#9c3829;
+}
+.shell>main .llm-progress-track{background:#cfd9d1}
+.shell>main .llm-progress ol{color:#5f6d82}
+.shell>main .llm-progress li.active{color:#18243d;font-weight:600}
+.shell>main .llm-progress li.done{color:#14783b;font-weight:600}
+.shell>main .llm-alert.neutral{
+  border-color:#c9d0ce;
+  background:#f6f4ec;
+}
+.shell>main .llm-alert.neutral b{color:#173a2b}
+.shell>main .llm-alert.neutral span{color:#485874}
+
 /* Dark interactive surfaces remain dark, with an explicit light foreground. */
 .shell>main .model-picker-menu,
 .shell>main .scope-menu,
