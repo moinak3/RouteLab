@@ -671,6 +671,41 @@
   background:#e8f5e7;
   color:#245f32;
 }
+.eval-new-trace-toggle{
+  width:48px;
+  min-width:48px;
+}
+.eval-new-trace-toggle>span{
+  position:relative;
+  display:block;
+  width:32px;
+  height:18px;
+  border-radius:999px;
+  background:#9eaaa3;
+  box-shadow:inset 0 0 0 1px rgba(23,37,30,.16);
+  transition:background .15s ease;
+}
+.eval-new-trace-toggle>span>i{
+  position:absolute;
+  top:2px;
+  left:2px;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(17,27,51,.24);
+  transition:transform .15s ease;
+}
+.eval-new-trace-toggle.active>span{
+  background:#4bcf70;
+}
+.eval-new-trace-toggle.active>span>i{
+  transform:translateX(14px);
+}
+.eval-icon-action.eval-new-trace-toggle:before{
+  right:auto;
+  left:0;
+}
 .eval-icon-action:before{
   content:attr(data-tooltip);
   position:absolute;

@@ -80,14 +80,11 @@ const chartPoint = (index: number, total: number, score: number) => {
   return { x, y };
 };
 
-type EvalActionIconName = "history" | "new-traces" | "calibration" | "review";
+type EvalActionIconName = "history" | "calibration" | "review";
 
 function EvalActionIcon({ name }: { name: EvalActionIconName }) {
   if (name === "history") {
     return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68M4 4v4.68h4.68" /><path d="M12 7.5V12l3 1.8" /></svg>;
-  }
-  if (name === "new-traces") {
-    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9l5 5v10H5z" /><path d="M14 4.5v5h5M9 14h6M12 11v6" /></svg>;
   }
   if (name === "calibration") {
     return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2" /><path d="m3 7 6-4 6 6 6-5" /></svg>;
@@ -609,8 +606,8 @@ export function Evals({
               <span role="cell">{runLabel}</span>
               <span role="cell">{pct(coverage*100)}</span>
               <span className="eval-row-actions" role="cell" aria-label={`Frequent actions for ${definition.name}`}>
+                <button type="button" className={`eval-icon-action eval-new-trace-toggle ${isLive?"active":""}`} data-tooltip={isLive?"Scoring new traces is on. Click to turn it off.":"Scoring new traces is off. Click to turn it on."} aria-label={isLive?"Turn off eval for new traces":"Turn on eval for new traces"} aria-pressed={isLive} disabled={!isCurrent||definition.status==="Disabled"||!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(!isLive)}><span aria-hidden="true"><i /></span></button>
                 <button type="button" className="eval-icon-action" data-tooltip={isHistoricalRunning?`Testing ${historicalRunProgress.processed.toLocaleString()} of ${historicalRunProgress.total.toLocaleString()} traces`:needsHistoricalRetry?"Retry on all historical traces":"Run on all historical traces"} aria-label={needsHistoricalRetry?"Retry on historical traces":"Run on historical traces"} disabled={!isCurrent||definition.status==="Disabled"||!supportsLiveRuns||!traces.length||isHistoricalRunning} onClick={testHistoricalTraces}><EvalActionIcon name="history" /></button>
-                <button type="button" className={`eval-icon-action ${isLive?"active":""}`} data-tooltip={isLive?"Scoring new traces is on. Click to turn it off.":"Run this eval on every new trace"} aria-label={isLive?"Stop running on new traces":"Run on new traces"} aria-pressed={isLive} disabled={!isCurrent||definition.status==="Disabled"||!supportsLiveRuns} onClick={()=>toggleNewTraceEvaluation(!isLive)}><EvalActionIcon name="new-traces" /></button>
                 <button type="button" className="eval-icon-action" data-tooltip="View human calibration results" aria-label="View human calibration results" onClick={openCalibrationResults}><EvalActionIcon name="calibration" /></button>
                 <button type="button" className="eval-icon-action" data-tooltip="Review judge results" aria-label="Review judge results" onClick={openJudgeResults}><EvalActionIcon name="review" /></button>
               </span>
