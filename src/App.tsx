@@ -35,6 +35,7 @@ import { createTraceJudgeResults } from "./core/traceJudge";
 import { demoEvalDefinitions, ensureEvalScoreAnchors } from "./core/evalDefinitions";
 import { loadActiveEvalConfig, type ActiveEvalConfig } from "./core/evalRegistry";
 import { liveRoutingStatus, runLiveDirectRouting } from "./core/liveRouting";
+import { fetchPublishedPolicyHistory } from "./core/routingPolicyPersistence";
 import { evaluateLiveReplay } from "./core/simulationEvaluation";
 import { saveSimulationRun, simulationRunComparisonKey } from "./core/simulationHistory";
 import { simulationScopeKey } from "./core/simulationScope";
@@ -80,9 +81,8 @@ type NavDestination = {
 const workflowNav: NavDestination[] = [
   { label: "Overview", page: "Overview", pages: ["Overview"], icon: "O" },
   { label: "Workloads", page: "Traces", pages: ["Traces", "Distinct Tasks"], icon: "W", children: [{ label: "Traces", page: "Traces" }, { label: "Task Groups", page: "Distinct Tasks" }] },
-  { label: "Response Quality", page: "Evals", pages: ["Evals"], icon: "Q" },
-  { label: "Calibration", page: "Golden Dataset", pages: ["Golden Dataset", "Classifier Validation"], icon: "C", children: [{ label: "Response Quality Calibration", page: "Golden Dataset" }, { label: "Classifier Calibration", page: "Classifier Validation" }] },
-  { label: "Routing", page: "Simulations", pages: ["Simulations"], icon: "M", children: [{ label: "Simulations & Route Selection", page: "Simulations" }] },
+  { label: "Response Quality", page: "Evals", pages: ["Evals", "Golden Dataset"], icon: "Q", children: [{ label: "Evals", page: "Evals" }, { label: "Human Calibration", page: "Golden Dataset" }] },
+  { label: "Routing", page: "Simulations", pages: ["Simulations", "Classifier Validation"], icon: "M", children: [{ label: "Simulations and Route Selection", page: "Simulations" }, { label: "Classifier Calibration", page: "Classifier Validation" }] },
   { label: "Review", page: "Review Queue", pages: ["Review Queue"], icon: "R" },
 ];
 const advancedNav: NavDestination[] = [
@@ -90,6 +90,7 @@ const advancedNav: NavDestination[] = [
   { label: "Settings", page: "Model Catalog", pages: ["Model Catalog"], icon: "S" },
 ];
 const allNav = [...workflowNav, ...advancedNav];
+const navSubmenuId = (label: string) => `${label.toLowerCase().replace(/\s+/g, "-")}-submenu`;
 const topLevelLabel = (page: Page) => allNav.find((item) => item.pages.includes(page))?.label ?? page;
 const pageTitle = (page: Page) => page === "Simulations"
   ? "Simulations and Route selection"
@@ -106,7 +107,7 @@ function hasPreviewAccess() {
 export default function App() {
   const [page, setPage] = useState<Page>(() => pageForPath(window.location.pathname) ?? "Home");
   const [previewUnlocked, setPreviewUnlocked] = useState(hasPreviewAccess);
-  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, Calibration: false, Routing: false });
+  const [expandedNav, setExpandedNav] = useState<Record<string, boolean>>({ Workloads: true, "Response Quality": false, Routing: false });
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(loadActiveWorkspace);
   const [workspaceData, setWorkspaceData] = useState<Record<WorkspaceId, WorkspaceData>>(() => ({
     personal: loadPersonalWorkspace(),
@@ -170,6 +171,7 @@ export default function App() {
   const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJob[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [evalRegistryRevision, setEvalRegistryRevision] = useState(0);
+  const [routingPolicyState, setRoutingPolicyState] = useState<"loading" | "active" | "inactive">("loading");
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const simulationModels = useMemo(() => [
@@ -182,10 +184,40 @@ export default function App() {
   const deepSeekModelIds = useMemo(() => activeModels.filter((model) => model.family === "DeepSeek").map((model) => model.id), [activeModels]);
   const recommendationCandidateIds = useMemo(() => recommendationCandidate === DEEPSEEK_RECOMMENDATION_SCOPE ? deepSeekModelIds : [recommendationCandidate], [recommendationCandidate, deepSeekModelIds]);
   const policy = useMemo(() => recommendPolicy(traces, distinctTaskBuckets, recommendationCandidateIds.length ? recommendationCandidateIds : activeModelIds), [traces, distinctTaskBuckets, recommendationCandidateIds, activeModelIds, catalogVersion]);
-  const activeSectionChildren = allNav.find((item) => item.pages.includes(page))?.children ?? [];
+  const visibleWorkflowNav = useMemo(() => workflowNav.map((item) => item.label === "Routing"
+    ? { ...item, children: item.children?.filter((child) => child.page !== "Classifier Validation" || routingPolicyState === "active") }
+    : item), [routingPolicyState]);
+  const visibleNav = useMemo(() => [...visibleWorkflowNav, ...advancedNav], [visibleWorkflowNav]);
+  const activeSectionChildren = visibleNav.find((item) => item.pages.includes(page))?.children ?? [];
 
   useEffect(() => saveActiveWorkspace(activeWorkspace), [activeWorkspace]);
   useEffect(() => savePersonalWorkspace(workspaceData.personal), [workspaceData.personal]);
+  useEffect(() => {
+    if (!previewUnlocked) return;
+    const controller = new AbortController();
+    let current = true;
+    const refreshPolicyState = async () => {
+      setRoutingPolicyState("loading");
+      try {
+        const history = await fetchPublishedPolicyHistory(cloudWorkspaceId, controller.signal);
+        if (current) setRoutingPolicyState(history.activeVersion === null ? "inactive" : "active");
+      } catch {
+        if (current && !controller.signal.aborted) setRoutingPolicyState("inactive");
+      }
+    };
+    const handlePolicyActivation = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string; activeVersion?: number | null }>).detail;
+      if (detail?.workspaceId !== cloudWorkspaceId) return;
+      setRoutingPolicyState(detail.activeVersion === null ? "inactive" : "active");
+    };
+    void refreshPolicyState();
+    window.addEventListener("routelab-routing-policy-activation", handlePolicyActivation);
+    return () => {
+      current = false;
+      controller.abort();
+      window.removeEventListener("routelab-routing-policy-activation", handlePolicyActivation);
+    };
+  }, [previewUnlocked, cloudWorkspaceId]);
   useEffect(() => {
     setEvalAutomationPolicies(loadEvalAutomationPolicies(cloudWorkspaceId));
     const handlePolicyUpdate = (event: Event) => {
@@ -428,12 +460,19 @@ export default function App() {
   }, [page]);
 
   useEffect(() => {
-    const activeGroup = allNav.find((item) => item.children?.length && item.pages.includes(page));
+    const activeGroup = visibleNav.find((item) => item.children?.length && item.pages.includes(page));
     if (activeGroup) setExpandedNav((expanded) => ({ ...expanded, [activeGroup.label]: true }));
     if (advancedNav.some((item) => item.pages.includes(page))) {
       setExpandedNav((expanded) => ({ ...expanded, Advanced: true }));
     }
-  }, [page]);
+  }, [page, visibleNav]);
+
+  useEffect(() => {
+    if (page === "Classifier Validation" && routingPolicyState === "inactive") {
+      navigateTo("Simulations", { replace: true });
+      setNotice("Activate a routing policy before opening Classifier Calibration");
+    }
+  }, [page, routingPolicyState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -711,17 +750,17 @@ export default function App() {
       <label className="workspace-switcher"><span>Workspace</span><select value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select>{activeWorkspace === "demo" && <small>Sample data · changes reset</small>}</label>
       <nav aria-label="Primary navigation">
         <small className="nav-group-label">Workflow</small>
-        {workflowNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
+        {visibleWorkflowNav.map((item) => item.children ? <div className="nav-collapsible" key={item.label}>
           <button
             type="button"
             className={`nav-parent ${item.pages.includes(page) ? "active" : ""}`}
             onClick={() => setExpandedNav((expanded) => ({ ...expanded, [item.label]: !expanded[item.label] }))}
             aria-expanded={Boolean(expandedNav[item.label])}
-            aria-controls={`${item.label.toLowerCase()}-submenu`}
+            aria-controls={navSubmenuId(item.label)}
           >
             <span>{item.icon}</span>{item.label}<i className="nav-caret" aria-hidden="true">{expandedNav[item.label] ? "-" : "+"}</i>
           </button>
-          {expandedNav[item.label] && <div className="nav-submenu" id={`${item.label.toLowerCase()}-submenu`}>
+          {expandedNav[item.label] && <div className="nav-submenu" id={navSubmenuId(item.label)}>
             {item.children.map((child) => <a href={pathForPage(child.page)} className={page === child.page ? "active" : ""} aria-current={page === child.page ? "page" : undefined} onClick={handlePageLink(child.page)} key={child.page}>{child.label}</a>)}
           </div>}
         </div> : <a href={pathForPage(item.page)} className={item.pages.includes(page) ? "active" : ""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}><span>{item.icon}</span>{item.label}</a>)}
@@ -745,7 +784,7 @@ export default function App() {
     <main>
       {page !== "Benchmarking" ? <header><h1>{pageTitle(page)}</h1><div className="header-workspace-control"><span className={`workspace-badge ${activeWorkspace}`}>{activeWorkspace === "demo" ? "Demo data" : "My workspace"}</span><select className="mobile-workspace-select" aria-label="Select workspace" value={activeWorkspace} onChange={(event) => switchWorkspace(event.target.value as WorkspaceId)}><option value="personal">My workspace</option><option value="demo">RouteLab demo</option></select></div></header> : null}
       <div className="mobile-nav" aria-label="Mobile navigation">
-        {workflowNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
+        {visibleWorkflowNav.map(item=><a href={pathForPage(item.page)} className={item.pages.includes(page)?"active":""} aria-current={item.pages.includes(page) ? "page" : undefined} onClick={handlePageLink(item.page)} key={item.label}>{item.label}</a>)}
         <button type="button" className={advancedNav.some((item) => item.pages.includes(page)) ? "active" : ""} aria-expanded={Boolean(expandedNav.Advanced)} aria-controls="mobile-advanced-submenu" onClick={() => setExpandedNav((expanded) => ({ ...expanded, Advanced: !expanded.Advanced }))}>Advanced</button>
       </div>
       {expandedNav.Advanced && <nav className="group-mobile-subnav mobile-advanced-submenu" id="mobile-advanced-submenu" aria-label="Advanced navigation">
@@ -761,7 +800,7 @@ export default function App() {
       {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={(lane) => navigateToReviewLane(lane, "response_quality")} onOpenCalibration={() => navigateTo("Golden Dataset")} onEvalResults={addEvalResults} onAutomationPoliciesChange={setEvalAutomationPolicies} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} onOpenEvalLibrary={() => navigateTo("Evals")} onOpenReviewQueue={() => navigateToReviewLane("unusual", "response_quality")} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} taskFilter={reviewTaskFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistedTaskGroupReviews={persistedTaskGroupReviews} currentCycle={currentReviewCycle} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveCycle={saveReviewCycle} onSaveReview={saveHumanReview} onSaveTaskGroupReview={saveTaskGroupHumanReview} onOpenClassifierValidation={() => navigateTo("Classifier Validation")} />}
-      {page === "Classifier Validation" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} traces={traces} taskGroups={distinctTaskBuckets} onOpenResponseReview={() => navigateToReviewLane("representative", "task_group")} onOpenCalibration={() => navigateTo("Golden Dataset")} />}
+      {page === "Classifier Validation" && routingPolicyState === "active" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} traces={traces} taskGroups={distinctTaskBuckets} onOpenResponseReview={() => navigateToReviewLane("representative", "task_group")} onOpenCalibration={() => navigateTo("Golden Dataset")} />}
       {page === "Simulations" && <Simulations key={`simulations-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} candidate={candidate} setCandidate={setCandidate} catalogVersion={catalogVersion} activeModels={activeModels} candidateModels={simulationModels} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} serverGatewayKeys={serverGatewayKeys} activeEval={activeEvalConfig} />}
       {page === "Benchmarking" && <FrontierModelLab serverGatewayKey={serverGatewayKeys.OpenRouter} />}
       {page === "Recommendations" && <Recommendations policy={policy} activeModels={activeModels} traceCount={traces.length} />}

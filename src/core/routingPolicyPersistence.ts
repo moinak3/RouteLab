@@ -98,7 +98,13 @@ export async function activateRoutingPolicy(version: number, workspaceId: string
     body: JSON.stringify({ version }),
   });
   if (!response.ok) throw new Error(await parseError(response, "Could not activate the policy."));
-  return response.json() as Promise<{ version: number; activatedAt: string }>;
+  const activation = await response.json() as { version: number; activatedAt: string };
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("routelab-routing-policy-activation", {
+      detail: { workspaceId, activeVersion: activation.version },
+    }));
+  }
+  return activation;
 }
 
 export async function fetchSignedRoutingPolicy(version: number | "active", workspaceId: string, signal?: AbortSignal) {
