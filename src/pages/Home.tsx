@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 const whyNowShifts = [
   { title: "Work is fragmenting", text: "Classification, retrieval, analysis, drafting, and consequential actions now sit behind the same agent experience." },
-  { title: "Model choice keeps changing", text: "New capabilities, prices, and latency profiles make one permanent model choice impractical." },
+  { title: "Model options are multiplying", text: "Frontier, open-weight, domain-specific, and decision models keep expanding. At the same time, applications demand different capabilities, modalities, latency, and cost profiles, making one permanent model choice impractical." },
   { title: "Evals stop before allocation", text: "Teams can measure quality, but still have to turn those results into routing decisions themselves." },
 ];
 
