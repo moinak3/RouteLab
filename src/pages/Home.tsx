@@ -53,67 +53,92 @@ const allocationComparisonRows = [
   },
 ];
 
-function FlowArrow({ label }: { label: string }) {
-  return <div className="home-flow-arrow" aria-hidden="true">
-    <span>{label}</span>
-    <svg viewBox="0 0 88 18" role="img">
-      <path d="M1 9h78" />
-      <path d="m72 2 8 7-8 7" />
-    </svg>
-  </div>;
-}
-
 function RouteLabWorkflowIllustration() {
-  return <figure className="home-workflow-illustration" id="how-it-works" aria-labelledby="workflow-illustration-title">
-    <div className="home-flow-heading">
+  return <figure className="home-workflow-illustration home-architecture" id="how-it-works" aria-labelledby="workflow-illustration-title">
+    <div className="home-architecture-heading">
       <div>
-        <span>RouteLab control loop</span>
-        <b id="workflow-illustration-title">Evidence in. An inspected policy out.</b>
+        <span>How RouteLab works</span>
+        <h2 id="workflow-illustration-title">How RouteLab routes and improves model decisions.</h2>
       </div>
-      <small>Offline control plane + customer-hosted runtime</small>
+      <p>Offline evidence and simulations inform a signed policy. Live requests stay in the customer-hosted runtime.</p>
     </div>
 
-    <div className="home-flow-canvas">
-      <section className="home-flow-node home-flow-evidence">
-        <span className="home-flow-stage">Observe</span>
-        <div className="home-flow-traces" aria-hidden="true"><i /><i /><i /><i /></div>
-        <h3>Production evidence</h3>
-        <ul><li>Traces</li><li>Evaluations</li><li>Traffic and cost</li></ul>
+    <div className="home-architecture-board">
+      <section className="home-architecture-zone home-architecture-offline" aria-labelledby="offline-control-plane-title">
+        <header>
+          <span>01</span>
+          <div><b id="offline-control-plane-title">Offline control plane</b><small>Analyze evidence before changing production routing</small></div>
+        </header>
+        <div className="home-architecture-flow">
+          <article className="home-architecture-node">
+            <small>Existing stack</small>
+            <b>Observability + evals</b>
+            <p>Imported traces and evaluation evidence</p>
+          </article>
+          <div className="home-architecture-connector evidence" aria-label="Imported evidence enters RouteLab Cloud"><i /><span>Imported evidence</span></div>
+          <article className="home-architecture-node routelab">
+            <div className="home-architecture-brand"><img src="/routelab-icon.svg" alt="" /><span>RouteLab Cloud</span></div>
+            <p>Discover task groups<br />Compare candidate models</p>
+          </article>
+          <div className="home-architecture-connector simulation" aria-label="RouteLab Cloud exchanges offline simulation requests and measured results with OpenRouter"><i /><span>Offline simulations</span><small>Replay requests + measured results</small></div>
+          <article className="home-architecture-node">
+            <small>Model access</small>
+            <b>OpenRouter</b>
+            <p>Candidate model requests</p>
+          </article>
+          <div className="home-architecture-connector simulation" aria-label="OpenRouter sends simulation requests to candidate models"><i /><span>Candidates</span></div>
+          <div className="home-architecture-models" aria-label="Candidate models"><span>Model A</span><span>Model B</span><span>Model C</span></div>
+        </div>
       </section>
 
-      <FlowArrow label="Analyze offline" />
+      <div className="home-architecture-policy-sync" aria-label="RouteLab Cloud deploys a signed policy to the RouteLab sidecar">
+        <i />
+        <div><b>Signed policy deployment</b><span>Versioned routing logic</span></div>
+      </div>
 
-      <section className="home-flow-node home-flow-cloud">
-        <header><img src="/routelab-icon.svg" alt="" /><div><span>RouteLab Cloud</span><small>Control plane</small></div></header>
-        <ol>
-          <li><span>01</span><div><b>Group recurring tasks</b><small>Define comparable work and unknowns</small></div></li>
-          <li><span>02</span><div><b>Test candidate models</b><small>Compare measured quality, cost, and latency</small></div></li>
-          <li><span>03</span><div><b>Approve model choices</b><small>Keep a default and add proven overrides</small></div></li>
-        </ol>
-        <div className="home-flow-policy"><span>Approved policy</span><b>Signed and versioned</b></div>
-      </section>
-
-      <FlowArrow label="Publish policy" />
-
-      <section className="home-flow-node home-flow-runtime">
-        <span className="home-flow-stage">Apply</span>
-        <h3>Customer-hosted runtime</h3>
-        <div className="home-runtime-request"><span>Current request</span><b>Prompt + tools + metadata</b></div>
-        <ol>
-          <li><span>1</span>Classify the task group</li>
-          <li><span>2</span>Apply the local policy</li>
-          <li><span>3</span>Send the model decision to OpenRouter</li>
-        </ol>
-        <div className="home-runtime-decision"><span>Model decision</span><b>Approved route or general default</b></div>
+      <section className="home-architecture-zone home-architecture-runtime" aria-labelledby="customer-environment-title">
+        <header>
+          <span>02</span>
+          <div><b id="customer-environment-title">Customer environment</b><small>Live request and response path</small></div>
+        </header>
+        <div className="home-architecture-flow">
+          <article className="home-architecture-node">
+            <small>Request origin</small>
+            <b>Agent application</b>
+            <p>Prompt + tools + context</p>
+          </article>
+          <div className="home-architecture-connector live" aria-label="The agent application sends the live request to the RouteLab sidecar"><i /><span>Live request</span></div>
+          <article className="home-architecture-node routelab sidecar">
+            <div className="home-architecture-brand"><img src="/routelab-icon.svg" alt="" /><span>RouteLab sidecar</span></div>
+            <p>Classify task + apply policy</p>
+            <em>Approved override or configured default</em>
+          </article>
+          <div className="home-architecture-connector live" aria-label="The RouteLab sidecar sends the request with the selected model to OpenRouter"><i /><span>Selected route</span></div>
+          <article className="home-architecture-node">
+            <small>Customer-configured access</small>
+            <b>OpenRouter</b>
+            <p>Send request to selected model</p>
+          </article>
+          <div className="home-architecture-connector live" aria-label="OpenRouter sends the live request to the selected model"><i /><span>Provider call</span></div>
+          <article className="home-architecture-node selected-model">
+            <small>Provider</small>
+            <b>Selected model</b>
+            <p>Generate the response</p>
+          </article>
+          <div className="home-architecture-response"><span>Response returns through the same customer-owned path</span></div>
+        </div>
       </section>
     </div>
 
-    <div className="home-flow-review">
-      <div><span>Weekly review loop</span><b>Review what the policy does not yet know.</b></div>
-      <ul><li>Representative</li><li>Unusual</li><li>Uncovered</li></ul>
-      <p>Human decisions update the next task-group catalog, eval version, and routing policy.</p>
+    <div className="home-architecture-footer">
+      <strong>RouteLab Cloud is not in the live inference path.</strong>
+      <ul aria-label="Architecture diagram legend">
+        <li className="live"><i />Live request + response</li>
+        <li className="simulation"><i />Offline simulation traffic</li>
+        <li className="policy"><i />Signed policy deployment</li>
+      </ul>
     </div>
-    <figcaption>RouteLab learns and validates policy offline. The local runtime applies the approved policy per request without putting RouteLab Cloud in the inference path.</figcaption>
+    <figcaption>RouteLab Cloud groups imported evidence and runs candidate replays through OpenRouter. The customer-hosted sidecar independently applies the deployed policy to each live request.</figcaption>
   </figure>;
 }
 

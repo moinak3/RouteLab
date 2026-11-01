@@ -225,23 +225,33 @@ body:before{
   background:rgba(251,248,240,.72);
   box-shadow:10px 10px 0 rgba(33,77,134,.1);
 }
-.home-flow-heading{border-bottom-color:var(--dossier-blue);background:rgba(33,77,134,.055)}
-.home-flow-heading span,.home-flow-stage{color:var(--dossier-red);font-weight:600}
-.home-flow-heading b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:21px;font-weight:600}
-.home-flow-heading small{color:#697384;font-family:var(--font-mono)}
-.home-flow-node h3{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:23px;font-weight:600}
-.home-flow-node ul li{border-color:var(--dossier-rule);color:#536075;background:rgba(255,255,255,.38)}
-.home-flow-traces:before,.home-flow-traces:after{border-color:var(--dossier-rule);background:var(--dossier-sheet);box-shadow:3px 3px 0 rgba(33,77,134,.1)}
-.home-flow-traces i{background:var(--dossier-blue)}
-.home-flow-arrow{color:#697384}.home-flow-arrow svg path{stroke:var(--dossier-red)}
-.home-flow-cloud{border-color:var(--dossier-blue);background:rgba(33,77,134,.045)}
-.home-flow-cloud header{border-bottom-color:var(--dossier-rule)}.home-flow-cloud header img{border-radius:2px}.home-flow-cloud header span{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:18px;font-weight:600}.home-flow-cloud header small{color:#687386;font-family:var(--font-mono)}
-.home-flow-cloud li{border-bottom-color:var(--dossier-rule-soft)}.home-flow-cloud li>span{color:var(--dossier-red)}.home-flow-cloud li b{color:var(--dossier-ink)}.home-flow-cloud li small{color:#687386}
-.home-flow-policy{border-color:#4c8f5d;background:#e7f2e5}.home-flow-policy span{color:#2f6640}.home-flow-policy b{color:#173923}
-.home-runtime-request,.home-runtime-decision{border-color:var(--dossier-rule);background:rgba(255,255,255,.42)}.home-runtime-request span,.home-runtime-decision span{color:#667183;font-family:var(--font-mono)}.home-runtime-request b,.home-runtime-decision b{color:var(--dossier-ink)}
-.home-flow-runtime li{color:#536075}.home-flow-runtime li span{border-color:var(--dossier-blue);color:var(--dossier-blue)}
-.home-runtime-decision{border-color:#4c8f5d;background:#e7f2e5}
-.home-flow-review{border-top-color:var(--dossier-red);background:rgba(209,76,49,.05)}.home-flow-review span{color:var(--dossier-red)}.home-flow-review b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:16px;font-weight:600}.home-flow-review li{border-color:rgba(168,59,40,.38);color:#783729;background:rgba(255,255,255,.38)}.home-flow-review p{color:#626c7b}
+.home-architecture-heading{border-bottom-color:var(--dossier-blue);background:rgba(33,77,134,.045)}
+.home-architecture-heading span{color:var(--dossier-red)}
+.home-architecture-heading h2{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:32px;font-weight:600;letter-spacing:-.02em}
+.home-architecture-heading p{color:#536075}
+.home-architecture-board{background:rgba(251,248,240,.3)}
+.home-architecture-zone{border-color:var(--dossier-rule);background:rgba(255,255,255,.3)}
+.home-architecture-zone>header{border-bottom-color:var(--dossier-rule);background:rgba(33,77,134,.04)}
+.home-architecture-zone>header>span{color:var(--dossier-red)}
+.home-architecture-zone>header b{color:var(--dossier-red);font-family:var(--font-mono);font-weight:600;letter-spacing:.04em}
+.home-architecture-zone>header small{color:#667183;font-family:var(--font-mono)}
+.home-architecture-node{border-color:var(--dossier-rule);background:rgba(251,248,240,.74);box-shadow:3px 3px 0 rgba(33,77,134,.07)}
+.home-architecture-node>small{color:#667183}
+.home-architecture-node>b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:18px;font-weight:600}
+.home-architecture-node p{color:#536075}
+.home-architecture-node.routelab{border-color:#4c8f5d;background:#edf6ec;box-shadow:3px 3px 0 rgba(47,102,64,.1)}
+.home-architecture-brand img{border-radius:2px}.home-architecture-brand span{color:#174d2a;font-family:var(--font-editorial);font-size:19px;font-weight:650}
+.home-architecture-node em{border-color:#7fb18b;background:#e1f0df;color:#245f36}
+.home-architecture-connector i{background:var(--dossier-blue)}.home-architecture-connector span{color:#536075}.home-architecture-connector small{color:#667183}
+.home-architecture-connector.simulation i{border-top-color:#3978c4}.home-architecture-connector.simulation span{color:var(--dossier-blue)}
+.home-architecture-connector.live i{background:var(--dossier-ink)}.home-architecture-connector.live span{color:var(--dossier-ink)}
+.home-architecture-models span{border-color:var(--dossier-rule);background:#fffdf8;color:#3e4b60}
+.home-architecture-policy-sync>i{border-left-color:#3f9b55}.home-architecture-policy-sync b{color:#216437}.home-architecture-policy-sync span{color:#667183}
+.home-architecture-node.selected-model{border-color:#4c8f5d;background:#f4f8ef}
+.home-architecture-response:before,.home-architecture-response:after{background:var(--dossier-blue)}.home-architecture-response span{color:#536075}
+.home-architecture-footer{border-top-color:var(--dossier-rule);background:#e8f3e5}
+.home-architecture-footer strong{color:#216437}
+.home-architecture-footer li{color:#536075}.home-architecture-footer li i{background:var(--dossier-ink)}.home-architecture-footer li.simulation i{border-top-color:#3978c4}.home-architecture-footer li.policy i{border-top-color:#3f9b55}
 .home-workflow-illustration figcaption{border-top-color:var(--dossier-rule);color:#667183;font-family:var(--font-mono)}
 .home-boundaries{
   border:1px solid var(--dossier-red);
@@ -723,11 +733,6 @@ body:before{
 
 /* Light dossier surfaces need ink-based status and chart colors. */
 .home-hero-boundary,
-.home-flow-heading small,
-.home-flow-arrow span,
-.home-flow-cloud header small,
-.home-flow-cloud li small,
-.home-runtime-decision span,
 .home-docket-signoff small,
 .home-waitlist-form>small{color:#536075}
 .shell>main .trend-chart text,
