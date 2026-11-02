@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import type { Model, Trace, TraceJudgeResult } from "../types";
+import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../types";
 import { pct } from "../lib/format";
 import type { ReviewQueueFilter } from "../types/ui";
 import { ModelOptions } from "../components/ModelOptions";
@@ -36,6 +36,7 @@ import {
   loadStoredEvalVersions,
   type StoredEvalVersion,
 } from "../core/evalRegistry";
+import { taskGroupQualityHistory } from "../core/qualityHistory";
 
 type EvalVersion = StoredEvalVersion;
 
@@ -80,6 +81,16 @@ const chartPoint = (index: number, total: number, score: number) => {
   return { x, y };
 };
 
+const lineSegments = <T,>(points: Array<T | null>) => points.reduce<T[][]>((segments, point) => {
+  if (!point) return [...segments, []];
+  const next = [...segments];
+  if (!next.length || !next[next.length - 1].length) next.push([point]);
+  else next[next.length - 1] = [...next[next.length - 1], point];
+  return next;
+}, []).filter((segment) => segment.length);
+
+const taskGroupChartColors = ["#58f084", "#58a6ff", "#c084fc", "#f6c453", "#ff8a65", "#65d7d0"];
+
 type EvalActionIconName = "history" | "calibration" | "review";
 
 function EvalActionIcon({ name }: { name: EvalActionIconName }) {
@@ -96,6 +107,7 @@ export function Evals({
   workspaceId,
   workspace,
   traces,
+  taskGroups,
   traceJudgeResults,
   models,
   onReviewFilter,
@@ -106,6 +118,7 @@ export function Evals({
   workspaceId: string;
   workspace: "personal" | "demo";
   traces: Trace[];
+  taskGroups: DistinctTaskBucket[];
   traceJudgeResults: TraceJudgeResult[];
   models: Model[];
   onReviewFilter: (filter: ReviewQueueFilter) => void;
@@ -126,11 +139,10 @@ export function Evals({
   const activeTraceJudgeResults=activeEvalDefinition
     ? traceJudgeResults.filter((result)=>result.eval_id===activeEvalDefinition.id||(!result.eval_id&&result.evaluator_type.startsWith(activeEvalDefinition.id)))
     : [];
-  const failing = activeTraceJudgeResults.filter((result) => !result.passed).length;
-  const enabledEvalCount=evalDefinitions.filter((definition)=>definition.status!=="Disabled").length;
   const history = monthlyEvalHistory(activeTraceJudgeResults);
   const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
   const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const taskGroupHistory = taskGroupQualityHistory(activeTraceJudgeResults, taskGroups);
   const [modal,setModal]=useState<"import"|"create"|"edit"|"details"|"versions"|null>(null);
   const [detailEvalId,setDetailEvalId]=useState<string|null>(null);
   const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:defaultJudgeModel,threshold:"0.85",scope:"All task groups",prompt:""});
@@ -476,7 +488,6 @@ export function Evals({
   }
 
   const detailEvalDefinition=evalDefinitions.find((definition)=>definition.id===detailEvalId)??activeEvalDefinition;
-  const activeCoverage=traces.length?activeTraceJudgeResults.length/traces.length:0;
   const activeHistoricalNeedsRetry=workspace!=="demo"&&Boolean(
     (latestHistoricalRun&&!historicalEvalRunCoversPopulation(latestHistoricalRun,traces.length))
     ||(!latestHistoricalRun&&activeTraceJudgeResults.length),
@@ -510,31 +521,13 @@ export function Evals({
       </section>
 
       <section className="eval-overview-grid" aria-label="Response quality overview">
-        <div className="eval-run-summary" aria-label="Eval library summary">
-          <button type="button" className="panel eval-summary-card eval-summary-action eval-summary-primary" onClick={()=>enabledEvalCount?document.getElementById("workspace-evals")?.scrollIntoView({behavior:"smooth",block:"start"}):openCreateModal()}>
-            <small>Active evals</small>
-            <b>{enabledEvalCount.toLocaleString()}</b>
-            <span>{enabledEvalCount?"Browse active definitions":"Create an eval to get started"}</span>
-          </button>
-          <article className="panel eval-summary-card">
-            <small>Trace coverage</small>
-            <b>{pct(activeCoverage * 100)}</b>
-            <span>scored by the current eval</span>
-          </article>
-          <button type="button" className="panel eval-summary-card eval-summary-action" onClick={() => onReviewFilter("unusual")}>
-            <small>Needs attention</small>
-            <b>{failing.toLocaleString()}</b>
-            <span>results below threshold</span>
-          </button>
-        </div>
-
         <section className="panel eval-history eval-history-compact">
           <div className="eval-history-head">
             <div>
               <p className="eyebrow">Quality history</p>
               <h3>Average eval score over time</h3>
             </div>
-            <span>{history.length} month{history.length===1?"":"s"}</span>
+            <span>All Task Groups</span>
           </div>
           {history.length?<div className="eval-history-chart" aria-label="Monthly average eval score line chart">
             <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Average eval score by month">
@@ -565,6 +558,59 @@ export function Evals({
           </div>:<div className="eval-history-empty">
             <b>No eval scores yet</b>
             <span>Run the active eval on historical traces to establish a quality baseline.</span>
+          </div>}
+        </section>
+
+        <section className="panel eval-history eval-history-compact">
+          <div className="eval-history-head">
+            <div>
+              <p className="eyebrow">By Task Group</p>
+              <h3>Quality history over time</h3>
+            </div>
+            <span>{taskGroupHistory.series.length} series</span>
+          </div>
+          {taskGroupHistory.series.length ? <>
+            <div className="eval-history-legend" aria-label="Task Group chart legend">
+              {taskGroupHistory.series.map((series, index) => (
+                <span key={series.id} title={`${series.resultCount.toLocaleString()} scored traces`}>
+                  <i style={{ backgroundColor: taskGroupChartColors[index % taskGroupChartColors.length] }} />
+                  {series.label}
+                </span>
+              ))}
+            </div>
+            <div className="eval-history-chart eval-history-chart-segmented" aria-label="Monthly average eval score by Task Group">
+              <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Average eval score by month and Task Group">
+                {[0,.25,.5,.75,1].map((value)=><text className="eval-axis-label" key={value} x="4" y={evalChart.top+(1-value)*(evalChart.height-evalChart.top-evalChart.bottom)+4}>{pct(value*100)}</text>)}
+                <g className="eval-history-grid">
+                  {[.25, .5, .75].map((value) => {
+                    const y = evalChart.top + (1 - value) * (evalChart.height - evalChart.top - evalChart.bottom);
+                    return <line key={value} x1={evalChart.left} x2={evalChart.width - evalChart.right} y1={y} y2={y} />;
+                  })}
+                </g>
+                {taskGroupHistory.series.map((series, seriesIndex) => {
+                  const color = taskGroupChartColors[seriesIndex % taskGroupChartColors.length];
+                  const plotted = series.points.map((point, index) => point ? ({
+                    ...point,
+                    ...chartPoint(index, taskGroupHistory.months.length, point.averageScore),
+                  }) : null);
+                  return <g key={series.id} className="eval-history-series">
+                    {lineSegments(plotted).map((segment, segmentIndex) => (
+                      <polyline key={`${series.id}-${segmentIndex}`} style={{ stroke: color }} points={segment.map((point) => `${point.x},${point.y}`).join(" ")} />
+                    ))}
+                    {plotted.map((point) => point && <circle key={`${series.id}-${point.key}`} cx={point.x} cy={point.y} r="5" style={{ fill: color }}>
+                      <title>{series.label} · {point.label}: {pct(point.averageScore * 100)} across {point.count.toLocaleString()} scored traces</title>
+                    </circle>)}
+                  </g>;
+                })}
+                {taskGroupHistory.months.map((month, index) => {
+                  const point = chartPoint(index, taskGroupHistory.months.length, 0);
+                  return <text className="eval-history-label" key={`${month.key}-label`} x={point.x} y={evalChart.height - 10}>{month.label}</text>;
+                })}
+              </svg>
+            </div>
+          </> : <div className="eval-history-empty">
+            <b>No Task Group history yet</b>
+            <span>Quality trends appear here after scored traces are assigned to Task Groups.</span>
           </div>}
         </section>
       </section>
