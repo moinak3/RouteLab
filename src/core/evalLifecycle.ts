@@ -104,6 +104,40 @@ export function saveEvalAutomationPolicy(workspaceId: string, policy: EvalAutoma
   return policies;
 }
 
+export async function fetchServerEvalAutomationPolicies(workspaceId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/eval-automation?workspace=${encodeURIComponent(workspaceId)}`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal,
+  });
+  const payload = await response.json().catch(() => ({})) as { policies?: EvalAutomationPolicy[]; error?: unknown };
+  if (!response.ok || !Array.isArray(payload.policies)) throw new Error("Eval automation settings are unavailable.");
+  return payload.policies;
+}
+
+export async function syncServerEvalAutomationPolicies(workspaceId: string, policies: EvalAutomationPolicy[], signal?: AbortSignal) {
+  const response = await fetch(`/api/eval-automation?workspace=${encodeURIComponent(workspaceId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ policies }),
+    signal,
+  });
+  const payload = await response.json().catch(() => ({})) as { policies?: EvalAutomationPolicy[]; error?: unknown };
+  if (!response.ok || !Array.isArray(payload.policies)) throw new Error("Eval automation settings could not be saved.");
+  return payload.policies;
+}
+
+export async function persistServerEvalResults(workspaceId: string, results: TraceJudgeResult[], signal?: AbortSignal) {
+  if (!results.length) return;
+  const response = await fetch(`/api/eval-automation?workspace=${encodeURIComponent(workspaceId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ results }),
+    signal,
+  });
+  if (!response.ok) throw new Error("Continuous eval results could not be saved.");
+}
+
 export function configureNewTraceEvaluation({
   workspaceId,
   definition,

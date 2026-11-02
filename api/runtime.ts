@@ -9,6 +9,13 @@ import {
   sidecarAuthorized,
 } from "./sidecar/_runtime.js";
 import { listRuntimeTraces, runtimeTraceFromResult, saveRuntimeTrace } from "./sidecar/_traceStore.js";
+import {
+  evaluateRuntimeTraceWithActivePolicies,
+  listRuntimeEvalResults,
+  listServerEvalAutomationPolicies,
+  saveRuntimeEvalResults,
+  saveServerEvalAutomationPolicies,
+} from "./evals/_automation.js";
 import { handleLLMGroupingLatest, handleLLMGroupingRun } from "./llm-grouping/_api.js";
 import taskGroupNamesHandler from "../src/server/taskGroupNames.js";
 import waitlistHandler from "../src/server/waitlist.js";
@@ -19,6 +26,17 @@ import classifierComparatorHandler from "../src/server/classifierComparator.js";
 import { routingPolicyWorkspaceId } from "./routing-policy/_config.js";
 
 export const maxDuration = 300;
+
+async function saveAndEvaluateRuntimeTrace(trace: ReturnType<typeof runtimeTraceFromResult>, workspaceId: string) {
+  await saveRuntimeTrace(trace, workspaceId);
+  try {
+    await evaluateRuntimeTraceWithActivePolicies(trace, workspaceId);
+  } catch (error) {
+    // Never fail the user's inference request because a background quality check failed.
+    console.error("Runtime trace evaluation failed", error);
+  }
+  return trace;
+}
 
 function parseToolArguments(value: unknown) {
   if (value && typeof value === "object") return value as Record<string, unknown>;
@@ -109,11 +127,27 @@ export default async function handler(req: any, res: any) {
     if (action === "eval-run") return evalRunHandler(req, res);
     if (action === "classifier-validation") return classifierValidationHandler(req, res);
     if (action === "classifier-comparator") return classifierComparatorHandler(req, res);
+    if (action === "eval-automation") {
+      if (req.method === "GET") {
+        return sendJson(res, 200, { policies: await listServerEvalAutomationPolicies(workspaceId) });
+      }
+      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
+      const policies = Array.isArray(req.body?.policies) ? req.body.policies : undefined;
+      const results = Array.isArray(req.body?.results) ? req.body.results : [];
+      if (results.length) await saveRuntimeEvalResults(workspaceId, results);
+      const savedPolicies = policies
+        ? await saveServerEvalAutomationPolicies(workspaceId, policies)
+        : await listServerEvalAutomationPolicies(workspaceId);
+      return sendJson(res, 200, { policies: savedPolicies, savedResults: results.length });
+    }
     if (action === "runtime-traces") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
-      const traces = await listRuntimeTraces(Number(req.query?.limit ?? 500),workspaceId);
+      const [traces, results] = await Promise.all([
+        listRuntimeTraces(Number(req.query?.limit ?? 500),workspaceId),
+        listRuntimeEvalResults(workspaceId),
+      ]);
       res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
-      return sendJson(res, 200, { traces, count: traces.length });
+      return sendJson(res, 200, { traces, results, count: traces.length });
     }
     if (action === "support-status" || action === "sidecar-status") {
       if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed." });
@@ -136,7 +170,7 @@ export default async function handler(req: any, res: any) {
     if (action === "sidecar-route") {
       const route = await runRoute(req.body ?? {},workspaceId);
       const { decision, ...selectedRoute } = route;
-      await saveRuntimeTrace(runtimeTraceFromResult({
+      await saveAndEvaluateRuntimeTrace(runtimeTraceFromResult({
         request: req.body ?? {},
         payload: { ok: true, decision, route: selectedRoute, timing: { totalMs: decision.latencyMs } },
         decision,
@@ -149,13 +183,13 @@ export default async function handler(req: any, res: any) {
     }
     if (action === "sidecar-inspect") {
       const result = await runInspectedCompletion(req.body ?? {},undefined,workspaceId);
-      await saveRuntimeTrace(runtimeTraceFromResult({ request: req.body ?? {}, payload: result.payload, source: "routelab_sidecar",workspaceId }),workspaceId);
+      await saveAndEvaluateRuntimeTrace(runtimeTraceFromResult({ request: req.body ?? {}, payload: result.payload, source: "routelab_sidecar",workspaceId }),workspaceId);
       Object.entries(result.headers).forEach(([name, value]) => res.setHeader(name, value));
       return sendJson(res, result.status, result.payload);
     }
     if (action === "sidecar-chat") {
       const result = await runChatCompletion(req.body ?? {},workspaceId);
-      await saveRuntimeTrace(runtimeTraceFromResult({
+      await saveAndEvaluateRuntimeTrace(runtimeTraceFromResult({
         request: req.body ?? {},
         payload: { ok: result.status >= 200 && result.status < 300, openRouterResponse: result.payload },
         decision: result.route.decision,
@@ -168,7 +202,7 @@ export default async function handler(req: any, res: any) {
     }
     if (action === "support-chat") {
       const result = await supportCompletion(req.body ?? {},workspaceId);
-      await saveRuntimeTrace(runtimeTraceFromResult({
+      await saveAndEvaluateRuntimeTrace(runtimeTraceFromResult({
         request: req.body ?? {},
         payload: result.payload,
         decision: result.traceDecision,

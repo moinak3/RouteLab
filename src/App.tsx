@@ -40,11 +40,14 @@ import { evaluateLiveReplay } from "./core/simulationEvaluation";
 import { saveSimulationRun, simulationRunComparisonKey } from "./core/simulationHistory";
 import { simulationScopeKey } from "./core/simulationScope";
 import {
+  fetchServerEvalAutomationPolicies,
   loadEvalAutomationPolicies,
   markEvalTracesProcessed,
   mergeEvalResults,
+  persistServerEvalResults,
   runEvalOnTraces,
   saveEvalRunRecord,
+  syncServerEvalAutomationPolicies,
   type EvalAutomationPolicy,
 } from "./core/evalLifecycle";
 import { clearWorkspaceBrowserState, clearWorkspaceTraces, loadActiveWorkspace, loadCloudWorkspaceId, loadPersonalWorkspace, replaceWorkspaceTraces, resetPersonalCloudWorkspaceId, saveActiveWorkspace, savePersonalWorkspace, type TaskGroupingMethod, type WorkspaceData, type WorkspaceId } from "./core/workspaces";
@@ -147,6 +150,12 @@ export default function App() {
       },
     }));
   }, [activeWorkspace]);
+  const updateEvalAutomationPolicies = useCallback((policies: EvalAutomationPolicy[]) => {
+    setEvalAutomationPolicies(policies);
+    void syncServerEvalAutomationPolicies(cloudWorkspaceId, policies).catch((error) => {
+      setNotice(error instanceof Error ? error.message : "Eval automation settings could not be saved.");
+    });
+  }, [cloudWorkspaceId]);
   const setTaskGroups = useCallback((taskGroups: DistinctTaskBucket[], method: TaskGroupingMethod) => {
     setWorkspaceData((current) => ({
       ...current,
@@ -219,14 +228,35 @@ export default function App() {
     };
   }, [previewUnlocked, cloudWorkspaceId]);
   useEffect(() => {
-    setEvalAutomationPolicies(loadEvalAutomationPolicies(cloudWorkspaceId));
+    const controller = new AbortController();
+    const localPolicies = loadEvalAutomationPolicies(cloudWorkspaceId);
+    setEvalAutomationPolicies(localPolicies);
+    if (previewUnlocked) {
+      const reconcilePolicies = async () => {
+        try {
+          if (localPolicies.length) {
+            const policies = await syncServerEvalAutomationPolicies(cloudWorkspaceId, localPolicies, controller.signal);
+            if (!controller.signal.aborted) setEvalAutomationPolicies(policies);
+            return;
+          }
+          const policies = await fetchServerEvalAutomationPolicies(cloudWorkspaceId, controller.signal);
+          if (!controller.signal.aborted && policies.length) setEvalAutomationPolicies(policies);
+        } catch {
+          // Local settings remain the recovery path when cloud persistence is unavailable.
+        }
+      };
+      void reconcilePolicies();
+    }
     const handlePolicyUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ workspaceId?: string; policies?: EvalAutomationPolicy[] }>).detail;
       if (detail?.workspaceId === cloudWorkspaceId && Array.isArray(detail.policies)) setEvalAutomationPolicies(detail.policies);
     };
     window.addEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
-    return () => window.removeEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
-  }, [cloudWorkspaceId]);
+    return () => {
+      controller.abort();
+      window.removeEventListener("routelab-eval-policy-updated", handlePolicyUpdate);
+    };
+  }, [cloudWorkspaceId, previewUnlocked]);
   useEffect(() => {
     const handleActiveEvalUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ workspaceId?: string }>).detail;
@@ -253,7 +283,10 @@ export default function App() {
       for (const policy of enabled) {
         if (activeEvalRuns.current.has(policy.evalId) || controller.signal.aborted) continue;
         const known = new Set(policy.knownTraceIds);
-        const pending = traces.filter((trace) => !known.has(trace.id));
+        const scored = new Set(traceJudgeResults
+          .filter((result) => result.eval_id === policy.evalId)
+          .map((result) => result.trace_id));
+        const pending = traces.filter((trace) => !known.has(trace.id) && !scored.has(trace.id));
         if (!pending.length) continue;
         activeEvalRuns.current.add(policy.evalId);
         try {
@@ -269,6 +302,7 @@ export default function App() {
               signal: controller.signal,
             });
             addEvalResults(response.results);
+            await persistServerEvalResults(cloudWorkspaceId, response.results, controller.signal);
             saveEvalRunRecord(cloudWorkspaceId, response.run);
           }
           if (!controller.signal.aborted) {
@@ -284,14 +318,15 @@ export default function App() {
     };
     void runNewTraceEvals();
     return () => controller.abort();
-  }, [previewUnlocked, traces, evalAutomationPolicies, cloudWorkspaceId, addEvalResults]);
+  }, [previewUnlocked, traces, traceJudgeResults, evalAutomationPolicies, cloudWorkspaceId, addEvalResults]);
 
   const refreshRuntimeTraces = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(`/api/runtime-traces?limit=500&workspace=${encodeURIComponent(cloudWorkspaceId)}`, { cache: "no-store", signal });
-    const payload = await response.json().catch(() => ({})) as { traces?: Trace[] };
+    const payload = await response.json().catch(() => ({})) as { traces?: Trace[]; results?: typeof traceJudgeResults };
     if (!response.ok || !Array.isArray(payload.traces)) throw new Error("Runtime traces are unavailable.");
     if (payload.traces.length) setTraces(current => mergeRuntimeTraces(current, payload.traces!));
-  }, [cloudWorkspaceId, setTraces]);
+    if (Array.isArray(payload.results) && payload.results.length) addEvalResults(payload.results);
+  }, [cloudWorkspaceId, setTraces, addEvalResults]);
 
   function navigateTo(nextPage: Page, options?: { replace?: boolean }) {
     const nextPath = pathForPage(nextPage);
@@ -486,7 +521,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (page !== "Overview" && page !== "Traces" && page !== "Review Queue") return;
+    if (!previewUnlocked || page === "Home") return;
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
@@ -512,7 +547,7 @@ export default function App() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       channel?.close();
     };
-  }, [page, activeWorkspace, cloudWorkspaceId, refreshRuntimeTraces]);
+  }, [page, activeWorkspace, cloudWorkspaceId, previewUnlocked, refreshRuntimeTraces]);
 
   useEffect(() => {
     let cancelled = false;
@@ -797,7 +832,7 @@ export default function App() {
       {page === "Overview" && (activeWorkspace === "demo" || traces.length > 0) && <Overview key={`overview-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} metrics={metrics} distinctTaskBuckets={distinctTaskBuckets} traces={traces} traceJudgeResults={traceJudgeResults} evaluationEvidenceCount={traceJudgeResults.length + goldenDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0)} workflowCount={workflows.length} onNavigate={navigateTo} onReviewQueue={navigateToReviewLane} personalWorkspace={activeWorkspace === "personal"} />}
       {page === "Traces" && <Traces traces={traces} traceJudgeResults={traceJudgeResults} onImport={upload} personalWorkspace={activeWorkspace === "personal"} onClearTraces={clearPersonalTraces} />}
       {page === "Distinct Tasks" && <TaskSignatures key={`groups-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} traces={traces} traceJudgeResults={traceJudgeResults} serverGatewayKey={serverGatewayKeys.OpenRouter} taskGroups={distinctTaskBuckets} taskGroupingMethod={taskGroupingMethod} onTaskGroupsChange={setTaskGroups} onRunSimulation={openTaskGroupSimulation} />}
-      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} taskGroups={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={(lane) => navigateToReviewLane(lane, "response_quality")} onOpenCalibration={() => navigateTo("Golden Dataset")} onEvalResults={addEvalResults} onAutomationPoliciesChange={setEvalAutomationPolicies} />}
+      {page === "Evals" && <Evals key={`evals-${cloudWorkspaceId}`} workspaceId={cloudWorkspaceId} workspace={activeWorkspace} traces={traces} taskGroups={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} models={simulationModels} onReviewFilter={(lane) => navigateToReviewLane(lane, "response_quality")} onOpenCalibration={() => navigateTo("Golden Dataset")} onEvalResults={addEvalResults} onAutomationPoliciesChange={updateEvalAutomationPolicies} />}
       {page === "Golden Dataset" && <GoldenDataset traces={traces} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} onUpload={addGoldenDataset} onUpdate={updateGoldenDataset} onDelete={deleteGoldenDataset} onOpenEvalLibrary={() => navigateTo("Evals")} onOpenReviewQueue={() => navigateToReviewLane("unusual", "response_quality")} />}
       {page === "Review Queue" && <ReviewQueue traces={traces} traceJudgeResults={traceJudgeResults} distinctTaskBuckets={distinctTaskBuckets} goldenDatasets={goldenDatasets} filter={reviewQueueFilter} taskFilter={reviewTaskFilter} onFilterChange={navigateToReviewLane} weeklyBudget={weeklyReviewBudget} persistedReviews={persistedReviews} persistedTaskGroupReviews={persistedTaskGroupReviews} currentCycle={currentReviewCycle} persistenceState={reviewPersistenceState} persistenceError={reviewPersistenceError} onWeeklyBudgetChange={saveWeeklyReviewBudget} onSaveCycle={saveReviewCycle} onSaveReview={saveHumanReview} onSaveTaskGroupReview={saveTaskGroupHumanReview} onOpenClassifierValidation={() => navigateTo("Classifier Validation")} />}
       {page === "Classifier Validation" && routingPolicyState === "active" && <ClassifierValidation signatures={knownDistinctTaskSignatures} workspace={activeWorkspace} workspaceId={cloudWorkspaceId} traces={traces} taskGroups={distinctTaskBuckets} onOpenResponseReview={() => navigateToReviewLane("representative", "task_group")} onOpenCalibration={() => navigateTo("Golden Dataset")} />}
