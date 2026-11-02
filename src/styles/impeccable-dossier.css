@@ -567,6 +567,12 @@ body:before{
 .shell>main .model-picker-group button{background:transparent;color:#eef5f1}
 .shell>main .model-picker-group button:hover,.shell>main .model-picker-group button:focus-visible{background:#17242d}
 .shell>main .model-picker-group button.selected{background:#17372b}
+.shell>main .model-picker-search{background:#0d151c}
+.shell>main .model-picker-search span{color:#aebfb7}
+.shell>main .model-picker-search input{border-color:#52645b;background:#111d25;color:#eef7f1}
+.shell>main .model-picker-search input::placeholder{color:#91a39a}
+.shell>main .model-picker-search input:focus{border-color:#58f084;outline-color:rgba(88,240,132,.25)}
+.shell>main .model-picker-empty{color:#aebfb7}
 .shell>main .scope-menu :is(button,input){border-color:rgba(255,255,255,.18);background:#111d25;color:#eef5f1}
 .shell>main .scope-option.selected{border-color:#4c8f5d;background:#17372b}
 .shell>main .scope-option em{color:#d7c7f0}
@@ -808,6 +814,26 @@ body:before{
 .shell>main .overview-policy-head p:last-child{color:#526075}
 .shell>main .overview-policy-status.active{border-color:#4c8f5d;background:#dcebdc;color:#216437}
 .shell>main .overview-policy-status.unavailable{border-color:#b25a49;background:#f4dfda;color:#7b2d22}
+.shell>main .overview-routing-card{border-color:var(--dossier-rule-soft);background:rgba(255,255,255,.28)}
+.shell>main .overview-routing-card small{color:#526075}
+.shell>main .overview-routing-card>strong,
+.shell>main .overview-routing-card.mix b,
+.shell>main .overview-routing-legend span>b{color:var(--dossier-ink)}
+.shell>main .overview-routing-card p,
+.shell>main .overview-routing-card>span,
+.shell>main .overview-routing-legend span{color:#526075}
+.shell>main .overview-live-state{color:#526075}
+.shell>main .overview-live-state.live{color:#216437}
+.shell>main .overview-live-state.live i{background:#4c8f5d;box-shadow:0 0 0 4px rgba(76,143,93,.13)}
+.shell>main .overview-live-state.ready{color:#76591f}
+.shell>main .overview-live-state.ready i{background:#b58c2b}
+.shell>main .overview-routing-bar{background:#d9dedb}
+.shell>main .overview-routing-bar .override,
+.shell>main .overview-routing-legend i.override{background:#4c8f5d}
+.shell>main .overview-routing-bar .default,
+.shell>main .overview-routing-legend i.default{background:#315c8c}
+.shell>main .overview-routing-sentence{border-color:#4c8f5d;background:#edf5eb;color:#263b30}
+.shell>main .live-replay-table .status.pending{border-color:#b58c2b;background:#fff1cf;color:#76591f}
 .shell>main .workspace-badge.demo{border-color:#b58c2b;background:#f3e7c8;color:#76591f}
 .shell>main .workspace-badge.personal{border-color:#4c8f5d;background:#dcebdc;color:#216437}
 .shell>main .sort-header i{color:#526075}

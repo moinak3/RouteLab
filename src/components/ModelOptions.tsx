@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { modelFamilies } from "../core/catalog";
 import { openRouterFamilyLabels } from "../core/openRouterModels";
 import type { Model } from "../types";
@@ -25,7 +25,20 @@ export function ModelOptions({
 
 export function ModelPicker({ models, value, onChange }: { models: Model[]; value: string; onChange: (value: string) => void }) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const [query, setQuery] = useState("");
   const selected = models.find((model) => model.id === value) ?? models[0];
+  const filteredModels = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return models;
+    return models.filter((model) => [
+      model.display_name,
+      model.id,
+      model.provider,
+      model.family,
+      openRouterFamilyLabels[model.family],
+    ].some((field) => String(field ?? "").toLowerCase().includes(normalized)));
+  }, [models, query]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -34,6 +47,7 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && detailsRef.current?.open) {
         detailsRef.current.open = false;
+        setQuery("");
         detailsRef.current.querySelector("summary")?.focus();
       }
     };
@@ -47,17 +61,35 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
 
   const choose = (model: Model) => {
     onChange(model.id);
+    setQuery("");
     if (detailsRef.current) detailsRef.current.open = false;
   };
 
-  return <details className="model-picker" ref={detailsRef}>
+  const handleToggle = () => {
+    if (detailsRef.current?.open) requestAnimationFrame(() => searchRef.current?.focus());
+    else setQuery("");
+  };
+
+  return <details className="model-picker" ref={detailsRef} onToggle={handleToggle}>
     <summary aria-label="Choose candidate model">
       <span>{selected ? <><b>{selected.display_name}</b><small> · {modelDate(selected)}</small></> : "Choose a model"}</span>
       <i aria-hidden="true" />
     </summary>
-    <div className="model-picker-menu" role="listbox" aria-label="Candidate models">
-      {pickerFamilies(models).map((family) => {
-        const familyModels = models.filter((model) => model.family === family);
+    <div className="model-picker-menu">
+      <label className="model-picker-search">
+        <span>Search models</span>
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by model, provider, or ID"
+          aria-label="Search candidate models"
+        />
+      </label>
+      <div role="listbox" aria-label="Candidate models">
+      {pickerFamilies(filteredModels).map((family) => {
+        const familyModels = filteredModels.filter((model) => model.family === family);
         if (!familyModels.length) return null;
         return <section className="model-picker-group" key={family}>
           <h3>{openRouterFamilyLabels[family]}</h3>
@@ -74,6 +106,8 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
           </button>)}
         </section>;
       })}
+      {!filteredModels.length && <p className="model-picker-empty">No models match “{query.trim()}”.</p>}
+      </div>
     </div>
   </details>;
 }
