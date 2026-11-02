@@ -851,6 +851,7 @@ body:before{
 .shell>main .overview-routing-bar .default,
 .shell>main .overview-routing-legend i.default{background:#315c8c}
 .shell>main .overview-routing-sentence{border-color:#4c8f5d;background:#edf5eb;color:#263b30}
+.shell>main .new-workspace-hero>div:first-child>p:not(.eyebrow):not(.new-workspace-error){color:#526075}
 .shell>main .live-replay-table .status.pending{border-color:#b58c2b;background:#fff1cf;color:#76591f}
 .shell>main .workspace-badge.demo{border-color:#b58c2b;background:#f3e7c8;color:#76591f}
 .shell>main .workspace-badge.personal{border-color:#4c8f5d;background:#dcebdc;color:#216437}

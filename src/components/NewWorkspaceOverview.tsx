@@ -1,11 +1,8 @@
 import { useRef, useState } from "react";
-import type { Page } from "../types/ui";
-
 type ImportResult = { imported: number; errors: string[] };
 
-export function NewWorkspaceOverview({ onImport, onNavigate, onUseDemo }: {
+export function NewWorkspaceOverview({ onImport, onUseDemo }: {
   onImport: (file: File) => Promise<ImportResult>;
-  onNavigate: (page: Page) => void;
   onUseDemo: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -44,7 +41,6 @@ export function NewWorkspaceOverview({ onImport, onNavigate, onUseDemo }: {
         <div className="new-workspace-actions">
           <input ref={inputRef} type="file" accept=".csv,.json,.jsonl" onChange={(event) => void importFile(event.target.files?.[0])} aria-label="Select a trace file" />
           <button type="button" className="primary" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? "Importing…" : "Upload traces"}</button>
-          <button type="button" onClick={() => onNavigate("Traces")}>See connection options</button>
         </div>
         {error && <p className="new-workspace-error" role="alert">{error}</p>}
       </div>
