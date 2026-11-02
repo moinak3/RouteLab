@@ -6,7 +6,7 @@ import { PolicySigningUnavailableError, signRoutingPolicy } from "./_signing.js"
 import { routingPolicyDatabaseUrl, routingPolicySigningConfig, routingPolicyWorkspaceId } from "./_config.js";
 import { getRoutingPolicyDraft, nextRoutingPolicyVersion, PolicyStoreUnavailableError, publishRoutingPolicyVersion } from "./_store.js";
 
-const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek)\/[a-z0-9][a-z0-9._:-]*$/i;
+const dynamicOpenRouterModel = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i;
 
 const openRouterModelId = (modelId: string, configured?: string) => {
   const explicit = String(configured ?? "").trim();

@@ -15,7 +15,7 @@ export const sendJson = (res: any, status: number, payload: unknown) => {
 export const serverOpenRouterKey = () =>
   String(process.env.ROUTELAB_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "").trim();
 
-const dynamicOpenRouterModel = /^(openai|anthropic|google|mistralai|deepseek|particle-ai|typesafe)\/[a-z0-9][a-z0-9._:-]*$/i;
+const dynamicOpenRouterModel = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i;
 
 export const providerConfig = (source: string, modelId: string, openRouterModelId?: string) => {
   if (source === "openrouter") {

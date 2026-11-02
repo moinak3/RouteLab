@@ -18,6 +18,7 @@ import { simulationScopeKey } from "../core/simulationScope";
 import { mostCommonModelForTaskGroup } from "../core/distinctTasks";
 import { ScenarioMetricRows, type ScenarioMetric } from "../components/SimulationMetricRows";
 import { latestSimulationRun, saveSimulationRun, simulationRunComparisonKey } from "../core/simulationHistory";
+import { isOpenRouterDecisionModelId } from "../core/openRouterModels";
 const simulationRequestFromSearch = (search: string) => {
     const params = new URLSearchParams(search);
     const mode = params.get("requestMode") === "count" ? "count" as const : "percent" as const;
@@ -417,6 +418,10 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const providerId = strategy === "direct" ? liveDirect?.result.runs[0]?.provider_id : undefined;
     const candidateRouteName = providerName ? `${candidateName} via ${providerName}` : candidateName;
     const isAutoRouter = candidate === "openrouter-auto";
+    const routableOpenRouterModels = candidateModels.filter(model => {
+        const runtimeId = String(model.pricing_source_model_id ?? "").trim();
+        return model.id !== "openrouter-auto" && Boolean(runtimeId) && !isOpenRouterDecisionModelId(runtimeId);
+    });
     const defaultStrategyValue = draftPolicy.defaultStrategyType === "openrouter_auto" ? "openrouter-auto" : draftPolicy.defaultModelId;
     const setDefaultStrategy = (value: string) => {
         if (value === "openrouter-auto") {
@@ -432,6 +437,37 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     };
     const setTaskOverride = (row: (typeof distinctTaskImpact)[number]) => setDraftPolicy(policy => reviseDraftRoutingPolicy(policy, { overrides: { ...policy.overrides, [row.distinct_task_bucket_id]: { taskId: row.distinct_task_bucket_id, taskName: row.name, modelId: candidate, modelName: candidateName, openRouterModelId: getModel(candidate)?.pricing_source_model_id, provider: providerName, providerId, passRate: row.quality.after_pass_rate, costDeltaPct: row.cost.delta_pct, latencyDeltaPct: row.latency.delta_pct, replayCount: row.trace_count, updatedAt: new Date().toISOString() } } }));
     const removeTaskOverride = (taskId: string) => setDraftPolicy(policy => { const overrides = { ...policy.overrides }; delete overrides[taskId]; return reviseDraftRoutingPolicy(policy, { overrides }); });
+    const setTaskGroupRoute = (bucket: DistinctTaskBucket, modelId: string) => {
+        if (!modelId) {
+            removeTaskOverride(bucket.bucket_id);
+            return;
+        }
+        const model = routableOpenRouterModels.find(item => item.id === modelId);
+        if (!model?.pricing_source_model_id) return;
+        setDraftPolicy(policy => {
+            const existing = policy.overrides[bucket.bucket_id];
+            const sameMeasuredTarget = existing?.openRouterModelId === model.pricing_source_model_id;
+            return reviseDraftRoutingPolicy(policy, {
+                overrides: {
+                    ...policy.overrides,
+                    [bucket.bucket_id]: {
+                        taskId: bucket.bucket_id,
+                        taskName: bucket.bucket_name,
+                        modelId: model.id,
+                        modelName: model.display_name,
+                        openRouterModelId: model.pricing_source_model_id,
+                        provider: "OpenRouter",
+                        providerId: "openrouter",
+                        passRate: sameMeasuredTarget ? existing.passRate : 0,
+                        costDeltaPct: sameMeasuredTarget ? existing.costDeltaPct : 0,
+                        latencyDeltaPct: sameMeasuredTarget ? existing.latencyDeltaPct : 0,
+                        replayCount: sameMeasuredTarget ? existing.replayCount : 0,
+                        updatedAt: new Date().toISOString(),
+                    },
+                },
+            });
+        });
+    };
     const scopeName = distinctTaskBucketIds.length === 0 ? "All traffic" : distinctTaskBucketIds.length === 1 ? selectedDistinctTasks[0]?.bucket_name ?? "Selected Task Group" : `${distinctTaskBucketIds.length} selected Task Groups`;
     const baselineJudges = scenarioTraces.map(trace => judgeByTraceId.get(trace.id)).filter((judge): judge is TraceJudgeResult => Boolean(judge));
     const baselineAverageScore = baselineJudges.length ? average(baselineJudges.map((judge) => judge.score)) : undefined;
@@ -516,8 +552,24 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 {liveReplayPending?<span>Waiting for completed candidate responses and paired eval scores.</span>:simulation && hasMeasuredQuality?<><span>Completed {new Date(liveDirect!.completedAt).toLocaleString()}</span><span>Candidate average eval score: {pct(simulation.summary.average_quality_score * 100)}</span></>:<span>No candidate results are shown until a measured replay completes.</span>}{strategy === "family_cascade" && simulation && <span>Escalation: {pct((simulation.summary.escalation_rate ?? 0) * 100)}</span>}</div>{strategy === "family_cascade" && simulation && <p className="scope-note">Escalated requests are re-run and re-scored on the fallback model; costs and latency include both passes.</p>}{strategy === "direct" && (liveDirect || pendingLiveReplay) && <LiveReplayDetails liveDirect={liveDirect} pendingLiveReplay={pendingLiveReplay} judgeByTraceId={judgeByTraceId}/>}</section>
 <section className="panel routing-policy-builder">
 <div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Choose task overrides and configure the unmatched path</h2><p className="impact-explainer">Review the measured quality, cost, and latency for each Task Group, then decide whether to use the candidate model. Unselected tasks continue using the configured default strategy.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
-<div className="policy-flow"><div><small>Matched task override</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Use the model explicitly chosen for that Task Group</span></div><i>else</i><label className="policy-default-route"><small>Default strategy</small><select aria-label="Default strategy" value={defaultStrategyValue} onChange={event => setDefaultStrategy(event.target.value)}><option value="openrouter-auto">OpenRouter Auto Router</option><ModelOptions models={activeModels}/></select><span>Used for every request without a matched task override</span></label></div>
-{Object.values(draftPolicy.overrides).length > 0 && <div className="policy-overrides"><h3>Current task overrides</h3>{Object.values(draftPolicy.overrides).map(override => <article key={override.taskId}><div><small>{override.taskName}</small><b>{override.modelName}{override.provider ? ` via ${override.provider}` : ""}</b></div><p>{pct(override.passRate * 100)} pass · {changeLabel(override.costDeltaPct)} cost · {changeLabel(override.latencyDeltaPct)} latency · {override.replayCount} traces</p><button type="button" onClick={() => removeTaskOverride(override.taskId)}>Remove override</button></article>)}</div>}
+<div className="policy-flow"><div><small>Matched task override</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Use the OpenRouter model selected for that Task Group</span></div><i>else</i><label className="policy-default-route"><small>Default strategy</small><select aria-label="Default strategy" value={defaultStrategyValue} onChange={event => setDefaultStrategy(event.target.value)}><option value="openrouter-auto">OpenRouter Auto Router</option><ModelOptions models={routableOpenRouterModels}/></select><span>Used for every request without a matched task override</span></label></div>
+<div className="policy-task-mappings">
+  <div className="policy-task-mappings-head"><div><h3>Task Group routes</h3><p>Map any existing Task Group to any compatible generation model currently available through OpenRouter.</p></div><span>{routableOpenRouterModels.length.toLocaleString()} models available</span></div>
+  <div className="policy-task-mapping-list">{distinctTaskBuckets.map(bucket => {
+    const override = draftPolicy.overrides[bucket.bucket_id];
+    const selectedModel = override ? routableOpenRouterModels.find(model => model.id === override.modelId || model.pricing_source_model_id === override.openRouterModelId) : undefined;
+    const selectedValue = selectedModel?.id ?? (override ? "unmapped" : "");
+    return <label className={selectedValue === "unmapped" ? "needs-mapping" : ""} key={bucket.bucket_id}>
+      <span><b>{bucket.bucket_name}</b><small>{bucket.trace_count.toLocaleString()} traces · {bucket.risk_level} risk</small></span>
+      <select aria-label={`Route for ${bucket.bucket_name}`} value={selectedValue} onChange={event => setTaskGroupRoute(bucket, event.target.value)}>
+        <option value="">Use default strategy</option>
+        {selectedValue === "unmapped" && <option value="unmapped" disabled>{override?.modelName ?? "Saved model"} · choose an OpenRouter model</option>}
+        <ModelOptions models={routableOpenRouterModels}/>
+      </select>
+      <small>{override?.replayCount ? `${override.replayCount.toLocaleString()} measured traces attached` : override ? "User-selected route · no measured simulation attached" : "No override"}</small>
+    </label>;
+  })}</div>
+</div>
 <RoutingPolicyPublisher
   workspaceId={workspaceId}
   signatures={distinctTaskBuckets.map((bucket) => ({

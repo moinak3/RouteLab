@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { providerConfig } from "../api/live/_shared";
 import { getModel, registerOpenRouterModels } from "../src/core/catalog";
 import { liveRoutingStatus } from "../src/core/liveRouting";
-import { latestOpenRouterModels, openRouterFamilyLabels, requiredOpenRouterModels, withRequiredOpenRouterModels } from "../src/core/openRouterModels";
+import { availableOpenRouterModels, latestOpenRouterModels, openRouterFamilyLabels, requiredOpenRouterModels, withRequiredOpenRouterModels } from "../src/core/openRouterModels";
 
 const record = (id: string, created: number, options: { outputs?: string[]; prompt?: string; completion?: string; parameters?: string[] } = {}) => ({
   id,
@@ -44,6 +44,20 @@ describe("OpenRouter model catalog", () => {
     });
   });
 
+  it("keeps every compatible generation model, including providers outside the curated families", () => {
+    const models = availableOpenRouterModels([
+      ...Array.from({ length: 6 }, (_, index) => record(`openai/gpt-${index}`, index)),
+      record("moonshotai/kimi-k2", 20),
+      record("qwen/qwen3:free", 21, { prompt: "0", completion: "0" }),
+      record("vendor/embedding-model", 22, { parameters: [] }),
+    ]);
+
+    expect(models.filter(model => model.family === "OpenAI")).toHaveLength(6);
+    expect(models.find(model => model.pricing_source_model_id === "moonshotai/kimi-k2")).toMatchObject({ family: "Other" });
+    expect(models.find(model => model.pricing_source_model_id === "qwen/qwen3:free")).toMatchObject({ family: "Other", input_cost_per_1m: 0 });
+    expect(models.some(model => model.pricing_source_model_id === "vendor/embedding-model")).toBe(false);
+  });
+
   it("keeps the newest three general models for GLM, MiniMax, and NVIDIA", () => {
     const records = [
       ...Array.from({ length: 5 }, (_, index) => record(`z-ai/glm-${index}`, index + 10)),
@@ -78,7 +92,8 @@ describe("OpenRouter model catalog", () => {
       gatewayApiKeys: { OpenRouter: "sk-openrouter" },
     })).toMatchObject({ source: "openrouter", label: "OpenRouter" });
     expect(providerConfig("openrouter", model.id, model.pricing_source_model_id).modelName).toBe("deepseek/deepseek-new");
-    expect(() => providerConfig("openrouter", model.id, "unsupported/model")).toThrow("Unsupported OpenRouter candidate model");
+    expect(providerConfig("openrouter", model.id, "moonshotai/kimi-k2").modelName).toBe("moonshotai/kimi-k2");
+    expect(() => providerConfig("openrouter", model.id, "unsupported-model")).toThrow("Unsupported OpenRouter candidate model");
 
     registerOpenRouterModels([]);
   });

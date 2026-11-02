@@ -40,8 +40,14 @@ export const openRouterFamilyLabels: Record<Model["family"], string> = {
   NVIDIA: "NVIDIA",
   Particle: "Particle AI",
   TypeSafe: "TypeSafe decision models",
+  Other: "Other OpenRouter providers",
   Local: "Local",
   Router: "Routing strategies",
+};
+
+const familyForRuntimeId = (runtimeId: string): Model["family"] => {
+  const author = runtimeId.split("/")[0];
+  return familyByAuthor[author as keyof typeof familyByAuthor] ?? "Other";
 };
 
 export const requiredOpenRouterModels: Model[] = [
@@ -161,4 +167,52 @@ export function latestOpenRouterModels(records: OpenRouterModelRecord[], perFami
       };
     });
   });
+}
+
+export function availableOpenRouterModels(records: OpenRouterModelRecord[]): Model[] {
+  const compatible = records.flatMap((record) => {
+    const runtimeId = String(record.id ?? "").trim();
+    const [author, slug, ...extra] = runtimeId.split("/");
+    const created = Number(record.created);
+    const input = numericPrice(record.pricing?.prompt);
+    const output = numericPrice(record.pricing?.completion);
+    if (!author || !slug || extra.length || excludedModelVariant.test(slug) || !Number.isFinite(created) || input === undefined || output === undefined || !isTextGenerationModel(record)) return [];
+    return [{ record, runtimeId, created, input, output, family: familyForRuntimeId(runtimeId) }];
+  });
+  const familyPrices = new Map<Model["family"], { cheapest: number; priciest: number }>();
+  compatible.forEach(({ family, input, output }) => {
+    const price = input + output;
+    const current = familyPrices.get(family);
+    familyPrices.set(family, {
+      cheapest: current ? Math.min(current.cheapest, price) : price,
+      priciest: current ? Math.max(current.priciest, price) : price,
+    });
+  });
+  return compatible
+    .sort((a, b) => a.family.localeCompare(b.family) || b.created - a.created || a.runtimeId.localeCompare(b.runtimeId))
+    .map(({ record, runtimeId, created, input, output, family }): Model => {
+      const price = input + output;
+      const range = familyPrices.get(family)!;
+      const familyTier: Model["family_tier"] = price === range.priciest && range.priciest !== range.cheapest
+        ? "top"
+        : price === range.cheapest && range.priciest !== range.cheapest
+          ? "cheapest"
+          : "mid";
+      return {
+        id: `openrouter:${runtimeId}`,
+        provider: runtimeId.split("/")[0],
+        family,
+        family_tier: familyTier,
+        display_name: displayName(record, runtimeId),
+        input_cost_per_1m: input,
+        output_cost_per_1m: output,
+        default_latency_ms: familyTier === "top" ? 1_300 : familyTier === "cheapest" ? 550 : 850,
+        deployment_type: "openrouter_managed",
+        quality_tier: familyTier === "top" ? "strong" : familyTier === "cheapest" ? "cheap" : "balanced",
+        pricing_source: "OpenRouter",
+        pricing_source_model_id: runtimeId,
+        pricing_updated_at: new Date().toISOString().slice(0, 10),
+        openrouter_created_at: new Date(created * 1_000).toISOString(),
+      };
+    });
 }

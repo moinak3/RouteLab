@@ -330,7 +330,7 @@ body:before{
 .shell>main>header h1{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:34px;font-weight:600;letter-spacing:-.025em}
 .shell>main :is(h1,h2,h3,h4){text-wrap:balance}
 .shell>main :is(h2,h3,h4){color:var(--dossier-ink)}
-.shell>main :is(.panel,.stat,.cluster-card,.trend-chart,.sim-builder,.scenario-results,.task-impact-wrap,.routing-policy-controls>label,.routing-policy-controls>div,.policy-flow>div,.policy-flow>.policy-default-route,.policy-overrides article){
+.shell>main :is(.panel,.stat,.cluster-card,.trend-chart,.sim-builder,.scenario-results,.task-impact-wrap,.routing-policy-controls>label,.routing-policy-controls>div,.policy-flow>div,.policy-flow>.policy-default-route,.policy-overrides article,.policy-task-mappings,.policy-task-mapping-list>label){
   border-color:var(--dossier-rule);
   border-radius:2px;
   background:rgba(251,248,240,.8);
@@ -842,6 +842,11 @@ body:before{
 .shell>main .calibration-loop li span{color:#526075}
 .shell>main .calibration-loop li:before{background:#dcebdc;color:#216437}
 .shell>main .policy-flow i{color:#526075}
+.shell>main .policy-task-mappings-head h3,
+.shell>main .policy-task-mapping-list b{color:var(--dossier-ink)}
+.shell>main .policy-task-mappings-head :is(p,span),
+.shell>main .policy-task-mapping-list small{color:#526075}
+.shell>main .policy-task-mapping-list .needs-mapping{border-color:#b77932;background:#fff5e6}
 .shell>main .policy-version-row .active{color:#216437}
 .shell>main .policy-version-row .published{color:#76591f}
 .shell>main .policy-version-actions button:first-child{border-color:#4c8f5d;color:#216437}
