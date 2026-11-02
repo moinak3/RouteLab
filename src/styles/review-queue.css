@@ -47,13 +47,10 @@
 .review-step-heading p{margin:4px 0 0!important;font-size:13px!important}
 .review-task-group-step,.review-response-step{display:grid!important;gap:14px}
 .review-task-form{display:grid;gap:12px;padding:14px;border:1px solid #596761;border-radius:10px;background:#18211e}
-.review-task-form fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0;padding:0;border:0}
-.review-task-form legend{margin-bottom:7px;color:#aebfb7;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.review-task-verdict button{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:center;min-height:68px;padding:10px 12px;border:1px solid #687873;border-radius:9px;background:#202a27;color:#edf5f1;text-align:left;white-space:normal}
-.review-task-verdict button svg{width:26px;height:26px;fill:currentColor}
-.review-task-verdict button>span{display:grid;gap:2px;color:inherit!important}
-.review-task-verdict button b{color:#f7fbf9;font-size:14px}
-.review-task-verdict button small{margin:0!important;color:#c3d0ca!important;font-size:12px;text-transform:none;letter-spacing:0}
+.review-task-form fieldset{display:flex;gap:8px;margin:0;padding:0;border:0}
+.review-task-form legend{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.review-task-verdict button{display:grid;place-items:center;width:44px;height:44px;min-width:44px;padding:0;border:1px solid #687873;border-radius:9px;background:#202a27;color:#edf5f1}
+.review-task-verdict button svg{width:22px;height:22px;fill:currentColor}
 .review-task-verdict button.right{color:#86e9a2}
 .review-task-verdict button.wrong{color:#ffad99}
 .review-task-verdict button.selected.right{border-color:#59d27b;background:#173f2b;box-shadow:0 0 0 1px rgba(89,210,123,.28)}
@@ -63,11 +60,12 @@
 .review-task-form>label span{font-size:12px;font-weight:400}
 .review-task-form :is(select,textarea){width:100%;resize:vertical;border-color:#71817b;background:#f8f6ee;color:#122039}
 .review-task-form .primary{justify-self:start;border-color:#43985e;background:#2fbe60;color:#08150e}
-.review-classifier-choice{display:grid;gap:5px;padding:13px 14px;border:1px solid #43985e;border-radius:9px;background:#142c20}
+.review-classifier-choice{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 14px;border:1px solid #43985e;border-radius:9px;background:#142c20}
+.review-classifier-main{display:grid;min-width:0;gap:5px}
 .review-classifier-choice small{color:#aebfb7!important;font-size:12px!important;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .review-classifier-choice b{color:#f7fbf9!important;font-size:18px;line-height:1.3}
 .review-classifier-choice span{color:#b8c7c0!important;font-size:12px;line-height:1.4}
-.review-task-form .review-task-verdict{grid-template-columns:repeat(2,minmax(0,1fr))}
+.review-task-form .review-task-verdict{flex:0 0 auto}
 .review-task-saved{display:grid;gap:4px;padding:12px;border:1px solid #43985e;border-radius:10px;background:#173f2b}
 .review-task-saved b{color:#bdf58a!important}
 .review-task-saved p{margin:4px 0 0!important;font-size:13px!important}
@@ -132,7 +130,7 @@
   .review-tabs{grid-template-columns:1fr}
   .review-assignment-header{grid-template-columns:1fr}
   .review-assignment-header>div:last-child>div{justify-content:flex-start}
-  .review-task-form fieldset,.review-task-form .review-task-verdict{grid-template-columns:1fr}
+  .review-classifier-choice{align-items:flex-start}
   .review-method{padding:16px}
   .review-method-head{align-items:start}
   .review-method-head h2{font-size:18px}
