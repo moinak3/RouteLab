@@ -1963,3 +1963,31 @@ nav .nav-submenu a.active:before{
 /* Keep the expanded Task Group metrics readable inside the horizontal table scroller. */
 .task-table{min-width:2080px}
 .task-metric-cell{font-variant-numeric:tabular-nums;font-weight:600}
+
+/* Task Group overrides share the searchable model picker used by simulations. */
+.policy-task-mapping-list>article{
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) minmax(240px,1.25fr);
+  gap:6px 12px;
+  align-items:center;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:rgba(255,255,255,.025);
+}
+.policy-task-mapping-list>article>span{display:grid;gap:3px;min-width:0}
+.policy-task-mapping-list>article>small{grid-column:2}
+.policy-task-mapping-list .model-picker{min-width:0}
+.policy-task-mapping-list .model-picker summary{min-height:40px}
+.policy-task-mapping-list .model-picker-menu{right:0;left:auto;min-width:min(420px,calc(100vw - 48px))}
+@media(max-width:900px){
+  .policy-task-mapping-list>article{grid-template-columns:1fr}
+  .policy-task-mapping-list>article>small{grid-column:1}
+  .policy-task-mapping-list .model-picker-menu{right:auto;left:0}
+}
+@media(max-width:650px){
+  .policy-task-mapping-list .model-picker-menu{
+    width:min(320px,calc(100vw - 80px));
+    min-width:0;
+  }
+}

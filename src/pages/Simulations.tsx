@@ -318,7 +318,9 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
             state: "idle",
             message: restored ? `Showing the latest completed run from ${new Date(restored.completedAt).toLocaleString()}.` : "",
         });
-    }, [comparisonKey, workspaceId, traces]);
+        // Runtime trace polling can replace the trace array without changing the selected
+        // comparison. Only a real scope/eval/workspace change should cancel a live replay.
+    }, [comparisonKey, workspaceId]);
     const runDirect = async () => {
         if (isDecisionCandidate) {
             setLiveStatus({ state: "error", message: "Jev is available through OpenRouter's Decisions API for classification and routing, but it cannot generate candidate responses for this replay." });
@@ -560,15 +562,19 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
     const override = draftPolicy.overrides[bucket.bucket_id];
     const selectedModel = override ? routableOpenRouterModels.find(model => model.id === override.modelId || model.pricing_source_model_id === override.openRouterModelId) : undefined;
     const selectedValue = selectedModel?.id ?? (override ? "unmapped" : "");
-    return <label className={selectedValue === "unmapped" ? "needs-mapping" : ""} key={bucket.bucket_id}>
+    return <article className={selectedValue === "unmapped" ? "needs-mapping" : ""} key={bucket.bucket_id}>
       <span><b>{bucket.bucket_name}</b><small>{bucket.trace_count.toLocaleString()} traces · {bucket.risk_level} risk</small></span>
-      <select aria-label={`Route for ${bucket.bucket_name}`} value={selectedValue} onChange={event => setTaskGroupRoute(bucket, event.target.value)}>
-        <option value="">Use default strategy</option>
-        {selectedValue === "unmapped" && <option value="unmapped" disabled>{override?.modelName ?? "Saved model"} · choose an OpenRouter model</option>}
-        <ModelOptions models={routableOpenRouterModels}/>
-      </select>
+      <ModelPicker
+        models={routableOpenRouterModels}
+        value={selectedValue}
+        onChange={value => setTaskGroupRoute(bucket, value)}
+        ariaLabel={`Route for ${bucket.bucket_name}`}
+        searchAriaLabel={`Search models for ${bucket.bucket_name}`}
+        emptyOption={{ value: "", label: "Use default strategy", description: "No Task Group override" }}
+        unresolvedLabel={`${override?.modelName ?? "Saved model"} · choose an OpenRouter model`}
+      />
       <small>{override?.replayCount ? `${override.replayCount.toLocaleString()} measured traces attached` : override ? "User-selected route · no measured simulation attached" : "No override"}</small>
-    </label>;
+    </article>;
   })}</div>
 </div>
 <RoutingPolicyPublisher

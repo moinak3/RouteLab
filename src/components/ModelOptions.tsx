@@ -23,22 +23,48 @@ export function ModelOptions({
   return <>{pickerFamilies(models).map(family=>{const familyModels=models.filter(model=>model.family===family);return familyModels.length?<optgroup label={openRouterFamilyLabels[family]} key={family}>{familyModels.map(model=><option value={valueForModel(model)} key={model.id}>{model.display_name} · {modelDate(model)}</option>)}</optgroup>:null})}</>;
 }
 
-export function ModelPicker({ models, value, onChange }: { models: Model[]; value: string; onChange: (value: string) => void }) {
+type ModelPickerOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+type ModelPickerProps = {
+  models: Model[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel?: string;
+  searchAriaLabel?: string;
+  emptyOption?: ModelPickerOption;
+  unresolvedLabel?: string;
+};
+
+export function ModelPicker({
+  models,
+  value,
+  onChange,
+  ariaLabel = "Choose candidate model",
+  searchAriaLabel = "Search candidate models",
+  emptyOption,
+  unresolvedLabel,
+}: ModelPickerProps) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState("");
-  const selected = models.find((model) => model.id === value) ?? models[0];
+  const selected = models.find((model) => model.id === value) ?? (!emptyOption ? models[0] : undefined);
+  const normalizedQuery = query.trim().toLowerCase();
+  const emptyOptionMatches = Boolean(emptyOption && (!normalizedQuery || [emptyOption.label, emptyOption.description]
+    .some((field) => String(field ?? "").toLowerCase().includes(normalizedQuery))));
   const filteredModels = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return models;
+    if (!normalizedQuery) return models;
     return models.filter((model) => [
       model.display_name,
       model.id,
       model.provider,
       model.family,
       openRouterFamilyLabels[model.family],
-    ].some((field) => String(field ?? "").toLowerCase().includes(normalized)));
-  }, [models, query]);
+    ].some((field) => String(field ?? "").toLowerCase().includes(normalizedQuery)));
+  }, [models, normalizedQuery]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -59,8 +85,8 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
     };
   }, []);
 
-  const choose = (model: Model) => {
-    onChange(model.id);
+  const choose = (nextValue: string) => {
+    onChange(nextValue);
     setQuery("");
     if (detailsRef.current) detailsRef.current.open = false;
   };
@@ -70,9 +96,15 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
     else setQuery("");
   };
 
+  const summary = selected
+    ? <><b>{selected.display_name}</b><small> · {modelDate(selected)}</small></>
+    : emptyOption && value === emptyOption.value
+      ? <><b>{emptyOption.label}</b>{emptyOption.description ? <small> · {emptyOption.description}</small> : null}</>
+      : <b>{unresolvedLabel ?? "Choose a model"}</b>;
+
   return <details className="model-picker" ref={detailsRef} onToggle={handleToggle}>
-    <summary aria-label="Choose candidate model">
-      <span>{selected ? <><b>{selected.display_name}</b><small> · {modelDate(selected)}</small></> : "Choose a model"}</span>
+    <summary aria-label={ariaLabel}>
+      <span>{summary}</span>
       <i aria-hidden="true" />
     </summary>
     <div className="model-picker-menu">
@@ -84,10 +116,23 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by model, provider, or ID"
-          aria-label="Search candidate models"
+          aria-label={searchAriaLabel}
         />
       </label>
-      <div role="listbox" aria-label="Candidate models">
+      <div role="listbox" aria-label={ariaLabel}>
+      {emptyOptionMatches && emptyOption ? <section className="model-picker-group model-picker-default-option">
+        <h3>Routing</h3>
+        <button
+          type="button"
+          role="option"
+          aria-selected={value === emptyOption.value}
+          className={value === emptyOption.value ? "selected" : ""}
+          onClick={() => choose(emptyOption.value)}
+        >
+          <span><b>{emptyOption.label}</b>{emptyOption.description ? <small>{emptyOption.description}</small> : null}</span>
+          <i aria-hidden="true">{value === emptyOption.value ? "✓" : ""}</i>
+        </button>
+      </section> : null}
       {pickerFamilies(filteredModels).map((family) => {
         const familyModels = filteredModels.filter((model) => model.family === family);
         if (!familyModels.length) return null;
@@ -98,7 +143,7 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
             role="option"
             aria-selected={model.id === value}
             className={model.id === value ? "selected" : ""}
-            onClick={() => choose(model)}
+            onClick={() => choose(model.id)}
             key={model.id}
           >
             <span><b>{model.display_name}</b><small>{modelDate(model)}</small></span>
@@ -106,7 +151,7 @@ export function ModelPicker({ models, value, onChange }: { models: Model[]; valu
           </button>)}
         </section>;
       })}
-      {!filteredModels.length && <p className="model-picker-empty">No models match “{query.trim()}”.</p>}
+      {!filteredModels.length && !emptyOptionMatches && <p className="model-picker-empty">No models match “{query.trim()}”.</p>}
       </div>
     </div>
   </details>;
