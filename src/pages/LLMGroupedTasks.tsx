@@ -177,7 +177,7 @@ export function LLMGroupedTasks({ traces, traceJudgeResults = [], workspaceId, s
 
     {loading && !savedTaskGroups.length ? <section className="llm-empty"><b>Loading the latest saved experiment…</b></section> : (!run || stale) && savedTaskGroups.length ? <>
       <div className="llm-alert neutral"><b>Showing saved LLM task groups</b><span>The full experiment record is unavailable, but the latest groups chosen for this workspace remain available.</span></div>
-      <DistinctTasks traces={traces} buckets={savedTaskGroups} onBucketsChange={onTaskGroupsChange} onRunSimulation={onRunSimulation} embedded />
+      <DistinctTasks traces={traces} traceJudgeResults={traceJudgeResults} buckets={savedTaskGroups} onBucketsChange={onTaskGroupsChange} onRunSimulation={onRunSimulation} embedded />
     </> : !run || stale ? <section className="llm-empty">
       <div><span>LLM</span></div>
       <h3>{stale ? "No task groups for this trace snapshot" : "No experiment has been run"}</h3>
