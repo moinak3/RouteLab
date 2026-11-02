@@ -597,9 +597,32 @@ export function Evals({
                     {lineSegments(plotted).map((segment, segmentIndex) => (
                       <polyline key={`${series.id}-${segmentIndex}`} style={{ stroke: color }} points={segment.map((point) => `${point.x},${point.y}`).join(" ")} />
                     ))}
-                    {plotted.map((point) => point && <circle key={`${series.id}-${point.key}`} cx={point.x} cy={point.y} r="5" style={{ fill: color }}>
-                      <title>{series.label} · {point.label}: {pct(point.averageScore * 100)} across {point.count.toLocaleString()} scored traces</title>
-                    </circle>)}
+                    {plotted.map((point) => point && <g
+                      key={`${series.id}-${point.key}`}
+                      className="eval-history-series-point"
+                      transform={`translate(${point.x} ${point.y})`}
+                      tabIndex={0}
+                      role="img"
+                      aria-label={`${series.label}, ${point.label}: ${pct(point.averageScore * 100)} average quality across ${point.count.toLocaleString()} scored traces`}
+                    >
+                      <circle r="6" style={{ fill: color }} />
+                      <foreignObject
+                        x={point.x > evalChart.width - 250 ? -244 : 12}
+                        y={point.averageScore > .72 ? 12 : -92}
+                        width="232"
+                        height="84"
+                        className="eval-history-segment-tooltip-wrap"
+                      >
+                        <div className="eval-history-segment-tooltip">
+                          <b><i style={{ backgroundColor: color }} />{series.label}</b>
+                          <dl>
+                            <div><dt>Month</dt><dd>{point.label}</dd></div>
+                            <div><dt>Average quality</dt><dd>{pct(point.averageScore * 100)}</dd></div>
+                            <div><dt>Scored traces</dt><dd>{point.count.toLocaleString()}</dd></div>
+                          </dl>
+                        </div>
+                      </foreignObject>
+                    </g>)}
                   </g>;
                 })}
                 {taskGroupHistory.months.map((month, index) => {
