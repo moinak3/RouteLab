@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { modelCatalog } from "../core/catalog";
 import {
   activateRoutingPolicy,
@@ -21,11 +22,12 @@ function download(name: string, contents: string, type = "application/json") {
 
 const modelName = (id: string) => modelCatalog.find((model) => model.id === id)?.display_name ?? id;
 
-export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved, workspaceId }: {
+export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved, workspaceId, publishActionTarget }: {
   signatures: PublishedTaskSignature[];
   draftRevision: number;
   draftSaved: boolean;
   workspaceId: string;
+  publishActionTarget?: HTMLElement | null;
 }) {
   const [history, setHistory] = useState<PublishedPolicyHistory>(emptyHistory);
   const [state, setState] = useState<"loading" | "idle" | "publishing" | "activating" | "exporting" | "error">("loading");
@@ -120,14 +122,15 @@ export function RoutingPolicyPublisher({ signatures, draftRevision, draftSaved, 
     }
   };
   const publishedVersions = useMemo(() => history.versions.slice(0, 6), [history.versions]);
+  const publishAction = <button type="button" className="primary" disabled={!draftSaved || state === "publishing"} onClick={publish}>{state === "publishing" ? "Publishing and deploying..." : "Publish and deploy policy"}</button>;
   return <section className="policy-publish-workflow">
+    {publishActionTarget ? createPortal(publishAction, publishActionTarget) : null}
     <div className="policy-publish-head">
       <div>
         <p className="eyebrow">Publish and deploy</p>
         <h3>Deploy this routing policy to customer-hosted sidecars</h3>
         <p>Publishing freezes and signs an immutable version, then promotes it to the active policy endpoint. Sidecars verify it, classify each conversation, and enforce its model route locally.</p>
       </div>
-      <button type="button" className="primary" disabled={!draftSaved || state === "publishing"} onClick={publish}>{state === "publishing" ? "Publishing and deploying..." : "Publish and deploy policy"}</button>
     </div>
     {!draftSaved && <p className="policy-lifecycle-message warn">Wait for the cloud draft to finish saving before publishing.</p>}
     {message && <p className={`policy-lifecycle-message ${state === "error" ? "error" : "good"}`}>{message}</p>}

@@ -209,6 +209,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
         state: "idle" | "running" | "success" | "error";
         message: string;
     }>({ state: "idle", message: "" });
+    const [publishActionTarget, setPublishActionTarget] = useState<HTMLDivElement | null>(null);
     const liveAbortRef = useRef<AbortController | null>(null);
     const activeScopeKeyRef = useRef("");
     const hasActiveModels = candidateModels.length > 0;
@@ -554,7 +555,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
 <div className="panelhead"><div><p className="eyebrow">Routing policy builder</p><h2>Choose task overrides and configure the unmatched path</h2><p className="impact-explainer">Review the measured quality, cost, and latency for each Task Group, then decide whether to use the candidate model. Unselected tasks continue using the configured default strategy.</p></div><div className={`policy-save-state ${draftStatus.state}`}><span>Draft v{draftPolicy.version} · {policySaveLabel(draftStatus.state)}</span>{draftStatus.imported ? <small>Browser draft imported</small> : null}{draftStatus.state === "conflict" ? <div><button type="button" onClick={retryMyDraft}>Keep my changes</button><button type="button" onClick={useServerDraft}>Use cloud draft</button></div> : null}</div></div>
 <div className="policy-flow"><div><small>Matched task override</small><b>{Object.keys(draftPolicy.overrides).length ? `${Object.keys(draftPolicy.overrides).length} task override${Object.keys(draftPolicy.overrides).length === 1 ? "" : "s"}` : "No overrides yet"}</b><span>Use the OpenRouter model selected for that Task Group</span></div><i>else</i><label className="policy-default-route"><small>Default strategy</small><select aria-label="Default strategy" value={defaultStrategyValue} onChange={event => setDefaultStrategy(event.target.value)}><option value="openrouter-auto">OpenRouter Auto Router</option><ModelOptions models={routableOpenRouterModels}/></select><span>Used for every request without a matched task override</span></label></div>
 <div className="policy-task-mappings">
-  <div className="policy-task-mappings-head"><div><h3>Task Group routes</h3><p>Map any existing Task Group to any compatible generation model currently available through OpenRouter.</p></div><span>{routableOpenRouterModels.length.toLocaleString()} models available</span></div>
+  <div className="policy-task-mappings-head"><div><h3>Task Group routes</h3><p>Map any existing Task Group to any compatible generation model currently available through OpenRouter.</p></div><div className="policy-task-mappings-actions"><span>{routableOpenRouterModels.length.toLocaleString()} models available</span><div ref={setPublishActionTarget}/></div></div>
   <div className="policy-task-mapping-list">{distinctTaskBuckets.map(bucket => {
     const override = draftPolicy.overrides[bucket.bucket_id];
     const selectedModel = override ? routableOpenRouterModels.find(model => model.id === override.modelId || model.pricing_source_model_id === override.openRouterModelId) : undefined;
@@ -582,6 +583,7 @@ export function Simulations({ traces, traceJudgeResults = [], distinctTaskBucket
   }))}
   draftRevision={draftStatus.revision}
   draftSaved={draftStatus.state === "saved"}
+  publishActionTarget={publishActionTarget}
 />
 </section>
 <section className="panel task-impact-panel">
@@ -633,13 +635,12 @@ return <tr key={row.distinct_task_bucket_id}>
 </tr>;
 })}</tbody>
 </table> : <table className="task-impact-table current-task-metrics-table">
-<thead><tr><th>Task Group</th><th>Current cost / month</th><th>Current latency</th><th>Current average eval score</th><th>Current model</th></tr></thead>
+<thead><tr><th>Task Group</th><th>Current cost / month</th><th>Current latency</th><th>Current average eval score</th></tr></thead>
 <tbody>{currentTaskMetrics.map((row) => <tr key={row.id}>
 <td><b>{row.name}</b><small>{row.traceCount.toLocaleString()} selected trace{row.traceCount === 1 ? "" : "s"}</small></td>
 <td className="task-impact-value">{money(row.monthlyCost)}</td>
 <td className="task-impact-value">{row.latency.toFixed(0)}ms</td>
 <td className="task-impact-value">{row.averageScore === undefined ? "Not scored" : pct(row.averageScore * 100)}<small>{row.scored.toLocaleString()} scored</small></td>
-<td><span className="current-task-model">{currentModelByTaskGroup.get(row.id) ?? "Not recorded"}</span></td>
 </tr>)}</tbody>
 </table>}
 </div>

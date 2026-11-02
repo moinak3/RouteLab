@@ -112,13 +112,12 @@
   white-space:normal;
 }
 .task-impact-panel .current-task-metrics-table{
-  min-width:760px;
+  min-width:640px;
 }
-.task-impact-panel .current-task-metrics-table th:nth-child(1){width:30%}
+.task-impact-panel .current-task-metrics-table th:nth-child(1){width:40%}
 .task-impact-panel .current-task-metrics-table th:nth-child(2),
 .task-impact-panel .current-task-metrics-table th:nth-child(3),
-.task-impact-panel .current-task-metrics-table th:nth-child(4){width:15%}
-.task-impact-panel .current-task-metrics-table th:nth-child(5){width:25%}
+.task-impact-panel .current-task-metrics-table th:nth-child(4){width:20%}
 
 @media(max-width:800px){
   .current-baseline-grid{grid-template-columns:1fr}
