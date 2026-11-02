@@ -231,6 +231,10 @@ describe("eval lifecycle", () => {
       expect(request.messages[1].content).toContain('"evidence_schema_version":"routelab.eval-evidence.v1"');
       expect(request.messages[1].content).toContain('"evaluation_scope":"full_trajectory"');
       expect(request.messages[1].content).not.toContain("_internal_reference");
+      expect(request.response_format).toMatchObject({
+        type: "json_schema",
+        json_schema: { name: "routelab_eval_result", strict: true },
+      });
       return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: .9, passed: true, rationale: "The requested outcome was achieved.", severity: null }) } }] }), { status: 200 });
     });
 
@@ -245,6 +249,54 @@ describe("eval lifecycle", () => {
     });
 
     expect(result).toMatchObject({ eval_id: definition.id, eval_version: 3, run_id: "run_1", score: .9, passed: true });
+  });
+
+  it("retries an incomplete judge response with a larger structured-output budget", async () => {
+    const requests: Array<Record<string, any>> = [];
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as Record<string, any>;
+      requests.push(request);
+      if (requests.length === 1) {
+        return new Response(JSON.stringify({
+          choices: [{ finish_reason: "length", message: { content: '{"score":0.9,"passed":true,"rationale":"The response was cut off' } }],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ score: .9, passed: true, rationale: "The requested outcome was achieved.", severity: "none" }) } }],
+      }), { status: 200 });
+    });
+
+    const result = await evaluateTraceWithDefinition({
+      definition,
+      trace: trace(1),
+      evalVersion: 3,
+      runId: "retry_run",
+      runMode: "simulation_candidate",
+      apiKey: "test-key",
+      fetchImpl: fetchMock as typeof fetch,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requests[0].max_tokens).toBe(1000);
+    expect(requests[1].max_tokens).toBe(1600);
+    expect(result).toMatchObject({ score: .9, passed: true, severity: undefined });
+  });
+
+  it("replaces raw JSON parser errors with an actionable judge error after retry", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ finish_reason: "length", message: { content: '{"score":0.5,"rationale":"unfinished' } }],
+    }), { status: 200 }));
+
+    await expect(evaluateTraceWithDefinition({
+      definition,
+      trace: trace(1),
+      evalVersion: 3,
+      runId: "failed_retry_run",
+      runMode: "simulation_candidate",
+      apiKey: "test-key",
+      fetchImpl: fetchMock as typeof fetch,
+    })).rejects.toThrow("The judge returned incomplete structured output twice");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("adds the shared score anchors before an older personal-agent definition reaches the judge", async () => {

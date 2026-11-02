@@ -6,6 +6,26 @@ import { serverOpenRouterKey } from "../../api/live/_shared.js";
 
 const MAX_TRACES_PER_RUN = 50;
 const MAX_CONCURRENCY = 4;
+const MAX_JUDGE_ATTEMPTS = 2;
+
+const judgeResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["score", "passed", "rationale", "severity"],
+  properties: {
+    score: { type: "number", minimum: 0, maximum: 1 },
+    passed: { type: "boolean" },
+    rationale: { type: "string", maxLength: 1200 },
+    severity: { type: "string", enum: ["none", "minor", "major", "critical"] },
+  },
+};
+
+class InvalidJudgePayloadError extends Error {
+  constructor() {
+    super("The judge returned incomplete structured output.");
+    this.name = "InvalidJudgePayloadError";
+  }
+}
 
 const isObject = (value: unknown): value is Record<string, any> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -22,7 +42,12 @@ function parseJudgePayload(content: unknown) {
   const source = typeof content === "string" ? content : JSON.stringify(content ?? {});
   const fenced = source.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const object = source.match(/\{[\s\S]*\}/)?.[0];
-  const parsed = JSON.parse((fenced ?? object ?? source).trim()) as Record<string, unknown>;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse((fenced ?? object ?? source).trim()) as Record<string, unknown>;
+  } catch {
+    throw new InvalidJudgePayloadError();
+  }
   const rawScore = Number(parsed.weighted_score ?? parsed.score ?? 0);
   const score = Math.max(0, Math.min(1, Number.isFinite(rawScore) ? rawScore : 0));
   const severity: TraceJudgeResult["severity"] = parsed.severity === "minor" || parsed.severity === "major" || parsed.severity === "critical"
@@ -57,30 +82,47 @@ export async function evaluateTraceWithDefinition({
   if (!runtimeDefinition.evaluator_type.toLowerCase().includes("judge")) {
     throw new Error("Historical and continuous runs currently require an LLM judge evaluator.");
   }
-  const response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "X-OpenRouter-Metadata": "enabled",
-    },
-    body: JSON.stringify({
-      model: runtimeModelId(runtimeDefinition.model),
-      temperature: 0,
-      max_tokens: 700,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `${runtimeDefinition.prompt}\n\nReturn one JSON object with: score (0 to 1), passed (boolean), rationale (concise evidence-based string), and severity (minor, major, critical, or null). Evaluate only the supplied trace evidence.`,
+  let judged: ReturnType<typeof parseJudgePayload> | undefined;
+  for (let attempt = 0; attempt < MAX_JUDGE_ATTEMPTS; attempt += 1) {
+    const response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-OpenRouter-Metadata": "enabled",
+      },
+      body: JSON.stringify({
+        model: runtimeModelId(runtimeDefinition.model),
+        temperature: 0,
+        max_tokens: attempt === 0 ? 1000 : 1600,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "routelab_eval_result", strict: true, schema: judgeResponseSchema },
         },
-        { role: "user", content: JSON.stringify(buildTraceEvaluationEvidence(trace)) },
-      ],
-    }),
-  });
-  const payload = await response.json().catch(() => ({})) as Record<string, any>;
-  if (!response.ok) throw new Error(String(payload.error?.message ?? `OpenRouter HTTP ${response.status}`));
-  const judged = parseJudgePayload(payload.choices?.[0]?.message?.content);
+        messages: [
+          {
+            role: "system",
+            content: `${runtimeDefinition.prompt}\n\nReturn one JSON object with: score (0 to 1), passed (boolean), rationale (an evidence-based explanation of at most 120 words), and severity (none, minor, major, or critical). Evaluate only the supplied trace evidence.`,
+          },
+          { role: "user", content: JSON.stringify(buildTraceEvaluationEvidence(trace)) },
+        ],
+      }),
+    });
+    const payload = await response.json().catch(() => ({})) as Record<string, any>;
+    if (!response.ok) throw new Error(String(payload.error?.message ?? `OpenRouter HTTP ${response.status}`));
+    try {
+      judged = parseJudgePayload(payload.choices?.[0]?.message?.content);
+      break;
+    } catch (error) {
+      if (!(error instanceof InvalidJudgePayloadError) || attempt === MAX_JUDGE_ATTEMPTS - 1) {
+        if (error instanceof InvalidJudgePayloadError) {
+          throw new Error("The judge returned incomplete structured output twice. Retry the simulation or choose a judge model with structured-output support.");
+        }
+        throw error;
+      }
+    }
+  }
+  if (!judged) throw new Error("The judge did not return a structured evaluation result.");
   const passed = typeof judged.passed === "boolean" ? judged.passed && judged.score >= runtimeDefinition.threshold : judged.score >= runtimeDefinition.threshold;
   return {
     id: `${runId}_${trace.id}`,
