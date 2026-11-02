@@ -813,7 +813,22 @@ body:before{
 .shell>main .chart-axis{stroke:rgba(33,77,134,.3)}
 .shell>main .overview-policy-head p:last-child{color:#526075}
 .shell>main .overview-policy-status.active{border-color:#4c8f5d;background:#dcebdc;color:#216437}
+.shell>main .overview-policy-status.inactive{border-color:#9da7b5;background:#ece9df;color:#526075}
 .shell>main .overview-policy-status.unavailable{border-color:#b25a49;background:#f4dfda;color:#7b2d22}
+.shell>main .overview-operation-card{border-color:var(--dossier-rule);border-radius:2px;background:rgba(255,255,255,.38);box-shadow:3px 3px 0 rgba(33,77,134,.055)}
+.shell>main .overview-classifier-card{border-color:#6fa67a;background:linear-gradient(145deg,#edf5eb,rgba(255,255,255,.56))}
+.shell>main .overview-operation-card small{color:#526075}
+.shell>main .overview-operation-card h3,
+.shell>main .overview-classifier-metrics strong,
+.shell>main .overview-operation-value,
+.shell>main .overview-task-group-stats b,
+.shell>main .overview-routing-mix-head b{color:var(--dossier-ink)}
+.shell>main .overview-classifier-metrics>div,
+.shell>main .overview-task-group-stats>div{border-color:var(--dossier-rule-soft);border-radius:1px;background:rgba(251,248,240,.72)}
+.shell>main .overview-task-group-card>p,
+.shell>main .overview-task-group-stats span,
+.shell>main .overview-attention-more{color:#526075}
+.shell>main .overview-attention.compact>div:last-child>button span{color:var(--dossier-ink)}
 .shell>main .overview-routing-card{border-color:var(--dossier-rule-soft);background:rgba(255,255,255,.28)}
 .shell>main .overview-routing-card small{color:#526075}
 .shell>main .overview-routing-card>strong,
