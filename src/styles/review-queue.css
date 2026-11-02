@@ -26,14 +26,6 @@
 .review-method-head h2{margin:4px 0 0;font-size:28px;letter-spacing:-.02em;color:#fff}
 .review-method-head>span{white-space:nowrap;color:#b9ffd0;font-weight:600}
 .review-method>p{margin:0;color:#d3e1d9;line-height:1.5}
-.review-task-filter{display:grid;grid-template-columns:minmax(210px,1fr) auto;gap:18px;align-items:center;margin-top:4px;padding:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03)}
-.review-task-filter small{display:block;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.review-task-filter p{margin:3px 0 0;font-size:13px}
-.review-task-filter nav{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
-.review-task-filter button{padding:8px 11px;white-space:nowrap}
-.review-task-filter button.active{border-color:var(--green);background:rgba(88,240,132,.12)}
-.shell>main .review-task-filter button.active{color:#173923}
-.review-task-filter button b{margin-left:5px}
 .review-shortfall,.review-method-note{color:#afc0b8;line-height:1.45}
 .review-shortfall{color:#f4d9aa}
 .review-page .review-shell{width:100%;max-width:980px}
@@ -138,8 +130,6 @@
   .review-budget{grid-template-columns:1fr;padding:16px;gap:18px}
   .review-budget h2{font-size:22px}
   .review-tabs{grid-template-columns:1fr}
-  .review-task-filter{grid-template-columns:1fr}
-  .review-task-filter nav{justify-content:flex-start}
   .review-assignment-header{grid-template-columns:1fr}
   .review-assignment-header>div:last-child>div{justify-content:flex-start}
   .review-task-form fieldset,.review-task-form .review-task-verdict{grid-template-columns:1fr}
