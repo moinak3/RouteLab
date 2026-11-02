@@ -1957,3 +1957,7 @@ nav .nav-submenu a.active:before{
     color:#d8ffe3;
   }
 }
+
+/* Keep the expanded Task Group metrics readable inside the horizontal table scroller. */
+.task-table{min-width:2080px}
+.task-metric-cell{font-variant-numeric:tabular-nums;font-weight:600}
