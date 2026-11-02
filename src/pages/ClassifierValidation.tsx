@@ -299,7 +299,6 @@ function PersonalClassifierValidation({ workspaceId, traces, taskGroups, onOpenR
   return <div className="classifier-validation-page">
     <section className="panel classifier-evidence-map">
       <div><p className="eyebrow">Two evidence loops</p><h2>Humans establish truth; automated systems are measured against it</h2><p>Task assignment and response quality are different decisions. RouteLab keeps their labels, calibration reports, and ongoing metrics separate.</p></div>
-      <div className="classifier-evidence-grid"><b>Decision</b><b>Human truth</b><b>Calibration</b><b>Ongoing monitoring</b><span>Request → Task Group</span><span>Blind assignment labels</span><span>Human vs Jev vs strong LLM</span><span>New and drifting requests</span><span>Request + response → quality</span><span>Correctness and corrected answer</span><span>Judge vs human agreement</span><button type="button" onClick={onOpenResponseReview}>Open response review</button></div>
     </section>
 
     {!workflow ? <section className="panel classifier-validation-empty-card">
