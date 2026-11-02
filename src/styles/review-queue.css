@@ -57,11 +57,19 @@
 .review-task-form{display:grid;gap:12px;padding:14px;border:1px solid #596761;border-radius:10px;background:#18211e}
 .review-task-form fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0;padding:0;border:0}
 .review-task-form legend{margin-bottom:7px;color:#aebfb7;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.review-task-form fieldset label{display:flex;gap:8px;align-items:center;padding:9px;border:1px solid #596761;border-radius:8px;color:#e6efea!important}
-.review-task-form fieldset label.selected{border-color:#43985e;background:#173f2b}
+.review-task-verdict button{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:center;min-height:68px;padding:10px 12px;border:1px solid #687873;border-radius:9px;background:#202a27;color:#edf5f1;text-align:left;white-space:normal}
+.review-task-verdict button svg{width:26px;height:26px;fill:currentColor}
+.review-task-verdict button>span{display:grid;gap:2px;color:inherit!important}
+.review-task-verdict button b{color:#f7fbf9;font-size:14px}
+.review-task-verdict button small{margin:0!important;color:#c3d0ca!important;font-size:12px;text-transform:none;letter-spacing:0}
+.review-task-verdict button.right{color:#86e9a2}
+.review-task-verdict button.wrong{color:#ffad99}
+.review-task-verdict button.selected.right{border-color:#59d27b;background:#173f2b;box-shadow:0 0 0 1px rgba(89,210,123,.28)}
+.review-task-verdict button.selected.wrong{border-color:#e17761;background:#422826;box-shadow:0 0 0 1px rgba(225,119,97,.25)}
+.review-task-verdict button:focus-visible{outline:3px solid rgba(169,215,255,.75);outline-offset:2px}
 .review-task-form>label{display:grid;gap:6px;color:#e6efea!important;font-weight:600}
 .review-task-form>label span{font-size:12px;font-weight:400}
-.review-task-form :is(select,textarea){width:100%;resize:vertical}
+.review-task-form :is(select,textarea){width:100%;resize:vertical;border-color:#71817b;background:#f8f6ee;color:#122039}
 .review-task-form .primary{justify-self:start;border-color:#43985e;background:#2fbe60;color:#08150e}
 .review-classifier-choice{display:grid;gap:5px;padding:13px 14px;border:1px solid #43985e;border-radius:9px;background:#142c20}
 .review-classifier-choice small{color:#aebfb7!important;font-size:12px!important;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
@@ -101,6 +109,24 @@
 .review-correction textarea{width:100%;resize:vertical}
 .review-correction>div:last-child{display:flex;justify-content:flex-end;gap:8px}
 .review-correction>div:last-child button:last-child{border-color:rgba(255,125,98,.62);background:rgba(255,125,98,.16)}
+.shell>main .review-card :is(p,span,label,li,summary){color:#dce7e2!important}
+.shell>main .review-card :is(small,.review-score small,section>small){color:#bac9c2!important}
+.shell>main .review-card .review-classifier-choice span,
+.shell>main .review-card .review-facts span,
+.shell>main .review-card .review-user-feedback span,
+.shell>main .review-card .review-choice span{color:#cbd8d2!important}
+.shell>main .review-card .review-assignment-header b{color:#f7fbf9!important}
+.shell>main .review-card .review-task-form>label,
+.shell>main .review-card .review-task-form legend{color:#eaf2ee!important}
+.shell>main .review-card .review-task-verdict button{border-color:#687873!important;background:#202a27!important;color:#edf5f1!important}
+.shell>main .review-card .review-task-verdict button b{color:#f7fbf9!important}
+.shell>main .review-card .review-task-verdict button small{color:#cbd8d2!important}
+.shell>main .review-card .review-task-verdict button.right svg{color:#86e9a2}
+.shell>main .review-card .review-task-verdict button.wrong svg{color:#ffad99}
+.shell>main .review-card .review-task-verdict button.selected.right{border-color:#59d27b!important;background:#173f2b!important}
+.shell>main .review-card .review-task-verdict button.selected.wrong{border-color:#e17761!important;background:#422826!important}
+.shell>main .review-nav{color:#41576b}
+.shell>main .review-nav button{border-color:#9babb7;background:#fbf8f0;color:#142038}
 @media(max-width:1050px){
   .review-objective-switcher{grid-template-columns:1fr;align-items:start}
 }
