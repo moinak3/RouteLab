@@ -305,6 +305,16 @@
   gap:10px;
 }
 
+.overview-attention.compact .overview-operation-card-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+}
+
+.overview-attention.compact .overview-operation-card-head>div{
+  min-width:0;
+}
+
 .overview-attention.compact .overview-operation-card-head>button{
   min-height:34px;
   padding:7px 10px;
@@ -319,9 +329,12 @@
   grid-template-columns:minmax(0,1fr) auto;
   gap:8px;
   padding:10px 0;
+  white-space:normal;
 }
 
 .overview-attention.compact>div:last-child>button span{
+  min-width:0;
+  overflow-wrap:anywhere;
   line-height:1.35;
 }
 
