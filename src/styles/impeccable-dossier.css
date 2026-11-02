@@ -421,6 +421,9 @@ body:before{
 .shell>main .severity.critical{background:#f5dcd7;color:#8f2d24}
 .shell>main .task-signature-methods small{color:#526075}
 .shell>main .eval-history-tooltip :is(b,span,small){color:#fff}
+.shell>main .eval-history-segment-tooltip>b,
+.shell>main .eval-history-segment-tooltip dd{color:#f6fbf8}
+.shell>main .eval-history-segment-tooltip dt{color:#b8c8c0}
 .shell>main .danger{color:#9e3929}
 .shell>main .classifier-validation-page :is(p,span,small){color:#526075}
 .shell>main .classifier-decision-summary{border-top-color:var(--dossier-red)}
