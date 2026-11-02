@@ -96,7 +96,7 @@ export function GoldenDataset({ traces, traceJudgeResults, datasets, onUpload, o
       </div>
       <div className="golden-hero-actions">
         <label className="upload golden-upload primary">Upload golden CSV<input type="file" accept=".csv" onChange={(event) => uploadDataset(event.target.files?.[0])} /></label>
-        <a className="ghost-link" href="/samples/personal-agent-trajectory-golden-20.csv" download>Download 20-row trajectory CSV</a>
+        <a className="ghost-link" href="/samples/personal-agent-trajectory-golden-20.csv" download>Download sample</a>
       </div>
     </section>
 
