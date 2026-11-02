@@ -223,23 +223,23 @@
 .classifier-improvements>div:last-child{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .classifier-improvements article{display:grid;grid-template-columns:1fr auto;gap:8px;padding:14px;border:1px solid var(--line);background:rgba(49,92,140,.025)}
 .classifier-improvements article>b{font-size:14px}.classifier-improvements article>strong{font-size:24px}.classifier-improvements article>p{grid-column:1/-1;margin:0;color:var(--muted);font-size:13px;line-height:1.5}
-.classifier-weekly-plan{display:grid;grid-template-columns:minmax(320px,1fr) 190px 250px auto;gap:18px;align-items:end;border-left:4px solid #62d975}
+.classifier-weekly-plan{display:grid;grid-template-columns:minmax(420px,1fr) minmax(320px,390px) max-content;gap:18px;align-items:center;border-left:4px solid #62d975}
 .classifier-weekly-plan h2{margin:6px 0 8px}.classifier-weekly-plan p:last-child{margin:0;line-height:1.55}
 .classifier-weekly-plan>label{display:grid;gap:6px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}.classifier-weekly-plan input{width:100%}
 .classifier-weekly-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--line)}
-.classifier-weekly-split span{display:grid;gap:3px;padding:10px;font-size:12px}.classifier-weekly-split span+span{border-left:1px solid var(--line)}.classifier-weekly-split b{font-size:18px}
+.classifier-weekly-split span{display:grid;gap:4px;min-width:0;padding:12px;font-size:12px;line-height:1.4}.classifier-weekly-split span+span{border-left:1px solid var(--line)}.classifier-weekly-split b{font-size:16px;line-height:1.25}.classifier-weekly-plan>button{white-space:nowrap}
 .classifier-round-history table{min-width:960px}.classifier-round-history td{vertical-align:top}
 .classifier-round-history td:nth-child(4),.classifier-round-history td:nth-child(5){min-width:240px}.classifier-round-history td>b{display:block}
 
 @media(max-width:1200px){
   .classifier-lifecycle{grid-template-columns:1fr}
   .classifier-improvements>div:last-child{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .classifier-weekly-plan{grid-template-columns:1fr 180px 240px}.classifier-weekly-plan>button{grid-column:3}
+  .classifier-weekly-plan{grid-template-columns:minmax(0,1fr) max-content}.classifier-weekly-plan>div:first-child{grid-column:1/-1}.classifier-weekly-split{grid-column:1}.classifier-weekly-plan>button{grid-column:2}
 }
 @media(max-width:760px){
   .classifier-lifecycle ol{grid-template-columns:1fr}.classifier-lifecycle li{border-right:0;border-bottom:1px solid var(--line)}.classifier-lifecycle li:last-child{border-bottom:0}
   .classifier-targeted-proposal,.classifier-weekly-plan{display:grid}.classifier-targeted-proposal button{width:100%}
-  .classifier-improvements>div:last-child,.classifier-weekly-plan{grid-template-columns:1fr}.classifier-weekly-plan>button{grid-column:auto;width:100%}
+  .classifier-improvements>div:last-child,.classifier-weekly-plan{grid-template-columns:1fr}.classifier-weekly-plan>div:first-child,.classifier-weekly-split,.classifier-weekly-plan>button{grid-column:auto}.classifier-weekly-plan>button{width:100%}
   .classifier-weekly-split{grid-template-columns:1fr}.classifier-weekly-split span+span{border-left:0;border-top:1px solid var(--line)}
   .classifier-agreement-legend{justify-content:flex-start}.classifier-agreement-row{grid-template-columns:1fr}.classifier-agreement-row.header{display:none}.classifier-agreement-row>div{border-right:0;border-bottom:1px solid var(--line)}.classifier-agreement-row>div:last-child{border-bottom:0}.classifier-agreement-row .truth,.classifier-agreement-row .decision{min-height:82px}.classifier-agreement-row .truth::before{content:"Human truth";color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}.classifier-agreement-row .decision:nth-child(3)::before{content:"Jev decision"}.classifier-agreement-row .decision:nth-child(4)::before{content:"Strong LLM decision"}.classifier-agreement-row .decision::before{color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
 }
