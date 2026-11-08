@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, validateAskRouteLabPlan, workspaceCoverageSummary, workspaceMetricSummary } from "../src/core/askChatLab";
-import { planAskRouteLab } from "../src/server/askRouteLab";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, validateAskRouteLabPlan, workspaceCoverageSummary, workspaceMetricDashboard, workspaceMetricSummary } from "../src/core/askChatLab";
+import { AskRouteLabOpenUI, askRouteLabOpenUILibrary } from "../src/components/AskRouteLabOpenUI";
+import { askRouteLabOpenUISpec, fallbackAskRouteLabOpenUI } from "../src/core/askRouteLabOpenUISpec";
+import { generateAskRouteLabOpenUI, planAskRouteLab, validateAskRouteLabOpenUI } from "../src/server/askRouteLab";
 import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../src/types";
 
 const traces = Array.from({ length: 10 }, (_, index): Trace => ({
@@ -66,6 +70,7 @@ describe("AskChatLab", () => {
   it("recognizes metrics and unsupported-coverage questions", () => {
     expect(parseAskChatLabCommand("What's new with my metrics?")).toEqual({ kind: "metrics" });
     expect(parseAskChatLabCommand("What conversations didn't have support for natively?")).toEqual({ kind: "coverage" });
+    expect(parseAskChatLabCommand("Graph quality and latency")).toEqual({ kind: "metrics" });
   });
 
   it("resolves workspace task groups and model aliases", () => {
@@ -123,6 +128,36 @@ describe("AskChatLab", () => {
     });
   });
 
+  it("accepts only allowlisted OpenUI metric dashboards with a chart", () => {
+    const valid = 'root = Dashboard([summary, chart])\nsummary = Summary("overview")\nchart = TrendChart("requests", "line")';
+    expect(validateAskRouteLabOpenUI(valid)).toBe(valid);
+    expect(validateAskRouteLabOpenUI('root = Dashboard([text])\ntext = TextContent("invented")')).toBeUndefined();
+    expect(validateAskRouteLabOpenUI('root = Dashboard([summary])\nsummary = Summary("overview")')).toBeUndefined();
+  });
+
+  it("uses the OpenUI prompt to generate a grounded dashboard program", async () => {
+    const openui = 'root = Dashboard([summary, cost, chart])\nsummary = Summary("cost")\ncost = MetricCard("cost")\nchart = TaskGroupChart("cost")';
+    const fetchImpl = async (_input: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body ?? "{}"));
+      expect(request.messages[0].content).toContain("openui-lang");
+      return new Response(JSON.stringify({ choices: [{ message: { content: openui } }] }), { status: 200 });
+    };
+    const result = await generateAskRouteLabOpenUI({
+      question: "Where is cost concentrated?",
+      hasQuality: true,
+      weeklyPoints: 8,
+      taskGroupCount: 3,
+      key: "test-key",
+      model: "test/planner",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(result).toEqual({ openui, renderer: "openui", model: "test/planner" });
+  });
+
+  it("keeps the server prompt contract aligned with the rendered OpenUI library", () => {
+    expect(askRouteLabOpenUILibrary.toSpec().components).toEqual(askRouteLabOpenUISpec.components);
+  });
+
   it("selects the requested percent without exceeding the group", () => {
     expect(selectSimulationTraces(traces, group, "percent", 10).selected).toHaveLength(1);
     expect(selectSimulationTraces(traces, group, "percent", 100).selected).toHaveLength(10);
@@ -150,5 +185,24 @@ describe("AskChatLab", () => {
     const summary = workspaceMetricSummary(traces, [result], { id: "active_eval", version: 2 });
     expect(summary.scored).toBe(1);
     expect(summary.averageScore).toBe(0.8);
+  });
+
+  it("renders deterministic RouteLab data through the OpenUI renderer", () => {
+    const result: TraceJudgeResult = {
+      id: "judge_0",
+      trace_id: "trace_0",
+      evaluator_type: "trace_quality_llm_judge",
+      created_at: traces[0].timestamp,
+      score: 0.8,
+      passed: true,
+      rationale: "Complete",
+    };
+    const data = workspaceMetricDashboard(traces, [group], [result], { id: "eval", version: 1 });
+    const response = fallbackAskRouteLabOpenUI("Show quality", true);
+    const html = renderToStaticMarkup(createElement(AskRouteLabOpenUI, { response, data }));
+    expect(html).toContain('data-renderer="openui"');
+    expect(html).toContain("80.0%");
+    expect(html).toContain("Average quality by Task Group");
+    expect(data.weekly).toHaveLength(8);
   });
 });

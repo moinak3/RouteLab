@@ -20,7 +20,7 @@ import waitlistHandler from "./src/server/waitlist";
 import evalRunHandler from "./src/server/evalRuns";
 import classifierValidationHandler from "./src/server/classifierValidation";
 import classifierComparatorHandler from "./src/server/classifierComparator";
-import askRouteLabHandler from "./src/server/askRouteLab";
+import askRouteLabHandler, { handleAskRouteLabOpenUI } from "./src/server/askRouteLab";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -220,6 +220,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use("/api/classifier-validation", (req, res) => runApiHandler(classifierValidationHandler, req, res));
       server.middlewares.use("/api/classifier-comparator", (req, res) => runApiHandler(classifierComparatorHandler, req, res));
       server.middlewares.use("/api/ask-routelab/plan", (req, res) => runApiHandler(askRouteLabHandler, req, res));
+      server.middlewares.use("/api/ask-routelab/openui", (req, res) => runApiHandler(handleAskRouteLabOpenUI, req, res));
     },
   }],
   test: { environment: "node" },

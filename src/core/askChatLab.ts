@@ -21,6 +21,34 @@ export type AskRouteLabPlannerResponse = {
   planner: { type: "llm"; model: string };
 };
 
+export type AskRouteLabMetricKey = "requests" | "cost" | "latency" | "quality";
+
+export type AskRouteLabMetricsData = {
+  summary: {
+    totalTraces: number;
+    recentTraces: number;
+    priorTraces: number;
+    totalCostUsd: number;
+    averageLatencyMs: number;
+    scoredTraces: number;
+    averageQuality: number | null;
+  };
+  weekly: Array<{
+    label: string;
+    requests: number;
+    cost: number;
+    latency: number | null;
+    quality: number | null;
+  }>;
+  taskGroups: Array<{
+    label: string;
+    requests: number;
+    cost: number;
+    latency: number | null;
+    quality: number | null;
+  }>;
+};
+
 const navigationDestinations = new Set(["task_groups", "response_quality", "review", "classifier", "simulations"]);
 
 export function validateAskRouteLabPlan(
@@ -100,7 +128,7 @@ function overlapScore(query: string, candidate: string) {
 export function parseAskChatLabCommand(input: string): AskChatLabCommand {
   const normalized = normalize(input);
   if (!normalized) return { kind: "help" };
-  if (/\b(metric|metrics|what s new|what is new|performance|health|snapshot)\b/.test(normalized)) return { kind: "metrics" };
+  if (/\b(metric|metrics|what s new|what is new|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
   if (/\b(unsupported|not supported|support for natively|without support|outside coverage|coverage gap|unknown|uncovered)\b/.test(normalized)) return { kind: "coverage" };
 
   if (/\b(open|show|take me|go to)\b/.test(normalized)) {
@@ -179,6 +207,69 @@ export function workspaceMetricSummary(traces: Trace[], results: TraceJudgeResul
     averageLatencyMs: average(traces.map((trace) => trace.latency_ms ?? 0)),
     scored: matchingResults.length,
     averageScore: average(matchingResults.map((result) => result.score)),
+  };
+}
+
+const percentile95 = (values: number[]) => {
+  if (!values.length) return null;
+  const ordered = [...values].sort((a, b) => a - b);
+  return ordered[Math.min(ordered.length - 1, Math.ceil(ordered.length * .95) - 1)];
+};
+
+export function workspaceMetricDashboard(
+  traces: Trace[],
+  groups: DistinctTaskBucket[],
+  results: TraceJudgeResult[],
+  activeEval?: { id: string; version: number },
+): AskRouteLabMetricsData {
+  const summary = workspaceMetricSummary(traces, results, activeEval);
+  const traceIds = new Set(traces.map((trace) => trace.id));
+  const scoreByTrace = new Map<string, number>();
+  resultsForActiveEval(results, traceIds, activeEval).forEach((result) => scoreByTrace.set(result.trace_id, result.score));
+  const latest = traces.reduce((max, trace) => Math.max(max, Date.parse(trace.timestamp) || 0), 0) || Date.now();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const weekly = Array.from({ length: 8 }, (_, index) => {
+    const start = latest - (7 - index) * weekMs;
+    const end = start + weekMs;
+    const scoped = traces.filter((trace) => {
+      const timestamp = Date.parse(trace.timestamp) || 0;
+      return timestamp >= start && (index === 7 ? timestamp <= end : timestamp < end);
+    });
+    const scores = scoped.flatMap((trace) => scoreByTrace.has(trace.id) ? [scoreByTrace.get(trace.id)!] : []);
+    const latency = scoped.map((trace) => trace.latency_ms ?? 0).filter((value) => value > 0);
+    return {
+      label: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(start)),
+      requests: scoped.length,
+      cost: scoped.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
+      latency: latency.length ? average(latency) : null,
+      quality: scores.length ? average(scores) : null,
+    };
+  });
+  const traceById = new Map(traces.map((trace) => [trace.id, trace]));
+  const taskGroups = groups.map((group) => {
+    const scoped = group.traces.flatMap((id) => traceById.has(id) ? [traceById.get(id)!] : []);
+    const scores = scoped.flatMap((trace) => scoreByTrace.has(trace.id) ? [scoreByTrace.get(trace.id)!] : []);
+    const latency = scoped.map((trace) => trace.latency_ms ?? 0).filter((value) => value > 0);
+    return {
+      label: group.bucket_name,
+      requests: scoped.length,
+      cost: scoped.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
+      latency: percentile95(latency),
+      quality: scores.length ? average(scores) : null,
+    };
+  }).sort((a, b) => b.requests - a.requests).slice(0, 8);
+  return {
+    summary: {
+      totalTraces: summary.total,
+      recentTraces: summary.recent,
+      priorTraces: summary.prior,
+      totalCostUsd: summary.cost,
+      averageLatencyMs: summary.averageLatencyMs,
+      scoredTraces: summary.scored,
+      averageQuality: summary.scored ? summary.averageScore : null,
+    },
+    weekly,
+    taskGroups,
   };
 }
 

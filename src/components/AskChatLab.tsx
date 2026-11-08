@@ -1,9 +1,10 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { lazy, Suspense, useMemo, useState, type FormEvent } from "react";
 import {
   parseAskChatLabCommand,
   resolveModel,
   resolveTaskGroup,
   validateAskRouteLabPlan,
+  workspaceMetricDashboard,
   workspaceCoverageSummary,
   workspaceMetricSummary,
   type AskChatLabCommand,
@@ -12,6 +13,7 @@ import {
   type AskSimulationRequest,
   type AskSimulationResult,
 } from "../core/askChatLab";
+import { fallbackAskRouteLabOpenUI, type AskRouteLabOpenUIMessage, type AskRouteLabOpenUIResponse } from "../core/askRouteLabOpenUISpec";
 import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../types";
 import type { Page } from "../types/ui";
 
@@ -20,6 +22,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   text: string;
   facts?: string[];
+  generatedUI?: AskRouteLabOpenUIMessage;
   action?: { label: string; onClick: () => void };
 };
 
@@ -28,6 +31,7 @@ const suggestions = [
   "Which conversations are outside coverage?",
   "Run 10% of traces for task group Financial Savings Analysis through Claude Opus 5.5",
 ];
+const AskRouteLabOpenUI = lazy(() => import("./AskRouteLabOpenUI").then((module) => ({ default: module.AskRouteLabOpenUI })));
 
 const money = (value: number) => `$${value.toFixed(value < 1 ? 3 : 2)}`;
 const score = (value: number) => `${(value * 100).toFixed(1)}%`;
@@ -69,6 +73,12 @@ export function AskChatLab({
     traceJudgeResults,
     activeEval ? { id: activeEval.id, version: activeEval.version } : undefined,
   ), [traces, traceJudgeResults, activeEval]);
+  const metricDashboard = useMemo(() => workspaceMetricDashboard(
+    traces,
+    taskGroups,
+    traceJudgeResults,
+    activeEval ? { id: activeEval.id, version: activeEval.version } : undefined,
+  ), [traces, taskGroups, traceJudgeResults, activeEval]);
   const coverageSummary = useMemo(() => workspaceCoverageSummary(
     traces,
     taskGroups,
@@ -101,6 +111,27 @@ export function AskChatLab({
     }
   };
 
+  const generateMetricsUI = async (question: string): Promise<AskRouteLabOpenUIMessage> => {
+    const hasQuality = metricDashboard.summary.averageQuality !== null;
+    try {
+      const response = await fetch("/api/ask-routelab/openui", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          hasQuality,
+          weeklyPoints: metricDashboard.weekly.length,
+          taskGroupCount: metricDashboard.taskGroups.length,
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as Partial<AskRouteLabOpenUIResponse> & { error?: string };
+      if (!response.ok || payload.renderer !== "openui" || !payload.openui) throw new Error(payload.error ?? "OpenUI generation failed.");
+      return { openui: payload.openui, metrics: metricDashboard };
+    } catch {
+      return { openui: fallbackAskRouteLabOpenUI(question, hasQuality), metrics: metricDashboard };
+    }
+  };
+
   const execute = async (rawInput: string) => {
     const value = rawInput.trim();
     if (!value || running) return;
@@ -110,18 +141,16 @@ export function AskChatLab({
     setRunning(true);
     const command = await planRequest(value);
     if (command.kind === "metrics") {
+      setBusyLabel("Composing an OpenUI dashboard");
+      const generatedUI = await generateMetricsUI(value);
       const direction = metricSummary.recent === metricSummary.prior
         ? "unchanged"
         : metricSummary.recent > metricSummary.prior
           ? `up ${metricSummary.recent - metricSummary.prior}`
           : `down ${metricSummary.prior - metricSummary.recent}`;
       addAssistant({
-        text: `This workspace has ${metricSummary.total.toLocaleString()} traces. The latest seven-day window contains ${metricSummary.recent.toLocaleString()} traces, ${direction} from the preceding window.`,
-        facts: [
-          `${money(metricSummary.cost)} observed trace cost`,
-          `${metricSummary.averageLatencyMs.toFixed(0)}ms average latency`,
-          metricSummary.scored ? `${score(metricSummary.averageScore)} average quality across ${metricSummary.scored.toLocaleString()} scored traces` : "No quality scores yet",
-        ],
+        text: `Here is a grounded view of the metrics you asked about. The latest seven-day trace count is ${direction} from the preceding window.`,
+        generatedUI,
         action: { label: "Open Overview", onClick: () => { onNavigate("Overview"); setOpen(false); } },
       });
       setRunning(false);
@@ -229,7 +258,7 @@ export function AskChatLab({
       <section className="ask-chatlab" role="dialog" aria-modal="true" aria-label="Ask RouteLab workspace agent">
         <header><div><p className="eyebrow">OpenAI-powered workspace agent</p><h2>Ask RouteLab</h2><span>{workspaceLabel} · verified RouteLab operations</span></div><button type="button" aria-label="Close Ask RouteLab" onClick={() => setOpen(false)}>×</button></header>
         <div className="ask-chatlab-messages" aria-live="polite">
-          {messages.map((message) => <article className={message.role} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}</article>)}
+          {messages.map((message) => <article className={`${message.role}${message.generatedUI ? " generated-ui" : ""}`} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.generatedUI ? <Suspense fallback={<div className="ask-chatlab-running"><i />Loading OpenUI dashboard</div>}><AskRouteLabOpenUI response={message.generatedUI.openui} data={message.generatedUI.metrics} /></Suspense> : null}{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}</article>)}
           {running && <div className="ask-chatlab-running"><i />{busyLabel}</div>}
         </div>
         {messages.length === 1 && <div className="ask-chatlab-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div>}

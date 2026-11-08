@@ -3,6 +3,10 @@ import {
   type AskRouteLabCatalogItem,
   type AskRouteLabPlannerResponse,
 } from "../core/askChatLab.js";
+import { generateSystemPrompt } from "@openuidev/lang-core";
+import { askRouteLabOpenUIPromptOptions, askRouteLabOpenUISpec } from "../core/askRouteLabOpenUISpec.js";
+
+type AskRouteLabOpenUIResponse = { openui: string; renderer: "openui"; model: string };
 
 type FetchLike = typeof fetch;
 
@@ -110,6 +114,82 @@ export async function planAskRouteLab({
   }, taskGroups, models);
   if (!plan) throw new Error("The planner returned an invalid or unsupported operation.");
   return { plan, planner: { type: "llm", model } };
+}
+
+const cleanOpenUI = (content: unknown) => String(content ?? "").trim()
+  .replace(/^```(?:openui|text)?\s*/i, "")
+  .replace(/\s*```$/, "");
+
+const allowedOpenUIComponents = new Set(["Dashboard", "Summary", "MetricCard", "TrendChart", "TaskGroupChart"]);
+
+export function validateAskRouteLabOpenUI(value: unknown) {
+  const source = cleanOpenUI(value);
+  if (!/^root\s*=\s*Dashboard\s*\(/m.test(source)) return undefined;
+  if (!/\b(?:TrendChart|TaskGroupChart)\s*\(/.test(source)) return undefined;
+  const calls = [...source.matchAll(/\b([A-Z][A-Za-z0-9]*)\s*\(/g)].map((match) => match[1]);
+  if (!calls.length || calls.some((name) => !allowedOpenUIComponents.has(name))) return undefined;
+  return source.length <= 8_000 ? source : undefined;
+}
+
+export async function generateAskRouteLabOpenUI({
+  question,
+  hasQuality,
+  weeklyPoints,
+  taskGroupCount,
+  key,
+  model,
+  fetchImpl = fetch,
+}: {
+  question: string;
+  hasQuality: boolean;
+  weeklyPoints: number;
+  taskGroupCount: number;
+  key: string;
+  model: string;
+  fetchImpl?: FetchLike;
+}): Promise<AskRouteLabOpenUIResponse> {
+  if (!key) throw new Error("Ask RouteLab needs an OpenRouter API key on the server.");
+  const response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "X-Title": "Ask RouteLab OpenUI",
+    },
+    body: JSON.stringify({
+      model,
+      temperature: .15,
+      messages: [
+        { role: "system", content: generateSystemPrompt({ library: askRouteLabOpenUISpec, promptOptions: askRouteLabOpenUIPromptOptions }) },
+        { role: "user", content: JSON.stringify({ question, availableData: { hasQuality, weeklyPoints, taskGroupCount } }) },
+      ],
+      max_tokens: 800,
+    }),
+  });
+  const payload = await response.json().catch(() => ({ error: { message: "The OpenUI model returned a non-JSON provider response." } })) as any;
+  if (!response.ok) throw new Error(String(payload.error?.message ?? payload.message ?? `OpenRouter HTTP ${response.status}`));
+  const openui = validateAskRouteLabOpenUI(payload.choices?.[0]?.message?.content);
+  if (!openui) throw new Error("The model returned an invalid OpenUI dashboard.");
+  return { openui, renderer: "openui", model };
+}
+
+export async function handleAskRouteLabOpenUI(req: any, res: any) {
+  if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
+  try {
+    const question = String(req.body?.question ?? "").trim().slice(0, 1_500);
+    if (!question) return sendJson(res, 400, { error: "A metrics question is required." });
+    return sendJson(res, 200, await generateAskRouteLabOpenUI({
+      question,
+      hasQuality: Boolean(req.body?.hasQuality),
+      weeklyPoints: Math.max(0, Math.min(52, Number(req.body?.weeklyPoints ?? 0))),
+      taskGroupCount: Math.max(0, Math.min(250, Number(req.body?.taskGroupCount ?? 0))),
+      key: apiKey(),
+      model: plannerModel(),
+    }));
+  } catch (error) {
+    return sendJson(res, 502, { error: error instanceof Error ? error.message : "Ask RouteLab could not generate an OpenUI dashboard." });
+  }
 }
 
 export default async function handler(req: any, res: any) {
