@@ -96,7 +96,7 @@ function ChartShell({ title, subtitle, labels, values, metric, style }: { title:
     <YAxis hide domain={metric === "quality" ? [0, 1] : [0, "auto"]} />
     <Tooltip cursor={{ fill: routeLabChartTheme.cursor }} content={<RouteLabChartTooltip valueFormatter={(value) => meta.format(value)} />} />
   </>;
-  return <section className="ask-openui-chart"><div><b>{title}</b><span>{subtitle}</span></div><div className="ask-openui-chart-stage" role="img" aria-label={`${title}: ${meta.label}`}>
+  return <section className="ask-openui-chart"><div className="ask-openui-chart-header"><b>{title}</b><span>{subtitle}</span></div><div className="ask-openui-chart-stage" role="img" aria-label={`${title}: ${meta.label}`}>
     <ResponsiveContainer width="100%" height={190}>
       {style === "bar" ? <RechartsBarChart data={data} margin={{ top: 12, right: 8, bottom: 2, left: 8 }} accessibilityLayer>
         {shared}
