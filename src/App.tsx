@@ -843,7 +843,7 @@ export default function App() {
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
       {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onGatewayApiKey={(gateway,key)=>setGatewayApiKeys(keys=>({...keys,[gateway]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
     </main>
-    <AskChatLab
+    {routingPolicyState !== "loading" && <AskChatLab
       workspaceLabel={activeWorkspace === "demo" ? "RouteLab demo" : "My workspace"}
       workspaceId={cloudWorkspaceId}
       traces={traces}
@@ -865,6 +865,6 @@ export default function App() {
       onOpenReview={() => navigateToReviewLane("uncovered")}
       onRunSimulation={runAskChatLabSimulation}
       onOpenSimulation={openAskChatLabSimulation}
-    />
+    />}
   </div>;
 }
