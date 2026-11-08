@@ -1,5 +1,9 @@
+import type { ReviewTaskFilter } from "./reviewPersistence";
+import type { ReviewTask } from "./reviewQueue";
+
 export type ReviewAdjudicationDecision = "correct" | "incorrect" | "escalate" | "skip";
 export type ReviewChoice = readonly [ReviewAdjudicationDecision, string, string];
+export type TaskGroupSaveDestination = "response_quality" | "next_conversation";
 
 const escalationChoices: ReviewChoice[] = [
   ["escalate", "Escalate to expert", "Needs domain review"],
@@ -28,4 +32,14 @@ export function reviewChoicesForVerdict(passed?: boolean): ReviewChoice[] {
     ["incorrect", "Mark incorrect", "Add the corrected answer to the golden dataset"],
     ...escalationChoices,
   ];
+}
+
+export function taskGroupSaveDestination(
+  requiredTasks: readonly ReviewTask[],
+  responseReviewSaved: boolean,
+  taskFilter: ReviewTaskFilter,
+): TaskGroupSaveDestination {
+  return requiredTasks.includes("response_quality") && !responseReviewSaved && taskFilter !== "task_group"
+    ? "response_quality"
+    : "next_conversation";
 }

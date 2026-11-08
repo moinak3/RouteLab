@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reviewChoicesForVerdict } from "../src/core/reviewAdjudication";
+import { reviewChoicesForVerdict, taskGroupSaveDestination } from "../src/core/reviewAdjudication";
 
 describe("review adjudication choices", () => {
   it("lets a reviewer correct a passing judge verdict", () => {
@@ -28,5 +28,12 @@ describe("review adjudication choices", () => {
         ["skip", "Skip", "Not enough context"],
       ]);
     }
+  });
+
+  it("moves from Task Group review to the next pending decision", () => {
+    expect(taskGroupSaveDestination(["task_group", "response_quality"], false, "all")).toBe("response_quality");
+    expect(taskGroupSaveDestination(["task_group", "response_quality"], true, "all")).toBe("next_conversation");
+    expect(taskGroupSaveDestination(["task_group"], false, "all")).toBe("next_conversation");
+    expect(taskGroupSaveDestination(["task_group", "response_quality"], false, "task_group")).toBe("next_conversation");
   });
 });
