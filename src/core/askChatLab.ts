@@ -1,4 +1,4 @@
-import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../types";
+import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../types.js";
 
 export type AskChatLabCommand =
   | { kind: "metrics" }
