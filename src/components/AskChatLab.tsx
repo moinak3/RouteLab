@@ -10,6 +10,7 @@ import {
   type AskChatLabCommand,
   type AskRouteLabPlan,
   type AskRouteLabPlannerResponse,
+  type AskRouteLabTraceContext,
   type AskSimulationRequest,
   type AskSimulationResult,
 } from "../core/askChatLab";
@@ -24,6 +25,12 @@ type ChatMessage = {
   facts?: string[];
   generatedUI?: AskRouteLabOpenUIMessage;
   action?: { label: string; onClick: () => void };
+};
+
+type PlannedCommand = {
+  command: AskRouteLabPlan | AskChatLabCommand;
+  telemetry: AskRouteLabTraceContext;
+  planner: "llm" | "fallback";
 };
 
 const suggestions = [
@@ -93,7 +100,7 @@ export function AskChatLab({
     setMessages((current) => [...current, { ...message, id: `assistant_${Date.now()}_${current.length}`, role: "assistant" }]);
   };
 
-  const planRequest = async (message: string): Promise<AskRouteLabPlan | AskChatLabCommand> => {
+  const planRequest = async (message: string, interactionId: string): Promise<PlannedCommand> => {
     const taskGroupCatalog = taskGroups.map((group) => ({ id: group.bucket_id, name: group.bucket_name }));
     const modelCatalog = models
       .filter((model) => model.deployment_type !== "decision_model")
@@ -102,19 +109,23 @@ export function AskChatLab({
       const response = await fetch("/api/ask-routelab/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, taskGroups: taskGroupCatalog, models: modelCatalog }),
+        body: JSON.stringify({ message, taskGroups: taskGroupCatalog, models: modelCatalog, interactionId, workspace: workspaceLabel }),
       });
       const payload = await response.json().catch(() => ({})) as Partial<AskRouteLabPlannerResponse> & { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "The LLM planner is unavailable.");
       const plan = validateAskRouteLabPlan(payload.plan, taskGroupCatalog, modelCatalog);
       if (!plan) throw new Error("The LLM planner returned an unsupported operation.");
-      return plan;
+      return {
+        command: plan,
+        telemetry: { interactionId, parent: payload.telemetry?.parent },
+        planner: "llm",
+      };
     } catch {
-      return parseAskChatLabCommand(message);
+      return { command: parseAskChatLabCommand(message), telemetry: { interactionId }, planner: "fallback" };
     }
   };
 
-  const generateMetricsUI = async (question: string): Promise<AskRouteLabOpenUIMessage> => {
+  const generateMetricsUI = async (question: string, telemetry: AskRouteLabTraceContext): Promise<AskRouteLabOpenUIMessage> => {
     const hasQuality = metricDashboard.summary.averageQuality !== null;
     try {
       const response = await fetch("/api/ask-routelab/openui", {
@@ -125,6 +136,8 @@ export function AskChatLab({
           hasQuality,
           weeklyPoints: metricDashboard.weekly.length,
           taskGroupCount: metricDashboard.taskGroups.length,
+          interactionId: telemetry.interactionId,
+          parent: telemetry.parent,
         }),
       });
       const payload = await response.json().catch(() => ({})) as Partial<AskRouteLabOpenUIResponse> & { error?: string };
@@ -135,6 +148,55 @@ export function AskChatLab({
     }
   };
 
+  const recordInteraction = async ({
+    question,
+    planned,
+    message,
+    status = "completed",
+  }: {
+    question: string;
+    planned: PlannedCommand;
+    message: Omit<ChatMessage, "id" | "role">;
+    status?: "completed" | "failed";
+  }) => {
+    try {
+      const response = await fetch("/api/ask-routelab/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          interactionId: planned.telemetry.interactionId,
+          parent: planned.telemetry.parent,
+          question,
+          workspace: workspaceLabel,
+          status,
+          planKind: planned.command.kind,
+          planner: planned.planner,
+          output: {
+            text: message.text,
+            facts: message.facts ?? [],
+            action: message.action?.label,
+            openui: message.generatedUI?.openui,
+          },
+        }),
+      });
+      if (!response.ok) throw new Error(`Braintrust telemetry HTTP ${response.status}`);
+    } catch (error) {
+      console.error("Ask RouteLab telemetry could not be delivered", error);
+    }
+  };
+
+  const finishInteraction = async (
+    question: string,
+    planned: PlannedCommand,
+    message: Omit<ChatMessage, "id" | "role">,
+    status: "completed" | "failed" = "completed",
+  ) => {
+    addAssistant(message);
+    await recordInteraction({ question, planned, message, status });
+    setRunning(false);
+  };
+
   const execute = async (rawInput: string) => {
     const value = rawInput.trim();
     if (!value || running) return;
@@ -142,10 +204,12 @@ export function AskChatLab({
     setMessages((current) => [...current, { id: `user_${Date.now()}`, role: "user", text: value }]);
     setBusyLabel("Understanding your request");
     setRunning(true);
-    const command = await planRequest(value);
+    const interactionId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `ask_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const planned = await planRequest(value, interactionId);
+    const command = planned.command;
     if (command.kind === "metrics" || command.kind === "classifier_metrics" || command.kind === "task_group_quality_comparison") {
       setBusyLabel("Composing an OpenUI dashboard");
-      const generatedUI = await generateMetricsUI(value);
+      const generatedUI = await generateMetricsUI(value, planned.telemetry);
       if (command.kind === "task_group_quality_comparison") {
         const comparison = metricDashboard.qualityComparison;
         const text = comparison.workspaceAverage === null
@@ -153,25 +217,23 @@ export function AskChatLab({
           : comparison.belowAverage.length === 0
             ? `Using average response quality as the performance measure, none of the ${comparison.scoredTaskGroupCount.toLocaleString()} scored Task Groups is below the ${score(comparison.workspaceAverage)} workspace average.`
             : `Using average response quality as the performance measure, ${comparison.belowAverage.length.toLocaleString()} of ${comparison.scoredTaskGroupCount.toLocaleString()} scored Task Groups ${comparison.belowAverage.length === 1 ? "is" : "are"} below the ${score(comparison.workspaceAverage)} workspace average. ${comparison.belowAverage.slice(0, 3).map((group) => `${group.label} is ${score(group.quality)} (${Math.abs(group.gapFromAverage * 100).toFixed(1)} points below)`).join("; ")}.`;
-        addAssistant({
+        await finishInteraction(value, planned, {
           text,
           generatedUI,
           action: { label: "Open Task Groups", onClick: () => { onNavigate("Distinct Tasks"); setOpen(false); } },
         });
-        setRunning(false);
         return;
       }
       if (command.kind === "classifier_metrics") {
         const processed = metricDashboard.summary.classifiedRequests;
         const total = metricDashboard.summary.totalTraces;
-        addAssistant({
+        await finishInteraction(value, planned, {
           text: `The classifier is ${classifierActive ? "active" : "inactive"}. It has processed ${processed.toLocaleString()} of ${total.toLocaleString()} workspace traces. Imported traces without a recorded classifier decision are not counted as processed.`,
           generatedUI,
           action: classifierActive
             ? { label: "Open classifier calibration", onClick: () => { onNavigate("Classifier Validation"); setOpen(false); } }
             : { label: "Open routing policy", onClick: () => { onNavigate("Simulations"); setOpen(false); } },
         });
-        setRunning(false);
         return;
       }
       const direction = metricSummary.recent === metricSummary.prior
@@ -179,24 +241,22 @@ export function AskChatLab({
         : metricSummary.recent > metricSummary.prior
           ? `up ${metricSummary.recent - metricSummary.prior}`
           : `down ${metricSummary.prior - metricSummary.recent}`;
-      addAssistant({
+      await finishInteraction(value, planned, {
         text: `Here is a grounded view of the metrics you asked about. The latest seven-day trace count is ${direction} from the preceding window.`,
         generatedUI,
         action: { label: "Open Overview", onClick: () => { onNavigate("Overview"); setOpen(false); } },
       });
-      setRunning(false);
       return;
     }
     if (command.kind === "coverage") {
       const reasonText = coverageSummary.topReasons.length
         ? coverageSummary.topReasons.map(([reason, count]) => `${count} ${reason}`).join(", ")
         : "no classifier gaps";
-      addAssistant({
+      await finishInteraction(value, planned, {
         text: `${coverageSummary.classifierGaps.length.toLocaleString()} conversations do not have a confident native Task Group match. ${coverageSummary.evalGaps.length.toLocaleString()} have not been scored by the active response-quality eval.`,
         facts: [`Classifier gaps: ${reasonText}`, `Eval coverage: ${(traces.length - coverageSummary.evalGaps.length).toLocaleString()} of ${traces.length.toLocaleString()} traces`],
         action: { label: "Review coverage gaps", onClick: () => { onOpenReview(); setOpen(false); } },
       });
-      setRunning(false);
       return;
     }
     if (command.kind === "navigate") {
@@ -207,7 +267,13 @@ export function AskChatLab({
         classifier: "Classifier Validation",
         simulations: "Simulations",
       };
-      onNavigate(destinations[command.destination]);
+      const destination = destinations[command.destination];
+      await recordInteraction({
+        question: value,
+        planned,
+        message: { text: `Opened ${destination}.`, action: { label: `Open ${destination}`, onClick: () => undefined } },
+      });
+      onNavigate(destination);
       setRunning(false);
       setOpen(false);
       return;
@@ -220,23 +286,21 @@ export function AskChatLab({
         ? models.find((item) => item.id === command.candidateId)
         : resolveModel(command.modelQuery, models);
       if (!taskGroup || !model) {
-        addAssistant({
+        await finishInteraction(value, planned, {
           text: !taskGroup
             ? "I couldn't match that request to a Task Group in this workspace."
             : "I couldn't match that request to an enabled generation model.",
           facts: !taskGroup
             ? taskGroups.slice(0, 4).map((group) => group.bucket_name)
             : models.filter((item) => item.deployment_type !== "decision_model").slice(0, 4).map((item) => item.display_name),
-        });
-        setRunning(false);
+        }, "failed");
         return;
       }
       if (!activeEval) {
-        addAssistant({
+        await finishInteraction(value, planned, {
           text: "This workspace needs an active response-quality eval before I can run an apples-to-apples simulation.",
           action: { label: "Open Response Quality", onClick: () => { onNavigate("Evals"); setOpen(false); } },
-        });
-        setRunning(false);
+        }, "failed");
         return;
       }
       const request: AskSimulationRequest = {
@@ -255,7 +319,7 @@ export function AskChatLab({
           ? (result.candidateMonthlyCost - result.baselineMonthlyCost) / result.baselineMonthlyCost * 100
           : 0;
         const qualityDelta = (result.candidateAverageScore - result.baselineAverageScore) * 100;
-        addAssistant({
+        await finishInteraction(value, planned, {
           text: `Completed ${result.successfulRequests} of ${result.traceCount} requests through ${result.provider}. ${result.candidateName} was ${Math.abs(costDelta).toFixed(1)}% ${costDelta <= 0 ? "cheaper" : "more expensive"} with a ${qualityDelta >= 0 ? "+" : ""}${qualityDelta.toFixed(1)} point quality change.`,
           facts: [
             `Cost/month: ${money(result.baselineMonthlyCost)} → ${money(result.candidateMonthlyCost)}`,
@@ -265,17 +329,14 @@ export function AskChatLab({
           action: { label: "Inspect simulation", onClick: () => { onOpenSimulation(result); setOpen(false); } },
         });
       } catch (error) {
-        addAssistant({ text: error instanceof Error ? error.message : "The simulation could not be completed." });
-      } finally {
-        setRunning(false);
+        await finishInteraction(value, planned, { text: error instanceof Error ? error.message : "The simulation could not be completed." }, "failed");
       }
       return;
     }
-    addAssistant({
+    await finishInteraction(value, planned, {
       text: "I can help with RouteLab metrics, coverage gaps, navigation, or a live simulation. For a simulation, include the Task Group, sample size, and candidate model.",
       facts: suggestions,
     });
-    setRunning(false);
   };
 
   const submit = (event: FormEvent) => {

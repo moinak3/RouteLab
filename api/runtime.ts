@@ -23,7 +23,7 @@ import reviewHandler from "../src/server/reviews.js";
 import evalRunHandler from "../src/server/evalRuns.js";
 import classifierValidationHandler from "../src/server/classifierValidation.js";
 import classifierComparatorHandler from "../src/server/classifierComparator.js";
-import askRouteLabHandler, { handleAskRouteLabOpenUI } from "../src/server/askRouteLab.js";
+import askRouteLabHandler, { handleAskRouteLabEvent, handleAskRouteLabOpenUI } from "../src/server/askRouteLab.js";
 import { routingPolicyWorkspaceId } from "./routing-policy/_config.js";
 
 export const maxDuration = 300;
@@ -130,6 +130,7 @@ export default async function handler(req: any, res: any) {
     if (action === "classifier-comparator") return classifierComparatorHandler(req, res);
     if (action === "ask-routelab-plan") return askRouteLabHandler(req, res);
     if (action === "ask-routelab-openui") return handleAskRouteLabOpenUI(req, res);
+    if (action === "ask-routelab-event") return handleAskRouteLabEvent(req, res);
     if (action === "eval-automation") {
       if (req.method === "GET") {
         return sendJson(res, 200, { policies: await listServerEvalAutomationPolicies(workspaceId) });

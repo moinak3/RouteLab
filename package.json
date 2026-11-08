@@ -25,6 +25,7 @@
     "@openuidev/react-lang": "^1.1.0",
     "@vitejs/plugin-react": "^4.5.2",
     "ajv": "^8.17.1",
+    "braintrust": "^3.43.0",
     "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

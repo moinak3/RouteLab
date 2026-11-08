@@ -16,6 +16,7 @@
     { "source": "/api/classifier-comparator", "destination": "/api/runtime?action=classifier-comparator" },
     { "source": "/api/ask-routelab/plan", "destination": "/api/runtime?action=ask-routelab-plan" },
     { "source": "/api/ask-routelab/openui", "destination": "/api/runtime?action=ask-routelab-openui" },
+    { "source": "/api/ask-routelab/event", "destination": "/api/runtime?action=ask-routelab-event" },
     { "source": "/api/eval-automation", "destination": "/api/runtime?action=eval-automation" },
     { "source": "/api/evals/run", "destination": "/api/openrouter/models?action=eval-run" },
     { "source": "/overview", "destination": "/index.html" },

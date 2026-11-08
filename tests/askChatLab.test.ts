@@ -5,6 +5,7 @@ import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulatio
 import { AskRouteLabOpenUI, askRouteLabOpenUILibrary } from "../src/components/AskRouteLabOpenUI";
 import { askRouteLabOpenUISpec, fallbackAskRouteLabOpenUI } from "../src/core/askRouteLabOpenUISpec";
 import { generateAskRouteLabOpenUI, planAskRouteLab, validateAskRouteLabOpenUI } from "../src/server/askRouteLab";
+import { sanitizeAskRouteLabTelemetryEvent, traceAskRouteLabOperation } from "../src/server/askRouteLabTelemetry";
 import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../src/types";
 
 const traces = Array.from({ length: 10 }, (_, index): Trace => ({
@@ -57,6 +58,42 @@ const model: Model = {
 };
 
 describe("AskChatLab", () => {
+  it("sanitizes the final Braintrust interaction event", () => {
+    const event = sanitizeAskRouteLabTelemetryEvent({
+      interactionId: "interaction-1",
+      parent: "parent-context",
+      question: "What changed?",
+      workspace: "RouteLab demo",
+      status: "completed",
+      planKind: "metrics",
+      planner: "llm",
+      output: { text: "A grounded answer", facts: ["fact one"], action: "Open Overview", openui: "root = Dashboard([])" },
+    });
+    expect(event).toMatchObject({
+      interactionId: "interaction-1",
+      question: "What changed?",
+      workspace: "RouteLab demo",
+      status: "completed",
+      planKind: "metrics",
+      output: { text: "A grounded answer", facts: ["fact one"], action: "Open Overview" },
+    });
+  });
+
+  it("keeps Ask RouteLab working when Braintrust is not configured", async () => {
+    const previous = process.env.BRAINTRUST_API_KEY;
+    delete process.env.BRAINTRUST_API_KEY;
+    try {
+      const result = await traceAskRouteLabOperation({ name: "test", input: { question: "hello" } }, async (span) => {
+        expect(span).toBeUndefined();
+        return { answer: "world" };
+      });
+      expect(result).toEqual({ value: { answer: "world" }, parent: undefined, enabled: false });
+    } finally {
+      if (previous === undefined) delete process.env.BRAINTRUST_API_KEY;
+      else process.env.BRAINTRUST_API_KEY = previous;
+    }
+  });
+
   it("parses a live simulation request", () => {
     expect(parseAskChatLabCommand("Run 10% of traces for task group Financial Savings Analysis through Claude Opus 5.5 and give me the results")).toEqual({
       kind: "simulate",

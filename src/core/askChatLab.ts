@@ -20,9 +20,15 @@ export type AskRouteLabPlan =
 
 export type AskRouteLabCatalogItem = { id: string; name: string };
 
+export type AskRouteLabTraceContext = {
+  interactionId: string;
+  parent?: string;
+};
+
 export type AskRouteLabPlannerResponse = {
   plan: AskRouteLabPlan;
   planner: { type: "llm"; model: string };
+  telemetry?: AskRouteLabTraceContext;
 };
 
 export type AskRouteLabMetricKey = "requests" | "classifier_requests" | "cost" | "latency" | "quality";
