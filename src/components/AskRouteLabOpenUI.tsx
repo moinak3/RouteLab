@@ -7,6 +7,7 @@ const emptyMetrics: AskRouteLabMetricsData = {
   summary: { totalTraces: 0, classifierActive: false, classifiedRequests: 0, classifierMatchedRequests: 0, classifierFallbackRequests: 0, recentTraces: 0, priorTraces: 0, totalCostUsd: 0, averageLatencyMs: 0, scoredTraces: 0, averageQuality: null },
   weekly: [],
   taskGroups: [],
+  qualityComparison: { workspaceAverage: null, scoredTaskGroupCount: 0, belowAverage: [] },
 };
 
 const MetricsContext = createContext<AskRouteLabMetricsData>(emptyMetrics);
@@ -129,7 +130,25 @@ const TaskGroupChart = defineComponent({
   },
 });
 
-const DashboardChild = z.union([MetricCard.ref, Summary.ref, TrendChart.ref, TaskGroupChart.ref]);
+const QualityComparison = defineComponent({
+  name: "QualityComparison",
+  description: "A deterministic comparison of Task Group quality against the scored workspace average.",
+  props: z.object({}),
+  component: () => {
+    const { qualityComparison } = useContext(MetricsContext);
+    if (qualityComparison.workspaceAverage === null) return <section className="ask-openui-comparison"><div><b>Task Group quality comparison</b><span>No active-eval scores are available.</span></div></section>;
+    return <section className="ask-openui-comparison" aria-label="Task Groups below workspace average quality">
+      <header><div><b>Below workspace average</b><span>{qualityComparison.belowAverage.length} of {qualityComparison.scoredTaskGroupCount} scored Task Groups</span></div><strong>{formatPercent(qualityComparison.workspaceAverage)} average</strong></header>
+      {qualityComparison.belowAverage.length ? <div className="ask-openui-comparison-list">{qualityComparison.belowAverage.map((group) => <article key={group.label}>
+        <div><b>{group.label}</b><span>{group.scoredTraces.toLocaleString()} scored traces</span></div>
+        <div className="ask-openui-comparison-score"><strong>{formatPercent(group.quality)}</strong><span>{(group.gapFromAverage * 100).toFixed(1)} pts</span></div>
+        <div className="ask-openui-comparison-bar" aria-label={`${group.label}: ${formatPercent(group.quality)}, ${Math.abs(group.gapFromAverage * 100).toFixed(1)} points below average`}><i style={{ width: `${Math.max(0, Math.min(100, group.quality * 100))}%` }} /><em style={{ left: `${Math.max(0, Math.min(100, qualityComparison.workspaceAverage! * 100))}%` }} /></div>
+      </article>)}</div> : <p className="ask-openui-comparison-empty">No scored Task Group is below the workspace average.</p>}
+    </section>;
+  },
+});
+
+const DashboardChild = z.union([MetricCard.ref, Summary.ref, TrendChart.ref, TaskGroupChart.ref, QualityComparison.ref]);
 const Dashboard = defineComponent({
   name: "Dashboard",
   description: "Responsive root layout for an Ask RouteLab metrics answer.",
@@ -140,10 +159,10 @@ const Dashboard = defineComponent({
 export const askRouteLabOpenUILibrary = createLibrary({
   id: "routelab-metrics-v1",
   root: "Dashboard",
-  components: [Dashboard, Summary, MetricCard, TrendChart, TaskGroupChart],
+  components: [Dashboard, Summary, MetricCard, TrendChart, TaskGroupChart, QualityComparison],
   componentGroups: [
     { name: "Summary", components: ["Summary", "MetricCard"] },
-    { name: "Charts", components: ["TrendChart", "TaskGroupChart"], notes: ["Every response must include at least one chart.", "Use TrendChart for change over time and TaskGroupChart for workload comparisons."] },
+    { name: "Charts", components: ["TrendChart", "TaskGroupChart", "QualityComparison"], notes: ["Every response must include at least one chart.", "Use TrendChart for change over time, TaskGroupChart for general workload comparisons, and QualityComparison for below-average Task Group questions."] },
     { name: "Layout", components: ["Dashboard"] },
   ],
 });

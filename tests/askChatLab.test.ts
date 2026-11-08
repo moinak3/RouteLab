@@ -71,6 +71,7 @@ describe("AskChatLab", () => {
     expect(parseAskChatLabCommand("What's new with my metrics?")).toEqual({ kind: "metrics" });
     expect(parseAskChatLabCommand("How many requests have been classified by my classifier?")).toEqual({ kind: "classifier_metrics" });
     expect(parseAskChatLabCommand("Is my classifier live?")).toEqual({ kind: "classifier_metrics" });
+    expect(parseAskChatLabCommand("Are any of the task groups performing worse than average?")).toEqual({ kind: "task_group_quality_comparison" });
     expect(parseAskChatLabCommand("What conversations didn't have support for natively?")).toEqual({ kind: "coverage" });
     expect(parseAskChatLabCommand("Graph quality and latency")).toEqual({ kind: "metrics" });
   });
@@ -153,11 +154,35 @@ describe("AskChatLab", () => {
     expect(result.plan.kind).toBe("classifier_metrics");
   });
 
+  it("plans below-average Task Group questions as a deterministic comparison", async () => {
+    const fetchImpl = async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        kind: "task_group_quality_comparison",
+        destination: null,
+        taskGroupId: null,
+        candidateId: null,
+        sampleMode: null,
+        sampleValue: null,
+        rationale: "The user asked which Task Groups are below the workspace average.",
+      }) } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    const result = await planAskRouteLab({
+      message: "Are any Task Groups performing worse than average?",
+      taskGroups: [],
+      models: [],
+      key: "test-key",
+      model: "test/planner",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(result.plan.kind).toBe("task_group_quality_comparison");
+  });
+
   it("accepts only allowlisted OpenUI metric dashboards with a chart", () => {
     const valid = 'root = Dashboard([summary, chart])\nsummary = Summary("overview")\nchart = TrendChart("requests", "line")';
     expect(validateAskRouteLabOpenUI(valid)).toBe(valid);
     expect(validateAskRouteLabOpenUI('root = Dashboard([text])\ntext = TextContent("invented")')).toBeUndefined();
     expect(validateAskRouteLabOpenUI('root = Dashboard([summary])\nsummary = Summary("overview")')).toBeUndefined();
+    expect(validateAskRouteLabOpenUI('root = Dashboard([comparison])\ncomparison = QualityComparison()')).toBe('root = Dashboard([comparison])\ncomparison = QualityComparison()');
   });
 
   it("uses the OpenUI prompt to generate a grounded dashboard program", async () => {
@@ -206,6 +231,31 @@ describe("AskChatLab", () => {
     expect(html).toContain("processed 2 of 10 workspace traces");
     expect(html).toContain("Classifier requests");
     expect(html).toContain("2 of 10 workspace traces");
+  });
+
+  it("computes and renders Task Groups below the scored workspace average", () => {
+    const stronger = { ...group, bucket_id: "strong", bucket_name: "Strong Group", traces: traces.slice(0, 5).map((trace) => trace.id), trace_count: 5 };
+    const weaker = { ...group, bucket_id: "weak", bucket_name: "Weak Group", traces: traces.slice(5).map((trace) => trace.id), trace_count: 5 };
+    const results = traces.map((trace, index): TraceJudgeResult => ({
+      id: `result_${index}`,
+      trace_id: trace.id,
+      evaluator_type: "trace_quality_llm_judge",
+      score: index < 5 ? 1 : 0.6,
+      passed: index < 5,
+      rationale: index < 5 ? "Strong" : "Needs work",
+      created_at: trace.timestamp,
+    }));
+    const data = workspaceMetricDashboard(traces, [stronger, weaker], results);
+    const response = fallbackAskRouteLabOpenUI("Are any Task Groups performing worse than average?", true);
+    const html = renderToStaticMarkup(createElement(AskRouteLabOpenUI, { response, data }));
+    expect(data.qualityComparison.workspaceAverage).toBeCloseTo(0.8);
+    expect(data.qualityComparison.scoredTaskGroupCount).toBe(2);
+    expect(data.qualityComparison.belowAverage).toHaveLength(1);
+    expect(data.qualityComparison.belowAverage[0]).toMatchObject({ label: "Weak Group", quality: 0.6, scoredTraces: 5 });
+    expect(data.qualityComparison.belowAverage[0].gapFromAverage).toBeCloseTo(-0.2);
+    expect(html).toContain("Weak Group");
+    expect(html).toContain("60.0%");
+    expect(html).toContain("-20.0 pts");
   });
 
   it("selects the requested percent without exceeding the group", () => {

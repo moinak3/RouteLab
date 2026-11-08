@@ -3,6 +3,7 @@ import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../type
 export type AskChatLabCommand =
   | { kind: "metrics" }
   | { kind: "classifier_metrics" }
+  | { kind: "task_group_quality_comparison" }
   | { kind: "coverage" }
   | { kind: "navigate"; destination: "task_groups" | "response_quality" | "review" | "classifier" | "simulations" }
   | { kind: "simulate"; taskGroupQuery: string; modelQuery: string; sampleMode: "percent" | "count"; sampleValue: number }
@@ -11,6 +12,7 @@ export type AskChatLabCommand =
 export type AskRouteLabPlan =
   | { kind: "metrics"; rationale: string }
   | { kind: "classifier_metrics"; rationale: string }
+  | { kind: "task_group_quality_comparison"; rationale: string }
   | { kind: "coverage"; rationale: string }
   | { kind: "navigate"; destination: "task_groups" | "response_quality" | "review" | "classifier" | "simulations"; rationale: string }
   | { kind: "simulate"; taskGroupId: string; candidateId: string; sampleMode: "percent" | "count"; sampleValue: number; rationale: string }
@@ -55,6 +57,16 @@ export type AskRouteLabMetricsData = {
     latency: number | null;
     quality: number | null;
   }>;
+  qualityComparison: {
+    workspaceAverage: number | null;
+    scoredTaskGroupCount: number;
+    belowAverage: Array<{
+      label: string;
+      quality: number;
+      scoredTraces: number;
+      gapFromAverage: number;
+    }>;
+  };
 };
 
 const navigationDestinations = new Set(["task_groups", "response_quality", "review", "classifier", "simulations"]);
@@ -69,7 +81,7 @@ export function validateAskRouteLabPlan(
   const kind = String(input.kind ?? "");
   const rationale = String(input.rationale ?? "").trim().slice(0, 240);
   if (!rationale) return undefined;
-  if (kind === "metrics" || kind === "classifier_metrics" || kind === "coverage" || kind === "help") return { kind, rationale };
+  if (kind === "metrics" || kind === "classifier_metrics" || kind === "task_group_quality_comparison" || kind === "coverage" || kind === "help") return { kind, rationale };
   if (kind === "navigate") {
     const destination = String(input.destination ?? "");
     if (!navigationDestinations.has(destination)) return undefined;
@@ -136,6 +148,7 @@ function overlapScore(query: string, candidate: string) {
 export function parseAskChatLabCommand(input: string): AskChatLabCommand {
   const normalized = normalize(input);
   if (!normalized) return { kind: "help" };
+  if (/\b(task group|task groups|workload|workloads)\b/.test(normalized) && /\b(worse|below|underperform|underperforming|lowest|lagging)\b/.test(normalized) && /\b(average|quality|score|perform|performing|performance)\b/.test(normalized)) return { kind: "task_group_quality_comparison" };
   if (/\b(classifier|classification)\b/.test(normalized) && /\b(live|active|status|metric|metrics|how many|count|processed|classified|request|requests|traffic|latency|chart|graph)\b/.test(normalized)) return { kind: "classifier_metrics" };
   if (/\b(metric|metrics|what s new|what is new|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
   if (/\b(unsupported|not supported|support for natively|without support|outside coverage|coverage gap|unknown|uncovered)\b/.test(normalized)) return { kind: "coverage" };
@@ -257,7 +270,7 @@ export function workspaceMetricDashboard(
     };
   });
   const traceById = new Map(traces.map((trace) => [trace.id, trace]));
-  const taskGroups = groups.map((group) => {
+  const taskGroupMetrics = groups.map((group) => {
     const scoped = group.traces.flatMap((id) => traceById.has(id) ? [traceById.get(id)!] : []);
     const scores = scoped.flatMap((trace) => scoreByTrace.has(trace.id) ? [scoreByTrace.get(trace.id)!] : []);
     const latency = scoped.map((trace) => trace.latency_ms ?? 0).filter((value) => value > 0);
@@ -268,9 +281,13 @@ export function workspaceMetricDashboard(
       cost: scoped.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
       latency: percentile95(latency),
       quality: scores.length ? average(scores) : null,
+      scoredTraces: scores.length,
     };
-  }).sort((a, b) => b.requests - a.requests).slice(0, 8);
+  });
+  const taskGroups = [...taskGroupMetrics].sort((a, b) => b.requests - a.requests).slice(0, 8).map(({ scoredTraces: _scoredTraces, ...group }) => group);
   const classifierDecisions = traces.flatMap((trace) => trace.signature_decision ? [trace.signature_decision] : []);
+  const workspaceAverage = summary.scored ? summary.averageScore : null;
+  const scoredTaskGroups = taskGroupMetrics.flatMap((group) => group.quality === null ? [] : [{ ...group, quality: group.quality }]);
   return {
     summary: {
       totalTraces: summary.total,
@@ -287,6 +304,19 @@ export function workspaceMetricDashboard(
     },
     weekly,
     taskGroups,
+    qualityComparison: {
+      workspaceAverage,
+      scoredTaskGroupCount: scoredTaskGroups.length,
+      belowAverage: workspaceAverage === null ? [] : scoredTaskGroups
+        .filter((group) => group.quality < workspaceAverage)
+        .map((group) => ({
+          label: group.label,
+          quality: group.quality,
+          scoredTraces: group.scoredTraces,
+          gapFromAverage: group.quality - workspaceAverage,
+        }))
+        .sort((a, b) => a.quality - b.quality),
+    },
   };
 }
 

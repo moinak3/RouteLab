@@ -143,9 +143,24 @@ export function AskChatLab({
     setBusyLabel("Understanding your request");
     setRunning(true);
     const command = await planRequest(value);
-    if (command.kind === "metrics" || command.kind === "classifier_metrics") {
+    if (command.kind === "metrics" || command.kind === "classifier_metrics" || command.kind === "task_group_quality_comparison") {
       setBusyLabel("Composing an OpenUI dashboard");
       const generatedUI = await generateMetricsUI(value);
+      if (command.kind === "task_group_quality_comparison") {
+        const comparison = metricDashboard.qualityComparison;
+        const text = comparison.workspaceAverage === null
+          ? "I cannot compare Task Group performance yet because the active response-quality eval has no scored traces."
+          : comparison.belowAverage.length === 0
+            ? `Using average response quality as the performance measure, none of the ${comparison.scoredTaskGroupCount.toLocaleString()} scored Task Groups is below the ${score(comparison.workspaceAverage)} workspace average.`
+            : `Using average response quality as the performance measure, ${comparison.belowAverage.length.toLocaleString()} of ${comparison.scoredTaskGroupCount.toLocaleString()} scored Task Groups ${comparison.belowAverage.length === 1 ? "is" : "are"} below the ${score(comparison.workspaceAverage)} workspace average. ${comparison.belowAverage.slice(0, 3).map((group) => `${group.label} is ${score(group.quality)} (${Math.abs(group.gapFromAverage * 100).toFixed(1)} points below)`).join("; ")}.`;
+        addAssistant({
+          text,
+          generatedUI,
+          action: { label: "Open Task Groups", onClick: () => { onNavigate("Distinct Tasks"); setOpen(false); } },
+        });
+        setRunning(false);
+        return;
+      }
       if (command.kind === "classifier_metrics") {
         const processed = metricDashboard.summary.classifiedRequests;
         const total = metricDashboard.summary.totalTraces;

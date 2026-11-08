@@ -6,7 +6,7 @@ export const askRouteLabOpenUISpec: LibrarySpec = {
   root: "Dashboard",
   components: {
     Dashboard: {
-      signature: "Dashboard(children: (MetricCard | Summary | TrendChart | TaskGroupChart)[])",
+      signature: "Dashboard(children: (MetricCard | Summary | TrendChart | TaskGroupChart | QualityComparison)[])",
       description: "Responsive root layout for an Ask RouteLab metrics answer.",
     },
     Summary: {
@@ -25,13 +25,17 @@ export const askRouteLabOpenUISpec: LibrarySpec = {
       signature: 'TaskGroupChart(metric: "requests" | "classifier_requests" | "cost" | "latency" | "quality")',
       description: "A comparison of the largest Task Groups using grounded RouteLab metrics.",
     },
+    QualityComparison: {
+      signature: "QualityComparison()",
+      description: "A deterministic comparison of Task Group quality against the scored workspace average.",
+    },
   },
   componentGroups: [
     { name: "Summary", components: ["Summary", "MetricCard"] },
     {
       name: "Charts",
-      components: ["TrendChart", "TaskGroupChart"],
-      notes: ["Every response must include at least one chart.", "Use TrendChart for change over time and TaskGroupChart for workload comparisons."],
+      components: ["TrendChart", "TaskGroupChart", "QualityComparison"],
+      notes: ["Every response must include at least one chart.", "Use TrendChart for change over time, TaskGroupChart for general workload comparisons, and QualityComparison for below-average Task Group questions."],
     },
     { name: "Layout", components: ["Dashboard"] },
   ],
@@ -44,6 +48,7 @@ export const askRouteLabOpenUIPromptOptions: SystemPromptOptions = {
     "Use 2 to 4 MetricCard components and at least one chart in every response.",
     "Choose metrics relevant to the user's question. For a broad metrics question, include requests, quality, latency, and cost with two complementary charts.",
     "For classifier status, classifier traffic, or classified-request questions, use Summary classifier and classifier_requests. Never use total requests as the classifier-processed count.",
+    "For questions asking whether any Task Groups are worse, below average, lagging, or underperforming, use Summary quality and QualityComparison. Do not substitute a generic TaskGroupChart.",
     "Never write or calculate metric values. Components load values from RouteLab.",
     "Do not use quality components when quality data is unavailable.",
     "Keep dashboards compact: one Summary, at most four MetricCards, and at most two charts.",
@@ -52,11 +57,19 @@ export const askRouteLabOpenUIPromptOptions: SystemPromptOptions = {
     'root = Dashboard([summary, requests, quality, trend, groups])\nsummary = Summary("overview")\nrequests = MetricCard("requests")\nquality = MetricCard("quality")\ntrend = TrendChart("requests", "line")\ngroups = TaskGroupChart("quality")',
     'root = Dashboard([summary, cost, trend, groups])\nsummary = Summary("cost")\ncost = MetricCard("cost")\ntrend = TrendChart("cost", "bar")\ngroups = TaskGroupChart("cost")',
     'root = Dashboard([summary, processed, trend, groups])\nsummary = Summary("classifier")\nprocessed = MetricCard("classifier_requests")\ntrend = TrendChart("classifier_requests", "line")\ngroups = TaskGroupChart("classifier_requests")',
+    'root = Dashboard([summary, quality, comparison])\nsummary = Summary("quality")\nquality = MetricCard("quality")\ncomparison = QualityComparison()',
   ],
 };
 
 export function fallbackAskRouteLabOpenUI(question: string, hasQuality: boolean) {
   const normalized = question.toLowerCase();
+  const qualityComparison = /task group|task groups|workload|workloads/.test(normalized) && /worse|below|underperform|lowest|lagging/.test(normalized);
+  if (qualityComparison) return [
+    "root = Dashboard([summary, quality, comparison])",
+    'summary = Summary("quality")',
+    'quality = MetricCard("quality")',
+    "comparison = QualityComparison()",
+  ].join("\n");
   const classifier = /classifier|classification|classified/.test(normalized);
   const focus: AskRouteLabMetricKey = classifier
     ? "classifier_requests"
