@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, validateAskRouteLabPlan, workspaceCoverageSummary, workspaceMetricDashboard, workspaceMetricSummary } from "../src/core/askChatLab";
+import { askRouteLabFollowUps, parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, validateAskRouteLabPlan, workspaceCoverageSummary, workspaceMetricDashboard, workspaceMetricSummary } from "../src/core/askChatLab";
 import { AskRouteLabOpenUI, askRouteLabOpenUILibrary } from "../src/components/AskRouteLabOpenUI";
 import { askRouteLabOpenUISpec, fallbackAskRouteLabOpenUI } from "../src/core/askRouteLabOpenUISpec";
 import { generateAskRouteLabOpenUI, planAskRouteLab, validateAskRouteLabOpenUI } from "../src/server/askRouteLab";
@@ -111,7 +111,20 @@ describe("AskChatLab", () => {
     expect(parseAskChatLabCommand("Are any of the task groups performing worse than average?")).toEqual({ kind: "task_group_quality_comparison" });
     expect(parseAskChatLabCommand("What conversations didn't have support for natively?")).toEqual({ kind: "coverage" });
     expect(parseAskChatLabCommand("Graph quality and latency")).toEqual({ kind: "metrics" });
+    expect(parseAskChatLabCommand("Catch me up")).toEqual({ kind: "metrics" });
     expect(parseAskChatLabCommand("Give me an overview of what's going on and what I need to pay attention to")).toEqual({ kind: "metrics" });
+  });
+
+  it("suggests grounded next steps from the completed operation", () => {
+    expect(askRouteLabFollowUps("metrics")).toEqual([
+      "Open the review queue",
+      "Are any Task Groups performing worse than average?",
+    ]);
+    expect(askRouteLabFollowUps("coverage")).toEqual([
+      "Catch me up",
+      "Are any Task Groups performing worse than average?",
+    ]);
+    expect(askRouteLabFollowUps("metrics")).toHaveLength(2);
   });
 
   it("resolves workspace task groups and model aliases", () => {
@@ -314,6 +327,15 @@ describe("AskChatLab", () => {
     expect(html).toContain("3 conversations to review");
     expect(html).toContain("Classifier calibrated");
     expect(html).toContain("Judge follow-up needed");
+  });
+
+  it("treats Catch me up as the complete operational overview", () => {
+    const response = fallbackAskRouteLabOpenUI("Catch me up", true);
+    expect(response).toContain('Summary("overview")');
+    expect(response).toContain("ClassifierStatus()");
+    expect(response).toContain("SevenDayMetrics()");
+    expect(response).toContain("AttentionSummary()");
+    expect(response).toContain('TrendChart("requests", "line")');
   });
 
   it("computes and renders Task Groups below the scored workspace average", () => {

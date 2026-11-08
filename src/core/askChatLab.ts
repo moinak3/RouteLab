@@ -18,6 +18,16 @@ export type AskRouteLabPlan =
   | { kind: "simulate"; taskGroupId: string; candidateId: string; sampleMode: "percent" | "count"; sampleValue: number; rationale: string }
   | { kind: "help"; rationale: string };
 
+export function askRouteLabFollowUps(kind: AskChatLabCommand["kind"] | AskRouteLabPlan["kind"]): string[] {
+  if (kind === "metrics") return ["Open the review queue", "Are any Task Groups performing worse than average?"];
+  if (kind === "classifier_metrics" || kind === "task_group_quality_comparison") {
+    return ["Which conversations are outside coverage?", "Catch me up"];
+  }
+  if (kind === "coverage") return ["Catch me up", "Are any Task Groups performing worse than average?"];
+  if (kind === "simulate") return ["Are any Task Groups performing worse than average?", "Catch me up"];
+  return ["Catch me up", "Which conversations are outside coverage?"];
+}
+
 export type AskRouteLabCatalogItem = { id: string; name: string };
 
 export type AskRouteLabTraceContext = {
@@ -186,7 +196,7 @@ export function parseAskChatLabCommand(input: string): AskChatLabCommand {
   if (!normalized) return { kind: "help" };
   if (/\b(task group|task groups|workload|workloads)\b/.test(normalized) && /\b(worse|below|underperform|underperforming|lowest|lagging)\b/.test(normalized) && /\b(average|quality|score|perform|performing|performance)\b/.test(normalized)) return { kind: "task_group_quality_comparison" };
   if (/\b(classifier|classification)\b/.test(normalized) && /\b(live|active|status|metric|metrics|how many|count|processed|classified|request|requests|traffic|latency|chart|graph)\b/.test(normalized)) return { kind: "classifier_metrics" };
-  if (/\b(metric|metrics|what s new|what is new|overview|attention|pay attention|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
+  if (/\b(metric|metrics|what s new|what is new|catch me up|overview|attention|pay attention|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
   if (/\b(unsupported|not supported|support for natively|without support|outside coverage|coverage gap|unknown|uncovered)\b/.test(normalized)) return { kind: "coverage" };
 
   if (/\b(open|show|take me|go to)\b/.test(normalized)) {

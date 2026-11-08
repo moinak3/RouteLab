@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  askRouteLabFollowUps,
   parseAskChatLabCommand,
   resolveModel,
   resolveTaskGroup,
@@ -33,6 +34,7 @@ type ChatMessage = {
   facts?: string[];
   generatedUI?: AskRouteLabOpenUIMessage;
   action?: { label: string; onClick: () => void };
+  suggestions?: string[];
 };
 
 type PlannedCommand = {
@@ -42,7 +44,7 @@ type PlannedCommand = {
 };
 
 const suggestions = [
-  "What's new with my metrics?",
+  "Catch me up",
   "Which conversations are outside coverage?",
   "Run 10% of traces for task group Financial Savings Analysis through Claude Opus 5.5",
 ];
@@ -296,6 +298,7 @@ export function AskChatLab({
             facts: message.facts ?? [],
             action: message.action?.label,
             openui: message.generatedUI?.openui,
+            suggestions: message.suggestions ?? [],
           },
         }),
       });
@@ -311,8 +314,9 @@ export function AskChatLab({
     message: Omit<ChatMessage, "id" | "role">,
     status: "completed" | "failed" = "completed",
   ) => {
-    addAssistant(message);
-    await recordInteraction({ question, planned, message, status });
+    const completedMessage = { ...message, suggestions: message.suggestions ?? askRouteLabFollowUps(planned.command.kind) };
+    addAssistant(completedMessage);
+    await recordInteraction({ question, planned, message: completedMessage, status });
     setRunning(false);
   };
 
@@ -469,7 +473,7 @@ export function AskChatLab({
       <section className="ask-chatlab" role="dialog" aria-modal="true" aria-label="Ask RouteLab workspace agent">
         <header><div><p className="eyebrow">OpenAI-powered workspace agent</p><h2>Ask RouteLab</h2><span>{workspaceLabel} · verified RouteLab operations</span></div><button type="button" aria-label="Close Ask RouteLab" onClick={() => setOpen(false)}>×</button></header>
         <div className="ask-chatlab-messages" aria-live="polite">
-          {messages.map((message) => <article className={`${message.role}${message.generatedUI ? " generated-ui" : ""}`} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.generatedUI ? <Suspense fallback={<div className="ask-chatlab-running"><i />Loading OpenUI dashboard</div>}><AskRouteLabOpenUI response={message.generatedUI.openui} data={message.generatedUI.metrics} /></Suspense> : null}{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}</article>)}
+          {messages.map((message) => <article className={`${message.role}${message.generatedUI ? " generated-ui" : ""}`} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.generatedUI ? <Suspense fallback={<div className="ask-chatlab-running"><i />Loading OpenUI dashboard</div>}><AskRouteLabOpenUI response={message.generatedUI.openui} data={message.generatedUI.metrics} /></Suspense> : null}{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}{message.suggestions?.length ? <div className="ask-chatlab-followups"><small>Try next</small><div>{message.suggestions.slice(0, 2).map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div></div> : null}</article>)}
           {running && <div className="ask-chatlab-running"><i />{busyLabel}</div>}
         </div>
         {messages.length === 1 && <div className="ask-chatlab-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div>}

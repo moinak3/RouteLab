@@ -58,7 +58,7 @@ export const askRouteLabOpenUIPromptOptions: SystemPromptOptions = {
   additionalRules: [
     "Return only OpenUI Lang.",
     "Use at least one chart in every response.",
-    "For a broad operational overview or a question about what needs attention, use Summary overview, ClassifierStatus, SevenDayMetrics, AttentionSummary, and one request TrendChart. Do not substitute all-time MetricCard values for the seven-day block.",
+    "Treat 'Catch me up' as a broad operational overview. For that request, another broad operational overview, or a question about what needs attention, use Summary overview, ClassifierStatus, SevenDayMetrics, AttentionSummary, and one request TrendChart. Do not substitute all-time MetricCard values for the seven-day block.",
     "Choose metrics relevant to the user's question. For a broad metrics question, include requests, quality, latency, and cost with two complementary charts.",
     "For classifier status, classifier traffic, or classified-request questions, use Summary classifier and classifier_requests. Never use total requests as the classifier-processed count.",
     "For questions asking whether any Task Groups are worse, below average, lagging, or underperforming, use Summary quality and QualityComparison. Do not substitute a generic TaskGroupChart.",
@@ -83,7 +83,7 @@ export function fallbackAskRouteLabOpenUI(question: string, hasQuality: boolean)
     'quality = MetricCard("quality")',
     "comparison = QualityComparison()",
   ].join("\n");
-  const operationalOverview = /overview|pay attention|needs? attention|what.?s going on|what is going on/.test(normalized);
+  const operationalOverview = /catch me up|overview|pay attention|needs? attention|what.?s going on|what is going on/.test(normalized);
   if (operationalOverview) return [
     "root = Dashboard([summary, classifier, recent, attention, trend])",
     'summary = Summary("overview")',

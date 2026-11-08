@@ -16,6 +16,9 @@
 .ask-chatlab-messages article ul{display:grid;gap:4px;margin:2px 0 0;padding-left:18px;color:#526075;font-size:13px;line-height:1.45}
 .ask-chatlab-messages article li::marker{color:#36944e}
 .ask-chatlab-messages article button{width:max-content;margin-top:3px;border-color:#4c8f5d;border-radius:1px;background:#e7f2e5;color:#173923}
+.ask-chatlab-followups{display:grid;gap:6px;margin-top:5px;padding-top:10px;border-top:1px solid #d7dee7}
+.ask-chatlab-followups>div{display:flex;flex-wrap:wrap;gap:7px}
+.ask-chatlab-messages article .ask-chatlab-followups button{max-width:100%;margin:0;border-color:#a8b6c8;background:#fffdf8;color:#344259;font-size:12px;line-height:1.35;white-space:normal;text-align:left}
 .ask-chatlab-running{display:flex;align-items:center;gap:9px;color:#526075;font-size:12px;font-weight:600}
 .ask-chatlab-running i{width:9px;height:9px;border-radius:50%;background:#4bcf6a;box-shadow:0 0 0 5px rgba(75,207,106,.15);animation:ask-chatlab-pulse 1.1s ease-in-out infinite}
 .ask-chatlab-suggestions{display:grid;gap:7px;padding:0 20px 14px}
