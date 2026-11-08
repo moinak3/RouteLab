@@ -1,4 +1,13 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../types";
 import { pct } from "../lib/format";
 import type { ReviewQueueFilter } from "../types/ui";
@@ -37,6 +46,12 @@ import {
   type StoredEvalVersion,
 } from "../core/evalRegistry";
 import { taskGroupQualityHistory } from "../core/qualityHistory";
+import {
+  RouteLabChartLegend,
+  RouteLabChartTooltip,
+  routeLabChartColors,
+  routeLabChartTheme,
+} from "../components/charts/RouteLabChartPrimitives";
 
 type EvalVersion = StoredEvalVersion;
 
@@ -71,25 +86,6 @@ export function resolveJudgeModelValue(value: string, models: Model[]) {
   const selected = models.find((model) => model.id === value || model.pricing_source_model_id === value);
   return selected ? openRouterJudgeModelValue(selected) : value;
 }
-
-const evalChart = { width: 640, height: 240, left: 38, right: 26, top: 24, bottom: 42 };
-const chartPoint = (index: number, total: number, score: number) => {
-  const plotWidth = evalChart.width - evalChart.left - evalChart.right;
-  const plotHeight = evalChart.height - evalChart.top - evalChart.bottom;
-  const x = total <= 1 ? evalChart.left + plotWidth / 2 : evalChart.left + index * (plotWidth / (total - 1));
-  const y = evalChart.top + (1 - Math.max(0, Math.min(1, score))) * plotHeight;
-  return { x, y };
-};
-
-const lineSegments = <T,>(points: Array<T | null>) => points.reduce<T[][]>((segments, point) => {
-  if (!point) return [...segments, []];
-  const next = [...segments];
-  if (!next.length || !next[next.length - 1].length) next.push([point]);
-  else next[next.length - 1] = [...next[next.length - 1], point];
-  return next;
-}, []).filter((segment) => segment.length);
-
-const taskGroupChartColors = ["#58f084", "#58a6ff", "#c084fc", "#f6c453", "#ff8a65", "#65d7d0"];
 
 type EvalActionIconName = "history" | "calibration" | "review";
 
@@ -140,9 +136,16 @@ export function Evals({
     ? traceJudgeResults.filter((result)=>result.eval_id===activeEvalDefinition.id||(!result.eval_id&&result.evaluator_type.startsWith(activeEvalDefinition.id)))
     : [];
   const history = monthlyEvalHistory(activeTraceJudgeResults);
-  const historyPoints = history.map((month, index) => ({ ...month, ...chartPoint(index, history.length, month.averageScore) }));
-  const historyLine = historyPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const taskGroupHistory = taskGroupQualityHistory(activeTraceJudgeResults, taskGroups);
+  const taskGroupHistoryData = taskGroupHistory.months.map((month, monthIndex) => {
+    const row: Record<string, string | number | null> = { month: month.label };
+    taskGroupHistory.series.forEach((series) => {
+      const point = series.points[monthIndex];
+      row[series.id] = point?.averageScore ?? null;
+      row[`${series.id}__count`] = point?.count ?? 0;
+    });
+    return row;
+  });
   const [modal,setModal]=useState<"import"|"create"|"edit"|"details"|"versions"|null>(null);
   const [detailEvalId,setDetailEvalId]=useState<string|null>(null);
   const [draft,setDraft]=useState({name:"",evaluator_type:"llm_as_judge",model:defaultJudgeModel,threshold:"0.85",scope:"All task groups",prompt:""});
@@ -529,32 +532,19 @@ export function Evals({
             </div>
             <span>All Task Groups</span>
           </div>
-          {history.length?<div className="eval-history-chart" aria-label="Monthly average eval score line chart">
-            <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Average eval score by month">
-              {[0,.25,.5,.75,1].map((value)=><text className="eval-axis-label" key={value} x="4" y={evalChart.top+(1-value)*(evalChart.height-evalChart.top-evalChart.bottom)+4}>{pct(value*100)}</text>)}
-              <g className="eval-history-grid">
-                {[.25, .5, .75].map((value) => {
-                  const y = evalChart.top + (1 - value) * (evalChart.height - evalChart.top - evalChart.bottom);
-                  return <line key={value} x1={evalChart.left} x2={evalChart.width - evalChart.right} y1={y} y2={y} />;
-                })}
-              </g>
-              <polyline points={historyLine} />
-              {historyPoints.map((month) => (
-                <g className="eval-history-point" key={month.key} transform={`translate(${month.x} ${month.y})`} tabIndex={0}>
-                  <circle r="7" />
-                  <foreignObject x="-58" y="-76" width="132" height="68" className="eval-history-tooltip-wrap">
-                    <div className="eval-history-tooltip">
-                      <b>{month.label} · {pct(month.averageScore * 100)}</b>
-                      <span>{month.count.toLocaleString()} scored traces</span>
-                      <span>{month.passing.toLocaleString()} above threshold</span>
-                    </div>
-                  </foreignObject>
-                </g>
-              ))}
-              {historyPoints.map((month) => (
-                <text className="eval-history-label" key={`${month.key}-label`} x={month.x} y={evalChart.height - 10}>{month.label}</text>
-              ))}
-            </svg>
+          {history.length?<div className="eval-history-chart routelab-chart-surface" role="img" aria-label="Monthly average eval score line chart">
+            <ResponsiveContainer width="100%" height={230}>
+              <LineChart data={history} margin={{ top: 18, right: 12, bottom: 6, left: 4 }} accessibilityLayer>
+                <CartesianGrid vertical={false} stroke={routeLabChartTheme.grid} strokeDasharray="3 5" />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: routeLabChartTheme.axis, fontSize: 11 }} dy={8} />
+                <YAxis domain={[0, 1]} axisLine={false} tickLine={false} width={48} tick={{ fill: routeLabChartTheme.axis, fontSize: 11 }} tickFormatter={(value) => pct(Number(value) * 100)} />
+                <Tooltip cursor={{ stroke: routeLabChartTheme.axis, strokeDasharray: "3 4" }} content={<RouteLabChartTooltip valueFormatter={(value, _name, source) => {
+                  const row = source as { count?: number; passing?: number };
+                  return `${pct(value * 100)} · ${(row.count ?? 0).toLocaleString()} scored · ${(row.passing ?? 0).toLocaleString()} above threshold`;
+                }} />} />
+                <Line type="monotone" dataKey="averageScore" name="Average quality" stroke="#58f084" strokeWidth={4} dot={{ r: 5, fill: "#b7ff6d", stroke: "#07110d", strokeWidth: 2 }} activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2 }} animationDuration={450} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>:<div className="eval-history-empty">
             <b>No eval scores yet</b>
             <span>Run the active eval on historical traces to establish a quality baseline.</span>
@@ -570,66 +560,36 @@ export function Evals({
             <span>{taskGroupHistory.series.length} series</span>
           </div>
           {taskGroupHistory.series.length ? <>
-            <div className="eval-history-legend" aria-label="Task Group chart legend">
-              {taskGroupHistory.series.map((series, index) => (
-                <span key={series.id} title={`${series.resultCount.toLocaleString()} scored traces`}>
-                  <i style={{ backgroundColor: taskGroupChartColors[index % taskGroupChartColors.length] }} />
-                  {series.label}
-                </span>
-              ))}
-            </div>
-            <div className="eval-history-chart eval-history-chart-segmented" aria-label="Monthly average eval score by Task Group">
-              <svg viewBox={`0 0 ${evalChart.width} ${evalChart.height}`} role="img" aria-label="Average eval score by month and Task Group">
-                {[0,.25,.5,.75,1].map((value)=><text className="eval-axis-label" key={value} x="4" y={evalChart.top+(1-value)*(evalChart.height-evalChart.top-evalChart.bottom)+4}>{pct(value*100)}</text>)}
-                <g className="eval-history-grid">
-                  {[.25, .5, .75].map((value) => {
-                    const y = evalChart.top + (1 - value) * (evalChart.height - evalChart.top - evalChart.bottom);
-                    return <line key={value} x1={evalChart.left} x2={evalChart.width - evalChart.right} y1={y} y2={y} />;
-                  })}
-                </g>
-                {taskGroupHistory.series.map((series, seriesIndex) => {
-                  const color = taskGroupChartColors[seriesIndex % taskGroupChartColors.length];
-                  const plotted = series.points.map((point, index) => point ? ({
-                    ...point,
-                    ...chartPoint(index, taskGroupHistory.months.length, point.averageScore),
-                  }) : null);
-                  return <g key={series.id} className="eval-history-series">
-                    {lineSegments(plotted).map((segment, segmentIndex) => (
-                      <polyline key={`${series.id}-${segmentIndex}`} style={{ stroke: color }} points={segment.map((point) => `${point.x},${point.y}`).join(" ")} />
-                    ))}
-                    {plotted.map((point) => point && <g
-                      key={`${series.id}-${point.key}`}
-                      className="eval-history-series-point"
-                      transform={`translate(${point.x} ${point.y})`}
-                      tabIndex={0}
-                      role="img"
-                      aria-label={`${series.label}, ${point.label}: ${pct(point.averageScore * 100)} average quality across ${point.count.toLocaleString()} scored traces`}
-                    >
-                      <circle r="6" style={{ fill: color }} />
-                      <foreignObject
-                        x={point.x > evalChart.width - 250 ? -244 : 12}
-                        y={point.averageScore > .72 ? 12 : -92}
-                        width="232"
-                        height="84"
-                        className="eval-history-segment-tooltip-wrap"
-                      >
-                        <div className="eval-history-segment-tooltip">
-                          <b><i style={{ backgroundColor: color }} />{series.label}</b>
-                          <dl>
-                            <div><dt>Month</dt><dd>{point.label}</dd></div>
-                            <div><dt>Average quality</dt><dd>{pct(point.averageScore * 100)}</dd></div>
-                            <div><dt>Scored traces</dt><dd>{point.count.toLocaleString()}</dd></div>
-                          </dl>
-                        </div>
-                      </foreignObject>
-                    </g>)}
-                  </g>;
-                })}
-                {taskGroupHistory.months.map((month, index) => {
-                  const point = chartPoint(index, taskGroupHistory.months.length, 0);
-                  return <text className="eval-history-label" key={`${month.key}-label`} x={point.x} y={evalChart.height - 10}>{month.label}</text>;
-                })}
-              </svg>
+            <RouteLabChartLegend items={taskGroupHistory.series.map((series, index) => ({
+              label: series.label,
+              color: routeLabChartColors[index % routeLabChartColors.length],
+              detail: `${series.resultCount.toLocaleString()} scored traces`,
+            }))} />
+            <div className="eval-history-chart eval-history-chart-segmented routelab-chart-surface" role="img" aria-label="Monthly average eval score by Task Group">
+              <ResponsiveContainer width="100%" height={230}>
+                <LineChart data={taskGroupHistoryData} margin={{ top: 18, right: 12, bottom: 6, left: 4 }} accessibilityLayer>
+                  <CartesianGrid vertical={false} stroke={routeLabChartTheme.grid} strokeDasharray="3 5" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: routeLabChartTheme.axis, fontSize: 11 }} dy={8} />
+                  <YAxis domain={[0, 1]} axisLine={false} tickLine={false} width={48} tick={{ fill: routeLabChartTheme.axis, fontSize: 11 }} tickFormatter={(value) => pct(Number(value) * 100)} />
+                  <Tooltip cursor={{ stroke: routeLabChartTheme.axis, strokeDasharray: "3 4" }} content={<RouteLabChartTooltip valueFormatter={(value, name, source) => {
+                    const series = taskGroupHistory.series.find((item) => item.label === name);
+                    const count = series ? Number((source as Record<string, unknown>)[`${series.id}__count`] ?? 0) : 0;
+                    return `${pct(value * 100)} · ${count.toLocaleString()} scored traces`;
+                  }} />} />
+                  {taskGroupHistory.series.map((series, index) => <Line
+                    key={series.id}
+                    type="monotone"
+                    dataKey={series.id}
+                    name={series.label}
+                    stroke={routeLabChartColors[index % routeLabChartColors.length]}
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: routeLabChartColors[index % routeLabChartColors.length], stroke: "#07110d", strokeWidth: 2 }}
+                    activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
+                    connectNulls={false}
+                    animationDuration={450}
+                  />)}
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </> : <div className="eval-history-empty">
             <b>No Task Group history yet</b>

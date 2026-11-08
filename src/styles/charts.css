@@ -1,0 +1,144 @@
+.routelab-chart-stage,
+.routelab-chart-surface,
+.overview-model-cost-chart,
+.overview-routing-chart,
+.classifier-agreement-chart,
+.ask-openui-chart-stage,
+.ask-openui-comparison-chart{
+  min-width:0;
+}
+
+.routelab-chart-data{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+
+.routelab-chart-stage .recharts-responsive-container,
+.routelab-chart-surface .recharts-responsive-container,
+.overview-model-cost-chart .recharts-responsive-container,
+.overview-routing-chart .recharts-responsive-container,
+.classifier-agreement-chart .recharts-responsive-container,
+.ask-openui-chart-stage .recharts-responsive-container,
+.ask-openui-comparison-chart .recharts-responsive-container{
+  min-width:0;
+}
+
+.routelab-chart-stage svg,
+.routelab-chart-surface svg,
+.overview-model-cost-chart svg,
+.overview-routing-chart svg,
+.classifier-agreement-chart svg,
+.ask-openui-chart-stage svg,
+.ask-openui-comparison-chart svg,
+.trend-chart .routelab-chart-stage svg,
+.eval-history-chart .recharts-responsive-container svg,
+.task-performance-chart-wrap .recharts-responsive-container svg{
+  width:100%;
+  min-width:0;
+  height:100%;
+  margin:0;
+  overflow:visible;
+}
+
+.routelab-chart-tooltip{
+  min-width:170px;
+  max-width:min(320px,calc(100vw - 32px));
+  padding:10px 11px;
+  border:1px solid rgba(88,240,132,.34);
+  border-radius:8px;
+  background:#07110d;
+  box-shadow:0 16px 36px rgba(0,0,0,.38);
+  color:#f6fbf8;
+  font:500 12px/1.35 var(--font-sans);
+}
+.routelab-chart-tooltip>b{
+  display:block;
+  margin-bottom:7px;
+  color:#fff;
+  font-size:12px;
+  font-weight:700;
+}
+.routelab-chart-tooltip>div{display:grid;gap:5px}
+.routelab-chart-tooltip span{
+  display:grid;
+  grid-template-columns:8px minmax(0,1fr) auto;
+  gap:7px;
+  align-items:center;
+}
+.routelab-chart-tooltip i{width:8px;height:8px;border-radius:50%}
+.routelab-chart-tooltip em{overflow:hidden;color:#b8c8c0;font-style:normal;text-overflow:ellipsis;white-space:nowrap}
+.routelab-chart-tooltip strong{color:#fff;font-size:12px;text-align:right;white-space:nowrap}
+
+.routelab-chart-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px 14px;
+  min-width:0;
+  color:#607086;
+  font-size:12px;
+  line-height:1.35;
+}
+.routelab-chart-legend span{display:inline-flex;min-width:0;align-items:center;gap:6px}
+.routelab-chart-legend i{width:9px;height:9px;flex:0 0 auto;border:2px solid rgba(255,255,255,.5);border-radius:50%;box-shadow:0 0 0 1px rgba(17,27,51,.12)}
+
+.trend-chart .routelab-chart-legend{margin-top:8px}
+.trend-chart .recharts-cartesian-axis-tick-value,
+.task-performance-chart-wrap .recharts-cartesian-axis-tick-value,
+.overview-model-cost-chart .recharts-cartesian-axis-tick-value,
+.eval-history-chart .recharts-cartesian-axis-tick-value{
+  font-family:var(--font-sans);
+  font-weight:600;
+}
+
+.task-performance-chart-wrap{
+  min-height:322px;
+  overflow:hidden;
+}
+.task-performance-controls .routelab-chart-legend{justify-content:flex-end;padding-bottom:2px}
+
+.eval-history .routelab-chart-legend{min-height:42px;margin:0 0 10px;color:#c6d4cd;align-content:flex-start}
+.eval-history-chart{height:246px;overflow:hidden}
+
+.overview-routing-chart{
+  height:18px;
+  overflow:visible;
+  border-radius:7px;
+  background:rgba(82,96,117,.12);
+}
+.overview-model-cost-chart{min-height:170px}
+
+.classifier-agreement-chart{
+  overflow:visible;
+  border-radius:999px;
+  background:rgba(82,96,117,.13);
+}
+.classifier-agreement-chart .recharts-wrapper{overflow:visible}
+
+.ask-openui-chart-stage{height:190px}
+.ask-openui-comparison-chart{min-height:150px}
+
+.recharts-wrapper:focus,
+.recharts-surface:focus{
+  outline:2px solid rgba(71,122,196,.55);
+  outline-offset:2px;
+}
+
+@media(max-width:650px){
+  .routelab-chart-tooltip{max-width:240px}
+  .task-performance-chart-wrap{overflow-x:auto}
+  .task-performance-chart-wrap>.recharts-responsive-container{min-width:680px}
+  .eval-history-chart{height:260px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .recharts-curve,
+  .recharts-rectangle,
+  .recharts-dot{transition:none!important}
+}

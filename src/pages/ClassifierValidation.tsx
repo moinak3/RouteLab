@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type FocusEvent, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { buildClassifierValidationReport, classifierValidationReadiness, createDemoClassifierValidationExamples } from "../core/classifierValidation";
 import {
   classifierExamplesFromAssignments,
@@ -23,6 +24,7 @@ import {
 import { classifyTraceSignaturesWithJev, JEV_RISK_THRESHOLDS } from "../core/jevSignatureGate";
 import type { DistinctTaskBucket, KnownTaskSignature, Trace } from "../types";
 import { pct } from "../lib/format";
+import { RouteLabChartTooltip } from "../components/charts/RouteLabChartPrimitives";
 
 const shortLabel = (value: string) => value === "unknown" || value === "abstain"
   ? value
@@ -127,13 +129,22 @@ function agreementCounts(examples: Array<{ accepted: boolean; predictedSignature
 function AgreementStack({ label, counts, compact = false }: { label: string; counts: AgreementCounts; compact?: boolean }) {
   const total = counts.match + counts.mismatch + counts.abstain;
   const segments = [
-    { key: "match" as const, label: "matched human", count: counts.match },
-    { key: "mismatch" as const, label: "wrong accepted", count: counts.mismatch },
-    { key: "abstain" as const, label: "abstained", count: counts.abstain },
+    { key: "match" as const, label: "matched human", count: counts.match, color: "#58a66c" },
+    { key: "mismatch" as const, label: "wrong accepted", count: counts.mismatch, color: "#dc765d" },
+    { key: "abstain" as const, label: "abstained", count: counts.abstain, color: "#d6a73e" },
   ];
   return <div className={`classifier-agreement-stack ${compact ? "compact" : ""}`.trim()} aria-label={`${label}: ${counts.match} matched human, ${counts.mismatch} wrong accepted, ${counts.abstain} abstained`}>
     {!compact && <div><b>{label}</b><span>{total} reviewed requests</span></div>}
-    <div className="classifier-agreement-track" aria-hidden="true">{segments.map((segment) => segment.count > 0 && <i className={segment.key} style={{ width: `${total ? segment.count / total * 100 : 0}%` }} key={segment.key} />)}</div>
+    <div className="classifier-agreement-chart" role="img" aria-label={`${label} agreement distribution`}>
+      <ResponsiveContainer width="100%" height={compact ? 10 : 16}>
+        <BarChart data={[{ label, match: counts.match, mismatch: counts.mismatch, abstain: counts.abstain }]} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }} accessibilityLayer>
+          <XAxis type="number" hide domain={[0, Math.max(total, 1)]} />
+          <YAxis type="category" dataKey="label" hide />
+          <Tooltip cursor={false} content={<RouteLabChartTooltip valueFormatter={(value) => value.toLocaleString()} />} />
+          {segments.map((segment) => <Bar key={segment.key} dataKey={segment.key} name={segment.label} stackId="agreement" fill={segment.color} isAnimationActive={false} />)}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
     <div className="classifier-agreement-counts">{segments.map((segment) => <span className={segment.key} key={segment.key}><i />{segment.count} {segment.label}</span>)}</div>
   </div>;
 }

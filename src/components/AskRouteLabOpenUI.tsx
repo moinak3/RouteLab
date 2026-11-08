@@ -1,7 +1,20 @@
 import { createContext, useContext } from "react";
 import { createLibrary, defineComponent, Renderer } from "@openuidev/react-lang";
 import { z } from "zod/v4";
+import {
+  Bar,
+  BarChart as RechartsBarChart,
+  CartesianGrid,
+  Line,
+  LineChart as RechartsLineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { AskRouteLabMetricKey, AskRouteLabMetricsData } from "../core/askChatLab";
+import { RouteLabChartTooltip, routeLabChartTheme } from "./charts/RouteLabChartPrimitives";
 
 const emptyMetrics: AskRouteLabMetricsData = {
   summary: { totalTraces: 0, classifierActive: false, classifiedRequests: 0, classifierMatchedRequests: 0, classifierFallbackRequests: 0, recentTraces: 0, priorTraces: 0, totalCostUsd: 0, averageLatencyMs: 0, scoredTraces: 0, averageQuality: null },
@@ -74,40 +87,26 @@ const Summary = defineComponent({
   },
 });
 
-function chartGeometry(values: Array<number | null>, width: number, height: number) {
-  const numeric = values.filter((value): value is number => value !== null && Number.isFinite(value));
-  const max = Math.max(...numeric, 1);
-  const min = Math.min(...numeric, 0);
-  const range = Math.max(max - min, max * .1, 1e-6);
-  return values.map((value, index) => value === null ? null : {
-    x: values.length < 2 ? width / 2 : 12 + index / (values.length - 1) * (width - 24),
-    y: 10 + (max - value) / range * (height - 34),
-  });
-}
-
 function ChartShell({ title, subtitle, labels, values, metric, style }: { title: string; subtitle: string; labels: string[]; values: Array<number | null>; metric: AskRouteLabMetricKey; style: "line" | "bar" }) {
-  const width = 390;
-  const height = 180;
   const meta = metricMeta[metric];
-  const points = chartGeometry(values, width, height);
-  const validPoints = points.filter((point): point is { x: number; y: number } => point !== null);
-  return <section className="ask-openui-chart"><div><b>{title}</b><span>{subtitle}</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${meta.label}`}>
-    {[.25, .5, .75].map((tick) => <line key={tick} x1="12" x2={width - 12} y1={10 + tick * (height - 34)} y2={10 + tick * (height - 34)} className="ask-openui-grid" />)}
-    {style === "line" && validPoints.length > 1 ? <polyline points={validPoints.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={meta.color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" /> : null}
-    {values.map((value, index) => {
-      const point = points[index];
-      if (value === null || !point) return null;
-      const barWidth = Math.max(8, Math.min(30, (width - 30) / Math.max(1, values.length) - 8));
-      return style === "bar"
-        ? <rect key={`${labels[index]}-${value}`} x={point.x - barWidth / 2} y={point.y} width={barWidth} height={height - 24 - point.y} rx="2" fill={meta.color}><title>{`${labels[index]}: ${meta.format(value)}`}</title></rect>
-        : <circle key={`${labels[index]}-${value}`} cx={point.x} cy={point.y} r="5" fill={meta.color} stroke="#fff" strokeWidth="2"><title>{`${labels[index]}: ${meta.format(value)}`}</title></circle>;
-    })}
-    {labels.map((label, index) => {
-      const point = points[index];
-      if (!point || (labels.length > 6 && index % 2)) return null;
-      return <text key={label} x={point.x} y={height - 5} textAnchor="middle">{label.length > 12 ? `${label.slice(0, 11)}…` : label}</text>;
-    })}
-  </svg></section>;
+  const data = labels.map((label, index) => ({ label, value: values[index] }));
+  const shared = <>
+    <CartesianGrid vertical={false} stroke={routeLabChartTheme.grid} strokeDasharray="3 5" />
+    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: routeLabChartTheme.axis, fontSize: 10 }} interval="preserveStartEnd" dy={7} />
+    <YAxis hide domain={metric === "quality" ? [0, 1] : [0, "auto"]} />
+    <Tooltip cursor={{ fill: routeLabChartTheme.cursor }} content={<RouteLabChartTooltip valueFormatter={(value) => meta.format(value)} />} />
+  </>;
+  return <section className="ask-openui-chart"><div><b>{title}</b><span>{subtitle}</span></div><div className="ask-openui-chart-stage" role="img" aria-label={`${title}: ${meta.label}`}>
+    <ResponsiveContainer width="100%" height={190}>
+      {style === "bar" ? <RechartsBarChart data={data} margin={{ top: 12, right: 8, bottom: 2, left: 8 }} accessibilityLayer>
+        {shared}
+        <Bar dataKey="value" name={meta.label} fill={meta.color} radius={[5, 5, 1, 1]} maxBarSize={34} animationDuration={450} />
+      </RechartsBarChart> : <RechartsLineChart data={data} margin={{ top: 12, right: 8, bottom: 2, left: 8 }} accessibilityLayer>
+        {shared}
+        <Line type="monotone" dataKey="value" name={meta.label} stroke={meta.color} strokeWidth={3} dot={{ r: 4, fill: meta.color, stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls={false} animationDuration={450} />
+      </RechartsLineChart>}
+    </ResponsiveContainer>
+  </div></section>;
 }
 
 const TrendChart = defineComponent({
@@ -137,13 +136,25 @@ const QualityComparison = defineComponent({
   component: () => {
     const { qualityComparison } = useContext(MetricsContext);
     if (qualityComparison.workspaceAverage === null) return <section className="ask-openui-comparison"><div><b>Task Group quality comparison</b><span>No active-eval scores are available.</span></div></section>;
+    const chartHeight = Math.max(150, qualityComparison.belowAverage.length * 46 + 48);
     return <section className="ask-openui-comparison" aria-label="Task Groups below workspace average quality">
       <header><div><b>Below workspace average</b><span>{qualityComparison.belowAverage.length} of {qualityComparison.scoredTaskGroupCount} scored Task Groups</span></div><strong>{formatPercent(qualityComparison.workspaceAverage)} average</strong></header>
-      {qualityComparison.belowAverage.length ? <div className="ask-openui-comparison-list">{qualityComparison.belowAverage.map((group) => <article key={group.label}>
-        <div><b>{group.label}</b><span>{group.scoredTraces.toLocaleString()} scored traces</span></div>
-        <div className="ask-openui-comparison-score"><strong>{formatPercent(group.quality)}</strong><span>{(group.gapFromAverage * 100).toFixed(1)} pts</span></div>
-        <div className="ask-openui-comparison-bar" aria-label={`${group.label}: ${formatPercent(group.quality)}, ${Math.abs(group.gapFromAverage * 100).toFixed(1)} points below average`}><i style={{ width: `${Math.max(0, Math.min(100, group.quality * 100))}%` }} /><em style={{ left: `${Math.max(0, Math.min(100, qualityComparison.workspaceAverage! * 100))}%` }} /></div>
-      </article>)}</div> : <p className="ask-openui-comparison-empty">No scored Task Group is below the workspace average.</p>}
+      {qualityComparison.belowAverage.length ? <div className="ask-openui-comparison-chart" role="img" aria-label="Quality scores for Task Groups below the workspace average">
+        <ul className="routelab-chart-data">{qualityComparison.belowAverage.map((group) => <li key={group.label}>{group.label}: {formatPercent(group.quality)}, {(group.gapFromAverage * 100).toFixed(1)} pts, {group.scoredTraces.toLocaleString()} scored traces</li>)}</ul>
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <RechartsBarChart data={qualityComparison.belowAverage} layout="vertical" margin={{ top: 8, right: 12, bottom: 8, left: 4 }} accessibilityLayer>
+            <CartesianGrid horizontal={false} stroke={routeLabChartTheme.grid} strokeDasharray="3 5" />
+            <XAxis type="number" domain={[0, 1]} axisLine={false} tickLine={false} tick={{ fill: routeLabChartTheme.axis, fontSize: 10 }} tickFormatter={(value) => formatPercent(Number(value))} />
+            <YAxis type="category" dataKey="label" width={118} axisLine={false} tickLine={false} tick={{ fill: routeLabChartTheme.axis, fontSize: 10 }} tickFormatter={(value) => String(value).length > 18 ? `${String(value).slice(0, 17)}…` : String(value)} />
+            <Tooltip cursor={{ fill: routeLabChartTheme.cursor }} content={<RouteLabChartTooltip valueFormatter={(value, _name, source) => {
+              const group = source as { scoredTraces?: number; gapFromAverage?: number };
+              return `${formatPercent(value)} · ${(group.scoredTraces ?? 0).toLocaleString()} scored · ${Math.abs((group.gapFromAverage ?? 0) * 100).toFixed(1)} pts below`;
+            }} />} />
+            <ReferenceLine x={qualityComparison.workspaceAverage} stroke="#dc765d" strokeWidth={2} strokeDasharray="4 4" label={{ value: "Average", position: "insideTopRight", fill: "#9c3f34", fontSize: 10 }} />
+            <Bar dataKey="quality" name="Average quality" fill="#58a66c" radius={[0, 5, 5, 0]} maxBarSize={22} animationDuration={450} />
+          </RechartsBarChart>
+        </ResponsiveContainer>
+      </div> : <p className="ask-openui-comparison-empty">No scored Task Group is below the workspace average.</p>}
     </section>;
   },
 });
