@@ -2,6 +2,7 @@ import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../type
 
 export type AskChatLabCommand =
   | { kind: "metrics" }
+  | { kind: "classifier_metrics" }
   | { kind: "coverage" }
   | { kind: "navigate"; destination: "task_groups" | "response_quality" | "review" | "classifier" | "simulations" }
   | { kind: "simulate"; taskGroupQuery: string; modelQuery: string; sampleMode: "percent" | "count"; sampleValue: number }
@@ -9,6 +10,7 @@ export type AskChatLabCommand =
 
 export type AskRouteLabPlan =
   | { kind: "metrics"; rationale: string }
+  | { kind: "classifier_metrics"; rationale: string }
   | { kind: "coverage"; rationale: string }
   | { kind: "navigate"; destination: "task_groups" | "response_quality" | "review" | "classifier" | "simulations"; rationale: string }
   | { kind: "simulate"; taskGroupId: string; candidateId: string; sampleMode: "percent" | "count"; sampleValue: number; rationale: string }
@@ -21,11 +23,15 @@ export type AskRouteLabPlannerResponse = {
   planner: { type: "llm"; model: string };
 };
 
-export type AskRouteLabMetricKey = "requests" | "cost" | "latency" | "quality";
+export type AskRouteLabMetricKey = "requests" | "classifier_requests" | "cost" | "latency" | "quality";
 
 export type AskRouteLabMetricsData = {
   summary: {
     totalTraces: number;
+    classifierActive: boolean;
+    classifiedRequests: number;
+    classifierMatchedRequests: number;
+    classifierFallbackRequests: number;
     recentTraces: number;
     priorTraces: number;
     totalCostUsd: number;
@@ -36,6 +42,7 @@ export type AskRouteLabMetricsData = {
   weekly: Array<{
     label: string;
     requests: number;
+    classifier_requests: number;
     cost: number;
     latency: number | null;
     quality: number | null;
@@ -43,6 +50,7 @@ export type AskRouteLabMetricsData = {
   taskGroups: Array<{
     label: string;
     requests: number;
+    classifier_requests: number;
     cost: number;
     latency: number | null;
     quality: number | null;
@@ -61,7 +69,7 @@ export function validateAskRouteLabPlan(
   const kind = String(input.kind ?? "");
   const rationale = String(input.rationale ?? "").trim().slice(0, 240);
   if (!rationale) return undefined;
-  if (kind === "metrics" || kind === "coverage" || kind === "help") return { kind, rationale };
+  if (kind === "metrics" || kind === "classifier_metrics" || kind === "coverage" || kind === "help") return { kind, rationale };
   if (kind === "navigate") {
     const destination = String(input.destination ?? "");
     if (!navigationDestinations.has(destination)) return undefined;
@@ -128,6 +136,7 @@ function overlapScore(query: string, candidate: string) {
 export function parseAskChatLabCommand(input: string): AskChatLabCommand {
   const normalized = normalize(input);
   if (!normalized) return { kind: "help" };
+  if (/\b(classifier|classification)\b/.test(normalized) && /\b(live|active|status|metric|metrics|how many|count|processed|classified|request|requests|traffic|latency|chart|graph)\b/.test(normalized)) return { kind: "classifier_metrics" };
   if (/\b(metric|metrics|what s new|what is new|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
   if (/\b(unsupported|not supported|support for natively|without support|outside coverage|coverage gap|unknown|uncovered)\b/.test(normalized)) return { kind: "coverage" };
 
@@ -221,6 +230,7 @@ export function workspaceMetricDashboard(
   groups: DistinctTaskBucket[],
   results: TraceJudgeResult[],
   activeEval?: { id: string; version: number },
+  classifierActive = false,
 ): AskRouteLabMetricsData {
   const summary = workspaceMetricSummary(traces, results, activeEval);
   const traceIds = new Set(traces.map((trace) => trace.id));
@@ -240,6 +250,7 @@ export function workspaceMetricDashboard(
     return {
       label: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(start)),
       requests: scoped.length,
+      classifier_requests: scoped.filter((trace) => Boolean(trace.signature_decision)).length,
       cost: scoped.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
       latency: latency.length ? average(latency) : null,
       quality: scores.length ? average(scores) : null,
@@ -253,14 +264,20 @@ export function workspaceMetricDashboard(
     return {
       label: group.bucket_name,
       requests: scoped.length,
+      classifier_requests: scoped.filter((trace) => Boolean(trace.signature_decision)).length,
       cost: scoped.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
       latency: percentile95(latency),
       quality: scores.length ? average(scores) : null,
     };
   }).sort((a, b) => b.requests - a.requests).slice(0, 8);
+  const classifierDecisions = traces.flatMap((trace) => trace.signature_decision ? [trace.signature_decision] : []);
   return {
     summary: {
       totalTraces: summary.total,
+      classifierActive,
+      classifiedRequests: classifierDecisions.length,
+      classifierMatchedRequests: classifierDecisions.filter((decision) => decision.status === "matched").length,
+      classifierFallbackRequests: classifierDecisions.filter((decision) => decision.routing_action === "fallback_model").length,
       recentTraces: summary.recent,
       priorTraces: summary.prior,
       totalCostUsd: summary.cost,

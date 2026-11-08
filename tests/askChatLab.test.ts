@@ -69,6 +69,8 @@ describe("AskChatLab", () => {
 
   it("recognizes metrics and unsupported-coverage questions", () => {
     expect(parseAskChatLabCommand("What's new with my metrics?")).toEqual({ kind: "metrics" });
+    expect(parseAskChatLabCommand("How many requests have been classified by my classifier?")).toEqual({ kind: "classifier_metrics" });
+    expect(parseAskChatLabCommand("Is my classifier live?")).toEqual({ kind: "classifier_metrics" });
     expect(parseAskChatLabCommand("What conversations didn't have support for natively?")).toEqual({ kind: "coverage" });
     expect(parseAskChatLabCommand("Graph quality and latency")).toEqual({ kind: "metrics" });
   });
@@ -128,6 +130,29 @@ describe("AskChatLab", () => {
     });
   });
 
+  it("plans classifier counts as classifier metrics instead of workspace metrics", async () => {
+    const fetchImpl = async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        kind: "classifier_metrics",
+        destination: null,
+        taskGroupId: null,
+        candidateId: null,
+        sampleMode: null,
+        sampleValue: null,
+        rationale: "The user asked how many requests the classifier processed.",
+      }) } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    const result = await planAskRouteLab({
+      message: "How many requests have been classified by my classifier?",
+      taskGroups: [],
+      models: [],
+      key: "test-key",
+      model: "test/planner",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(result.plan.kind).toBe("classifier_metrics");
+  });
+
   it("accepts only allowlisted OpenUI metric dashboards with a chart", () => {
     const valid = 'root = Dashboard([summary, chart])\nsummary = Summary("overview")\nchart = TrendChart("requests", "line")';
     expect(validateAskRouteLabOpenUI(valid)).toBe(valid);
@@ -156,6 +181,31 @@ describe("AskChatLab", () => {
 
   it("keeps the server prompt contract aligned with the rendered OpenUI library", () => {
     expect(askRouteLabOpenUILibrary.toSpec().components).toEqual(askRouteLabOpenUISpec.components);
+  });
+
+  it("counts only traces with recorded classifier decisions as processed", () => {
+    const decision = {
+      provider: "jev" as const,
+      model: "classifier",
+      signature_id: group.bucket_id,
+      signature_label: group.bucket_name,
+      confidence: 0.94,
+      probabilities: { [group.bucket_id]: 0.94 },
+      status: "matched" as const,
+      routing_action: "signature_route" as const,
+      confidence_threshold: 0.8,
+      latency_ms: 45,
+      reason: "Matched",
+    };
+    const classifierTraces = traces.map((trace, index) => index < 2 ? { ...trace, signature_decision: decision } : trace);
+    const data = workspaceMetricDashboard(classifierTraces, [group], [], undefined, true);
+    const response = fallbackAskRouteLabOpenUI("How many requests did my classifier process?", false);
+    const html = renderToStaticMarkup(createElement(AskRouteLabOpenUI, { response, data }));
+    expect(data.summary.totalTraces).toBe(10);
+    expect(data.summary.classifiedRequests).toBe(2);
+    expect(html).toContain("processed 2 of 10 workspace traces");
+    expect(html).toContain("Classifier requests");
+    expect(html).toContain("2 of 10 workspace traces");
   });
 
   it("selects the requested percent without exceeding the group", () => {

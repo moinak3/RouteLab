@@ -849,6 +849,7 @@ export default function App() {
       traceJudgeResults={traceJudgeResults}
       taskGroups={distinctTaskBuckets}
       models={simulationModels}
+      classifierActive={routingPolicyState === "active"}
       activeEval={activeEvalConfig ? {
         id: activeEvalConfig.definition.id,
         version: activeEvalConfig.version,

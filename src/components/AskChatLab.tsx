@@ -43,6 +43,7 @@ export function AskChatLab({
   taskGroups,
   models,
   activeEval,
+  classifierActive,
   onNavigate,
   onOpenReview,
   onRunSimulation,
@@ -54,6 +55,7 @@ export function AskChatLab({
   taskGroups: DistinctTaskBucket[];
   models: Model[];
   activeEval?: { id: string; version: number; name: string };
+  classifierActive: boolean;
   onNavigate: (page: Page) => void;
   onOpenReview: () => void;
   onRunSimulation: (request: AskSimulationRequest) => Promise<AskSimulationResult>;
@@ -78,7 +80,8 @@ export function AskChatLab({
     taskGroups,
     traceJudgeResults,
     activeEval ? { id: activeEval.id, version: activeEval.version } : undefined,
-  ), [traces, taskGroups, traceJudgeResults, activeEval]);
+    classifierActive,
+  ), [traces, taskGroups, traceJudgeResults, activeEval, classifierActive]);
   const coverageSummary = useMemo(() => workspaceCoverageSummary(
     traces,
     taskGroups,
@@ -140,9 +143,22 @@ export function AskChatLab({
     setBusyLabel("Understanding your request");
     setRunning(true);
     const command = await planRequest(value);
-    if (command.kind === "metrics") {
+    if (command.kind === "metrics" || command.kind === "classifier_metrics") {
       setBusyLabel("Composing an OpenUI dashboard");
       const generatedUI = await generateMetricsUI(value);
+      if (command.kind === "classifier_metrics") {
+        const processed = metricDashboard.summary.classifiedRequests;
+        const total = metricDashboard.summary.totalTraces;
+        addAssistant({
+          text: `The classifier is ${classifierActive ? "active" : "inactive"}. It has processed ${processed.toLocaleString()} of ${total.toLocaleString()} workspace traces. Imported traces without a recorded classifier decision are not counted as processed.`,
+          generatedUI,
+          action: classifierActive
+            ? { label: "Open classifier calibration", onClick: () => { onNavigate("Classifier Validation"); setOpen(false); } }
+            : { label: "Open routing policy", onClick: () => { onNavigate("Simulations"); setOpen(false); } },
+        });
+        setRunning(false);
+        return;
+      }
       const direction = metricSummary.recent === metricSummary.prior
         ? "unchanged"
         : metricSummary.recent > metricSummary.prior

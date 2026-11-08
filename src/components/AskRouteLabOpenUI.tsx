@@ -4,18 +4,19 @@ import { z } from "zod/v4";
 import type { AskRouteLabMetricKey, AskRouteLabMetricsData } from "../core/askChatLab";
 
 const emptyMetrics: AskRouteLabMetricsData = {
-  summary: { totalTraces: 0, recentTraces: 0, priorTraces: 0, totalCostUsd: 0, averageLatencyMs: 0, scoredTraces: 0, averageQuality: null },
+  summary: { totalTraces: 0, classifierActive: false, classifiedRequests: 0, classifierMatchedRequests: 0, classifierFallbackRequests: 0, recentTraces: 0, priorTraces: 0, totalCostUsd: 0, averageLatencyMs: 0, scoredTraces: 0, averageQuality: null },
   weekly: [],
   taskGroups: [],
 };
 
 const MetricsContext = createContext<AskRouteLabMetricsData>(emptyMetrics);
-const metricSchema = z.enum(["requests", "cost", "latency", "quality"]);
+const metricSchema = z.enum(["requests", "classifier_requests", "cost", "latency", "quality"]);
 const formatMoney = (value: number) => `$${value.toFixed(value < 1 ? 3 : 2)}`;
 const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
 const metricMeta: Record<AskRouteLabMetricKey, { label: string; color: string; format: (value: number) => string }> = {
   requests: { label: "Requests", color: "#2876d2", format: (value) => Math.round(value).toLocaleString() },
+  classifier_requests: { label: "Classifier requests", color: "#25834a", format: (value) => Math.round(value).toLocaleString() },
   cost: { label: "Observed cost", color: "#b16a16", format: formatMoney },
   latency: { label: "Latency", color: "#8257b8", format: (value) => `${Math.round(value)}ms` },
   quality: { label: "Average quality", color: "#25834a", format: formatPercent },
@@ -23,6 +24,7 @@ const metricMeta: Record<AskRouteLabMetricKey, { label: string; color: string; f
 
 function metricValue(data: AskRouteLabMetricsData, metric: AskRouteLabMetricKey) {
   if (metric === "requests") return data.summary.totalTraces;
+  if (metric === "classifier_requests") return data.summary.classifiedRequests;
   if (metric === "cost") return data.summary.totalCostUsd;
   if (metric === "latency") return data.summary.averageLatencyMs;
   return data.summary.averageQuality;
@@ -38,6 +40,8 @@ const MetricCard = defineComponent({
     const value = metricValue(data, props.metric);
     const detail = props.metric === "requests"
       ? `${data.summary.recentTraces.toLocaleString()} in the latest week`
+      : props.metric === "classifier_requests"
+        ? `${data.summary.classifiedRequests.toLocaleString()} of ${data.summary.totalTraces.toLocaleString()} workspace traces`
       : props.metric === "quality"
         ? `${data.summary.scoredTraces.toLocaleString()} scored traces`
         : props.metric === "latency"
@@ -50,11 +54,13 @@ const MetricCard = defineComponent({
 const Summary = defineComponent({
   name: "Summary",
   description: "A concise deterministic summary of the selected metric focus.",
-  props: z.object({ focus: z.enum(["overview", "requests", "cost", "latency", "quality"]) }),
+  props: z.object({ focus: z.enum(["overview", "requests", "classifier", "cost", "latency", "quality"]) }),
   component: ({ props }) => {
     const data = useContext(MetricsContext);
     const change = data.summary.recentTraces - data.summary.priorTraces;
-    const text = props.focus === "requests" || props.focus === "overview"
+    const text = props.focus === "classifier"
+      ? `The classifier is ${data.summary.classifierActive ? "active" : "inactive"}. It has processed ${data.summary.classifiedRequests.toLocaleString()} of ${data.summary.totalTraces.toLocaleString()} workspace traces; ${Math.max(0, data.summary.totalTraces - data.summary.classifiedRequests).toLocaleString()} imported traces have no recorded classifier decision.`
+      : props.focus === "requests" || props.focus === "overview"
       ? `${data.summary.totalTraces.toLocaleString()} traces are in this workspace. The latest week is ${change === 0 ? "unchanged" : `${Math.abs(change).toLocaleString()} ${change > 0 ? "higher" : "lower"}`} than the previous week.`
       : props.focus === "cost"
         ? `${formatMoney(data.summary.totalCostUsd)} in observed trace cost across ${data.summary.totalTraces.toLocaleString()} traces.`
