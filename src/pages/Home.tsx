@@ -212,7 +212,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           <p className="eyebrow">Model routing for AI agents</p>
           <h1>Choose the right model for each task your agent takes on.</h1>
           <p>RouteLab uses your production traces and human-calibrated evals to choose the right model for each recurring task.</p>
-          <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a></div>
+          <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a><a className="home-button-secondary" href="#video">Watch the 90-sec overview</a></div>
         </div>
         <aside className="home-why-now-card" id="why-now" aria-label="Why model allocation matters now">
           <div className="home-why-now-head"><span>Why now</span><b>One agent now performs many kinds of work.</b></div>
@@ -224,6 +224,29 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         <div className="home-hero-positioning">
           <b>RouteLab does not replace your eval platform or gateway.</b>
           <span>It translates your existing traces and eval results into a model allocation policy your team can inspect, deploy, and maintain.</span>
+        </div>
+      </section>
+
+      <section className="home-section home-video" id="video" aria-labelledby="video-title">
+        <div className="home-video-copy">
+          <p className="eyebrow">90-second overview</p>
+          <h2 id="video-title">See RouteLab turn production evidence into a routing policy.</h2>
+          <p>Follow the workflow from traces and Task Groups through model simulations, deployment, calibration, and ongoing review.</p>
+          <dl>
+            <div><dt>Runtime</dt><dd>1:30</dd></div>
+            <div><dt>Format</dt><dd>Product explainer</dd></div>
+          </dl>
+        </div>
+        <div className="home-video-player">
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            poster="https://cl13cqagrtjkhygq.public.blob.vercel-storage.com/marketing/routelab-explainer-v2-poster-piALIymeRdMEcVUp72CDGC74UuY4pn.png"
+            src="https://cl13cqagrtjkhygq.public.blob.vercel-storage.com/marketing/routelab-explainer-90s-v2-h7EUdGpH1RIeT7PX0OufXjp3ztkzyq.mp4"
+            aria-label="RouteLab 90-second product explainer"
+          />
+          <p>Includes narration, music, product screenshots, and on-screen captions.</p>
         </div>
       </section>
 

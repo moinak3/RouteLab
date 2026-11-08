@@ -112,6 +112,17 @@ body:before{
 .home-hero-positioning{border-block:1px solid var(--dossier-blue);background:rgba(33,77,134,.045)}
 .home-hero-positioning b{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:19px;font-weight:600}.home-hero-positioning span{color:#566172}
 
+.home-video{padding-top:72px}
+.home-video-copy h2{color:var(--dossier-ink);font-family:var(--font-editorial);font-size:46px;font-weight:600;line-height:1;letter-spacing:-.025em;text-wrap:balance}
+.home-video-copy>p:not(.eyebrow){color:#4f5968}
+.home-video-copy dl{border-top-color:var(--dossier-blue)}
+.home-video-copy dt{color:#637089;font-family:var(--font-mono);font-weight:600;letter-spacing:.05em}
+.home-video-copy dd{color:var(--dossier-ink)}
+.home-video-player{position:relative;padding:12px;border:1px solid var(--dossier-blue);background:rgba(251,248,240,.72);box-shadow:10px 10px 0 rgba(33,77,134,.1)}
+.home-video-player:before{content:"ROUTELAB / PRODUCT OVERVIEW";display:block;padding:2px 2px 11px;color:var(--dossier-red);font:600 11px var(--font-mono);letter-spacing:.06em}
+.home-video-player video{border:1px solid var(--dossier-blue);border-radius:0;box-shadow:none}
+.home-video-player p{margin:10px 2px 0;color:#5d6879;font-family:var(--font-mono);font-size:11px}
+
 .home-why-now-card{
   margin-top:20px;
   padding:18px;
