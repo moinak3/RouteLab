@@ -58,10 +58,10 @@
   color:#f6fbf8;
   font:500 12px/1.35 var(--font-sans);
 }
-.routelab-chart-tooltip>b{
+.shell>main .routelab-chart-tooltip>b{
   display:block;
   margin-bottom:7px;
-  color:#fff;
+  color:#f8fffb;
   font-size:12px;
   font-weight:700;
 }
@@ -73,8 +73,8 @@
   align-items:center;
 }
 .routelab-chart-tooltip i{width:8px;height:8px;border-radius:50%}
-.routelab-chart-tooltip em{overflow:hidden;color:#b8c8c0;font-style:normal;text-overflow:ellipsis;white-space:nowrap}
-.routelab-chart-tooltip strong{color:#fff;font-size:12px;text-align:right;white-space:nowrap}
+.shell>main .routelab-chart-tooltip em{overflow:hidden;color:#d4e3dc;font-style:normal;text-overflow:ellipsis;white-space:nowrap}
+.shell>main .routelab-chart-tooltip strong{color:#fff;font-size:12px;text-align:right;white-space:nowrap}
 
 .routelab-chart-legend{
   display:flex;
@@ -100,6 +100,11 @@
 .task-performance-chart-wrap{
   min-height:322px;
   overflow:hidden;
+}
+.task-performance-chart-wrap .task-performance-axis-label{
+  fill:#43536b;
+  font-size:11px;
+  font-weight:700;
 }
 .task-performance-controls .routelab-chart-legend{justify-content:flex-end;padding-bottom:2px}
 

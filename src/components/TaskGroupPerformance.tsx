@@ -34,7 +34,7 @@ function QualityLatencyChart({ points }: { points: TaskGroupPerformancePoint[] }
   }));
   return <div className="task-performance-chart-wrap routelab-chart-surface" role="img" aria-label="Monthly average quality and P95 latency for the selected Task Group">
     <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={data} margin={{ top: 22, right: 18, bottom: 8, left: 4 }} accessibilityLayer>
+      <LineChart data={data} margin={{ top: 22, right: 10, bottom: 8, left: 10 }} accessibilityLayer>
         <CartesianGrid vertical={false} stroke={routeLabChartTheme.grid} strokeDasharray="3 5" />
         <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: routeLabChartTheme.axis, fontSize: 12 }} dy={8} />
         <YAxis
@@ -42,10 +42,11 @@ function QualityLatencyChart({ points }: { points: TaskGroupPerformancePoint[] }
           domain={[0, 1]}
           axisLine={false}
           tickLine={false}
-          width={54}
+          width={82}
+          tickMargin={10}
           tick={{ fill: routeLabChartTheme.axis, fontSize: 11 }}
           tickFormatter={(value) => pct(Number(value) * 100)}
-          label={{ value: "Average quality", angle: -90, position: "insideLeft", fill: routeLabChartTheme.axis, fontSize: 11 }}
+          label={{ value: "Average quality", angle: -90, position: "insideLeft", offset: 2, className: "task-performance-axis-label" }}
         />
         <YAxis
           yAxisId="latency"
@@ -53,10 +54,11 @@ function QualityLatencyChart({ points }: { points: TaskGroupPerformancePoint[] }
           domain={[0, "auto"]}
           axisLine={false}
           tickLine={false}
-          width={62}
+          width={90}
+          tickMargin={10}
           tick={{ fill: routeLabChartTheme.axis, fontSize: 11 }}
           tickFormatter={(value) => `${Math.round(Number(value))}ms`}
-          label={{ value: "P95 latency", angle: 90, position: "insideRight", fill: routeLabChartTheme.axis, fontSize: 11 }}
+          label={{ value: "P95 latency", angle: 90, position: "insideRight", offset: 2, className: "task-performance-axis-label" }}
         />
         <Tooltip
           cursor={{ stroke: routeLabChartTheme.axis, strokeDasharray: "3 4" }}
