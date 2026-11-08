@@ -182,6 +182,7 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [evalRegistryRevision, setEvalRegistryRevision] = useState(0);
   const [routingPolicyState, setRoutingPolicyState] = useState<"loading" | "active" | "inactive">("loading");
+  const [runtimeTraceState, setRuntimeTraceState] = useState<"loading" | "ready">("loading");
   const activeModels = useMemo(() => enabledModels(), [catalogVersion]);
   const activeModelIds = useMemo(() => activeModels.map((model) => model.id), [activeModels]);
   const simulationModels = useMemo(() => [
@@ -522,9 +523,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!previewUnlocked || page === "Home") return;
+    if (!previewUnlocked || page === "Home") {
+      setRuntimeTraceState("loading");
+      return;
+    }
     const controller = new AbortController();
     let refreshing = false;
+    setRuntimeTraceState("loading");
     const refresh = async () => {
       if (refreshing || controller.signal.aborted) return;
       refreshing = true;
@@ -537,7 +542,7 @@ export default function App() {
     if (channel) channel.onmessage = (event) => {
       if (event.data?.type === "trace_saved" && event.data?.workspaceId === cloudWorkspaceId) void refresh();
     };
-    void refresh();
+    void refresh().finally(() => { if (!controller.signal.aborted) setRuntimeTraceState("ready"); });
     const timer = window.setInterval(refreshWhenVisible, 10_000);
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -843,7 +848,7 @@ export default function App() {
       {page === "Fine-Tuning" && <FineTuning traces={traces} distinctTaskBuckets={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} datasets={goldenDatasets} jobs={fineTuneJobs} onStartFineTune={startFineTune} onDeployFineTune={deployFineTune} />}
       {page === "Model Catalog" && <ModelCatalog catalogVersion={catalogVersion} familyApiKeys={familyApiKeys} gatewayApiKeys={gatewayApiKeys} onFamilyApiKey={(family,key)=>setFamilyApiKeys(keys=>({...keys,[family]:key}))} onGatewayApiKey={(gateway,key)=>setGatewayApiKeys(keys=>({...keys,[gateway]:key}))} onModelEnabled={(id:string,enabled:boolean)=>{updateModelEnabled(id,enabled);setCatalogVersion(value=>value+1)}} onFamilyEnabled={(family:Model["family"],enabled:boolean)=>{updateFamilyEnabled(family,enabled);setCatalogVersion(value=>value+1)}} onPricing={(id:string,input:number,output:number)=>{updateModelPricing(id,input,output);setCatalogVersion(value=>value+1)}} />}
     </main>
-    {routingPolicyState !== "loading" && <AskChatLab
+    {routingPolicyState !== "loading" && runtimeTraceState === "ready" && <AskChatLab
       workspaceLabel={activeWorkspace === "demo" ? "RouteLab demo" : "My workspace"}
       workspaceId={cloudWorkspaceId}
       traces={traces}
