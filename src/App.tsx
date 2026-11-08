@@ -493,7 +493,35 @@ export default function App() {
   }, [notice]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    let frame = 0;
+    const scrollToRoutePosition = () => {
+      if (page === "Home" && window.location.hash) {
+        const rawId = window.location.hash.slice(1);
+        let id = rawId;
+        try {
+          id = decodeURIComponent(rawId);
+        } catch {
+          // Keep the literal fragment when a malformed escape sequence is supplied.
+        }
+        const target = document.getElementById(id);
+        if (target) {
+          target.scrollIntoView({ block: "start", behavior: "auto" });
+          return;
+        }
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    };
+    const scheduleScroll = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(scrollToRoutePosition);
+    };
+
+    scheduleScroll();
+    window.addEventListener("hashchange", scheduleScroll);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("hashchange", scheduleScroll);
+    };
   }, [page]);
 
   useEffect(() => {
