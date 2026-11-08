@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, workspaceCoverageSummary, workspaceMetricSummary } from "../src/core/askChatLab";
+import { parseAskChatLabCommand, resolveModel, resolveTaskGroup, selectSimulationTraces, validateAskRouteLabPlan, workspaceCoverageSummary, workspaceMetricSummary } from "../src/core/askChatLab";
+import { planAskRouteLab } from "../src/server/askRouteLab";
 import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../src/types";
 
 const traces = Array.from({ length: 10 }, (_, index): Trace => ({
@@ -70,6 +71,56 @@ describe("AskChatLab", () => {
   it("resolves workspace task groups and model aliases", () => {
     expect(resolveTaskGroup("financial savings", [group])?.bucket_id).toBe("finance");
     expect(resolveModel("Claude Opus 5.5", [model])?.id).toBe(model.id);
+  });
+
+  it("accepts only allowlisted LLM operations and exact catalog IDs", () => {
+    const taskGroups = [{ id: group.bucket_id, name: group.bucket_name }];
+    const models = [{ id: model.id, name: model.display_name }];
+    expect(validateAskRouteLabPlan({
+      kind: "simulate",
+      taskGroupId: group.bucket_id,
+      candidateId: model.id,
+      sampleMode: "percent",
+      sampleValue: 250,
+      rationale: "The user requested a live comparison.",
+    }, taskGroups, models)).toMatchObject({ sampleValue: 100 });
+    expect(validateAskRouteLabPlan({
+      kind: "simulate",
+      taskGroupId: "invented",
+      candidateId: model.id,
+      sampleMode: "count",
+      sampleValue: 10,
+      rationale: "Invented target.",
+    }, taskGroups, models)).toBeUndefined();
+  });
+
+  it("uses a structured LLM response to plan an allowlisted action", async () => {
+    const fetchImpl = async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        kind: "simulate",
+        destination: null,
+        taskGroupId: group.bucket_id,
+        candidateId: model.id,
+        sampleMode: "percent",
+        sampleValue: 10,
+        rationale: "Run the requested sample through the requested model.",
+      }) } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    const result = await planAskRouteLab({
+      message: "Run ten percent of finance through Opus",
+      taskGroups: [{ id: group.bucket_id, name: group.bucket_name }],
+      models: [{ id: model.id, name: model.display_name }],
+      key: "test-key",
+      model: "test/planner",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(result.planner).toEqual({ type: "llm", model: "test/planner" });
+    expect(result.plan).toMatchObject({
+      kind: "simulate",
+      taskGroupId: group.bucket_id,
+      candidateId: model.id,
+      sampleValue: 10,
+    });
   });
 
   it("selects the requested percent without exceeding the group", () => {

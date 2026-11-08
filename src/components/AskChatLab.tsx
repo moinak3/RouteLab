@@ -3,8 +3,12 @@ import {
   parseAskChatLabCommand,
   resolveModel,
   resolveTaskGroup,
+  validateAskRouteLabPlan,
   workspaceCoverageSummary,
   workspaceMetricSummary,
+  type AskChatLabCommand,
+  type AskRouteLabPlan,
+  type AskRouteLabPlannerResponse,
   type AskSimulationRequest,
   type AskSimulationResult,
 } from "../core/askChatLab";
@@ -54,10 +58,11 @@ export function AskChatLab({
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
+  const [busyLabel, setBusyLabel] = useState("Understanding your request");
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: "welcome",
     role: "assistant",
-    text: `I can inspect ${workspaceLabel}, find coverage gaps, and run live model simulations using the active RouteLab eval.`,
+    text: `I can inspect ${workspaceLabel}, find coverage gaps, open the right workspace page, and run live model simulations using the active RouteLab eval.`,
   }]);
   const metricSummary = useMemo(() => workspaceMetricSummary(
     traces,
@@ -75,12 +80,35 @@ export function AskChatLab({
     setMessages((current) => [...current, { ...message, id: `assistant_${Date.now()}_${current.length}`, role: "assistant" }]);
   };
 
+  const planRequest = async (message: string): Promise<AskRouteLabPlan | AskChatLabCommand> => {
+    const taskGroupCatalog = taskGroups.map((group) => ({ id: group.bucket_id, name: group.bucket_name }));
+    const modelCatalog = models
+      .filter((model) => model.deployment_type !== "decision_model")
+      .map((model) => ({ id: model.id, name: `${model.display_name} (${model.provider})` }));
+    try {
+      const response = await fetch("/api/ask-routelab/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, taskGroups: taskGroupCatalog, models: modelCatalog }),
+      });
+      const payload = await response.json().catch(() => ({})) as Partial<AskRouteLabPlannerResponse> & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "The LLM planner is unavailable.");
+      const plan = validateAskRouteLabPlan(payload.plan, taskGroupCatalog, modelCatalog);
+      if (!plan) throw new Error("The LLM planner returned an unsupported operation.");
+      return plan;
+    } catch {
+      return parseAskChatLabCommand(message);
+    }
+  };
+
   const execute = async (rawInput: string) => {
     const value = rawInput.trim();
     if (!value || running) return;
     setInput("");
     setMessages((current) => [...current, { id: `user_${Date.now()}`, role: "user", text: value }]);
-    const command = parseAskChatLabCommand(value);
+    setBusyLabel("Understanding your request");
+    setRunning(true);
+    const command = await planRequest(value);
     if (command.kind === "metrics") {
       const direction = metricSummary.recent === metricSummary.prior
         ? "unchanged"
@@ -96,6 +124,7 @@ export function AskChatLab({
         ],
         action: { label: "Open Overview", onClick: () => { onNavigate("Overview"); setOpen(false); } },
       });
+      setRunning(false);
       return;
     }
     if (command.kind === "coverage") {
@@ -107,6 +136,7 @@ export function AskChatLab({
         facts: [`Classifier gaps: ${reasonText}`, `Eval coverage: ${(traces.length - coverageSummary.evalGaps.length).toLocaleString()} of ${traces.length.toLocaleString()} traces`],
         action: { label: "Review coverage gaps", onClick: () => { onOpenReview(); setOpen(false); } },
       });
+      setRunning(false);
       return;
     }
     if (command.kind === "navigate") {
@@ -118,21 +148,27 @@ export function AskChatLab({
         simulations: "Simulations",
       };
       onNavigate(destinations[command.destination]);
+      setRunning(false);
       setOpen(false);
       return;
     }
     if (command.kind === "simulate") {
-      const taskGroup = resolveTaskGroup(command.taskGroupQuery, taskGroups);
-      const model = resolveModel(command.modelQuery, models);
+      const taskGroup = "taskGroupId" in command
+        ? taskGroups.find((group) => group.bucket_id === command.taskGroupId)
+        : resolveTaskGroup(command.taskGroupQuery, taskGroups);
+      const model = "candidateId" in command
+        ? models.find((item) => item.id === command.candidateId)
+        : resolveModel(command.modelQuery, models);
       if (!taskGroup || !model) {
         addAssistant({
           text: !taskGroup
-            ? `I couldn't match “${command.taskGroupQuery}” to a Task Group in this workspace.`
-            : `I couldn't match “${command.modelQuery}” to an enabled generation model.`,
+            ? "I couldn't match that request to a Task Group in this workspace."
+            : "I couldn't match that request to an enabled generation model.",
           facts: !taskGroup
             ? taskGroups.slice(0, 4).map((group) => group.bucket_name)
             : models.filter((item) => item.deployment_type !== "decision_model").slice(0, 4).map((item) => item.display_name),
         });
+        setRunning(false);
         return;
       }
       if (!activeEval) {
@@ -140,6 +176,7 @@ export function AskChatLab({
           text: "This workspace needs an active response-quality eval before I can run an apples-to-apples simulation.",
           action: { label: "Open Response Quality", onClick: () => { onNavigate("Evals"); setOpen(false); } },
         });
+        setRunning(false);
         return;
       }
       const request: AskSimulationRequest = {
@@ -150,7 +187,7 @@ export function AskChatLab({
         sampleMode: command.sampleMode,
         sampleValue: command.sampleValue,
       };
-      setRunning(true);
+      setBusyLabel("Running live simulation");
       addAssistant({ text: `Running ${command.sampleMode === "percent" ? `${command.sampleValue}%` : command.sampleValue} of ${taskGroup.bucket_name} through ${model.display_name}. Candidate and original responses will use ${activeEval.name} v${activeEval.version}.` });
       try {
         const result = await onRunSimulation(request);
@@ -175,9 +212,10 @@ export function AskChatLab({
       return;
     }
     addAssistant({
-      text: "Try asking for a metric update, coverage gaps, or a live simulation. For simulations, name the Task Group, sample size, and model.",
+      text: "I can help with RouteLab metrics, coverage gaps, navigation, or a live simulation. For a simulation, include the Task Group, sample size, and candidate model.",
       facts: suggestions,
     });
+    setRunning(false);
   };
 
   const submit = (event: FormEvent) => {
@@ -186,13 +224,13 @@ export function AskChatLab({
   };
 
   return <>
-    <button className="ask-chatlab-launcher" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>AskChatLab</button>
+    <button className="ask-chatlab-launcher" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>Ask RouteLab</button>
     {open && <div className="ask-chatlab-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <section className="ask-chatlab" role="dialog" aria-modal="true" aria-label="AskChatLab workspace agent">
-        <header><div><p className="eyebrow">Workspace agent</p><h2>AskChatLab</h2><span>{workspaceLabel} · actions run immediately</span></div><button type="button" aria-label="Close AskChatLab" onClick={() => setOpen(false)}>×</button></header>
+      <section className="ask-chatlab" role="dialog" aria-modal="true" aria-label="Ask RouteLab workspace agent">
+        <header><div><p className="eyebrow">OpenAI-powered workspace agent</p><h2>Ask RouteLab</h2><span>{workspaceLabel} · verified RouteLab operations</span></div><button type="button" aria-label="Close Ask RouteLab" onClick={() => setOpen(false)}>×</button></header>
         <div className="ask-chatlab-messages" aria-live="polite">
-          {messages.map((message) => <article className={message.role} key={message.id}><small>{message.role === "user" ? "You" : "AskChatLab"}</small><p>{message.text}</p>{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}</article>)}
-          {running && <div className="ask-chatlab-running"><i />Live operation in progress</div>}
+          {messages.map((message) => <article className={message.role} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}</article>)}
+          {running && <div className="ask-chatlab-running"><i />{busyLabel}</div>}
         </div>
         {messages.length === 1 && <div className="ask-chatlab-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div>}
         <form onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about metrics, coverage, or run a simulation…" rows={2} disabled={running} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void execute(input); } }} /><button className="primary" type="submit" disabled={running || !input.trim()}>Run</button></form>

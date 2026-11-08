@@ -20,6 +20,7 @@ import waitlistHandler from "./src/server/waitlist";
 import evalRunHandler from "./src/server/evalRuns";
 import classifierValidationHandler from "./src/server/classifierValidation";
 import classifierComparatorHandler from "./src/server/classifierComparator";
+import askRouteLabHandler from "./src/server/askRouteLab";
 
 const readJsonBody = async (req: any) => new Promise<any>((resolve, reject) => {
   let body = "";
@@ -77,7 +78,7 @@ const toMessages = (trace: any) => Array.isArray(trace.messages) && trace.messag
 
 export default defineConfig(({ mode }) => {
   loadedEnv = loadEnv(mode, process.cwd(), "");
-  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL", "ROUTELAB_LLM_GROUPING_MODEL", "ROUTELAB_TASK_GROUP_NAMING_MODEL", "ROUTELAB_OPENROUTER_API_KEY", "OPENROUTER_API_KEY", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_URL", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_SECRET"]
+  ["DATABASE_URL", "ROUTELAB_POLICY_WORKSPACE_ID", "ROUTELAB_POLICY_SIGNING_PRIVATE_KEY", "ROUTELAB_POLICY_SIGNING_PUBLIC_KEY", "ROUTELAB_POLICY_SIGNING_KEY_ID", "ROUTELAB_JEV_MODEL", "ROUTELAB_LLM_GROUPING_MODEL", "ROUTELAB_TASK_GROUP_NAMING_MODEL", "ROUTELAB_ASK_MODEL", "ROUTELAB_OPENROUTER_API_KEY", "OPENROUTER_API_KEY", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_URL", "ROUTELAB_WAITLIST_SHEETS_WEBHOOK_SECRET"]
     .forEach((key) => { if (!process.env[key] && loadedEnv[key]) process.env[key] = loadedEnv[key]; });
   return {
   plugins: [react(), {
@@ -218,6 +219,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use("/api/evals/run", (req, res) => runApiHandler(evalRunHandler, req, res));
       server.middlewares.use("/api/classifier-validation", (req, res) => runApiHandler(classifierValidationHandler, req, res));
       server.middlewares.use("/api/classifier-comparator", (req, res) => runApiHandler(classifierComparatorHandler, req, res));
+      server.middlewares.use("/api/ask-routelab/plan", (req, res) => runApiHandler(askRouteLabHandler, req, res));
     },
   }],
   test: { environment: "node" },

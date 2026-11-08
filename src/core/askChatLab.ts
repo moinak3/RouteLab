@@ -7,6 +7,56 @@ export type AskChatLabCommand =
   | { kind: "simulate"; taskGroupQuery: string; modelQuery: string; sampleMode: "percent" | "count"; sampleValue: number }
   | { kind: "help" };
 
+export type AskRouteLabPlan =
+  | { kind: "metrics"; rationale: string }
+  | { kind: "coverage"; rationale: string }
+  | { kind: "navigate"; destination: "task_groups" | "response_quality" | "review" | "classifier" | "simulations"; rationale: string }
+  | { kind: "simulate"; taskGroupId: string; candidateId: string; sampleMode: "percent" | "count"; sampleValue: number; rationale: string }
+  | { kind: "help"; rationale: string };
+
+export type AskRouteLabCatalogItem = { id: string; name: string };
+
+export type AskRouteLabPlannerResponse = {
+  plan: AskRouteLabPlan;
+  planner: { type: "llm"; model: string };
+};
+
+const navigationDestinations = new Set(["task_groups", "response_quality", "review", "classifier", "simulations"]);
+
+export function validateAskRouteLabPlan(
+  value: unknown,
+  taskGroups: AskRouteLabCatalogItem[],
+  models: AskRouteLabCatalogItem[],
+): AskRouteLabPlan | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const input = value as Record<string, unknown>;
+  const kind = String(input.kind ?? "");
+  const rationale = String(input.rationale ?? "").trim().slice(0, 240);
+  if (!rationale) return undefined;
+  if (kind === "metrics" || kind === "coverage" || kind === "help") return { kind, rationale };
+  if (kind === "navigate") {
+    const destination = String(input.destination ?? "");
+    if (!navigationDestinations.has(destination)) return undefined;
+    return { kind, destination: destination as Extract<AskRouteLabPlan, { kind: "navigate" }>["destination"], rationale };
+  }
+  if (kind !== "simulate") return undefined;
+  const taskGroupId = String(input.taskGroupId ?? "");
+  const candidateId = String(input.candidateId ?? "");
+  const sampleMode = String(input.sampleMode ?? "");
+  const sampleValue = Number(input.sampleValue);
+  if (!taskGroups.some((item) => item.id === taskGroupId) || !models.some((item) => item.id === candidateId)) return undefined;
+  if (sampleMode !== "percent" && sampleMode !== "count") return undefined;
+  if (!Number.isFinite(sampleValue) || sampleValue <= 0) return undefined;
+  return {
+    kind,
+    taskGroupId,
+    candidateId,
+    sampleMode,
+    sampleValue: sampleMode === "percent" ? Math.min(100, sampleValue) : Math.floor(sampleValue),
+    rationale,
+  };
+}
+
 export type AskSimulationRequest = {
   taskGroupId: string;
   taskGroupName: string;
