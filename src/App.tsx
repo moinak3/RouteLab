@@ -845,11 +845,17 @@ export default function App() {
     </main>
     <AskChatLab
       workspaceLabel={activeWorkspace === "demo" ? "RouteLab demo" : "My workspace"}
+      workspaceId={cloudWorkspaceId}
       traces={traces}
       traceJudgeResults={traceJudgeResults}
       taskGroups={distinctTaskBuckets}
       models={simulationModels}
       classifierActive={routingPolicyState === "active"}
+      goldenDatasets={goldenDatasets}
+      weeklyReviewBudget={weeklyReviewBudget}
+      persistedReviews={persistedReviews}
+      persistedTaskGroupReviews={persistedTaskGroupReviews}
+      currentReviewCycle={currentReviewCycle}
       activeEval={activeEvalConfig ? {
         id: activeEvalConfig.definition.id,
         version: activeEvalConfig.version,

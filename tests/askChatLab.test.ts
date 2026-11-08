@@ -111,6 +111,7 @@ describe("AskChatLab", () => {
     expect(parseAskChatLabCommand("Are any of the task groups performing worse than average?")).toEqual({ kind: "task_group_quality_comparison" });
     expect(parseAskChatLabCommand("What conversations didn't have support for natively?")).toEqual({ kind: "coverage" });
     expect(parseAskChatLabCommand("Graph quality and latency")).toEqual({ kind: "metrics" });
+    expect(parseAskChatLabCommand("Give me an overview of what's going on and what I need to pay attention to")).toEqual({ kind: "metrics" });
   });
 
   it("resolves workspace task groups and model aliases", () => {
@@ -268,6 +269,51 @@ describe("AskChatLab", () => {
     expect(html).toContain("processed 2 of 10 workspace traces");
     expect(html).toContain("Classifier requests");
     expect(html).toContain("2 of 10 workspace traces");
+  });
+
+  it("renders a grounded operational overview with seven-day metrics and calibration follow-ups", () => {
+    const decision = {
+      provider: "jev" as const,
+      model: "classifier",
+      signature_id: group.bucket_id,
+      signature_label: group.bucket_name,
+      confidence: 0.94,
+      probabilities: { [group.bucket_id]: 0.94 },
+      status: "matched" as const,
+      routing_action: "signature_route" as const,
+      confidence_threshold: 0.8,
+      latency_ms: 45,
+      reason: "Matched",
+    };
+    const classifierTraces = traces.map((trace, index) => index < 2 ? { ...trace, signature_decision: { ...decision, latency_ms: index ? 55 : 45 } } : trace);
+    const result: TraceJudgeResult = {
+      id: "judge_0",
+      trace_id: "trace_0",
+      evaluator_type: "trace_quality_llm_judge",
+      created_at: traces[0].timestamp,
+      score: 0.8,
+      passed: true,
+      rationale: "Complete",
+    };
+    const data = workspaceMetricDashboard(classifierTraces, [group], [result], undefined, true, {
+      conversationsToReview: 3,
+      classifierCalibration: { needsAttention: false, label: "Classifier calibrated", detail: "Latest round agrees with human truth.", reviewedExamples: 20 },
+      judgeCalibration: { needsAttention: true, label: "Judge follow-up needed", detail: "One human and judge verdict differs.", reviewedExamples: 20 },
+    });
+    const response = fallbackAskRouteLabOpenUI("Give me an overview of what's going on and what I need to pay attention to", true);
+    const html = renderToStaticMarkup(createElement(AskRouteLabOpenUI, { response, data }));
+    expect(response).toContain("ClassifierStatus()");
+    expect(response).toContain("SevenDayMetrics()");
+    expect(response).toContain("AttentionSummary()");
+    expect(data.summary.classifierP50LatencyMs).toBe(45);
+    expect(data.summary.recentTraces).toBe(10);
+    expect(data.summary.recentCostUsd).toBeCloseTo(0.1);
+    expect(data.summary.recentAverageQuality).toBe(0.8);
+    expect(html).toContain("P50 added latency");
+    expect(html).toContain("45ms");
+    expect(html).toContain("3 conversations to review");
+    expect(html).toContain("Classifier calibrated");
+    expect(html).toContain("Judge follow-up needed");
   });
 
   it("computes and renders Task Groups below the scored workspace average", () => {

@@ -6,7 +6,7 @@ export const askRouteLabOpenUISpec: LibrarySpec = {
   root: "Dashboard",
   components: {
     Dashboard: {
-      signature: "Dashboard(children: (MetricCard | Summary | TrendChart | TaskGroupChart | QualityComparison)[])",
+      signature: "Dashboard(children: (MetricCard | Summary | ClassifierStatus | SevenDayMetrics | AttentionSummary | TrendChart | TaskGroupChart | QualityComparison)[])",
       description: "Responsive root layout for an Ask RouteLab metrics answer.",
     },
     Summary: {
@@ -16,6 +16,18 @@ export const askRouteLabOpenUISpec: LibrarySpec = {
     MetricCard: {
       signature: 'MetricCard(metric: "requests" | "classifier_requests" | "cost" | "latency" | "quality")',
       description: "A grounded RouteLab KPI card. The metric value comes from RouteLab data, never from the model.",
+    },
+    ClassifierStatus: {
+      signature: "ClassifierStatus()",
+      description: "Grounded classifier status, processed request count, routing outcomes, and P50 classifier latency.",
+    },
+    SevenDayMetrics: {
+      signature: "SevenDayMetrics()",
+      description: "Grounded requests, average quality, average latency, and cost for the latest seven-day trace window.",
+    },
+    AttentionSummary: {
+      signature: "AttentionSummary()",
+      description: "Pending conversation reviews plus classifier and LLM-judge human calibration readiness.",
     },
     TrendChart: {
       signature: 'TrendChart(metric: "requests" | "classifier_requests" | "cost" | "latency" | "quality", style?: "line" | "bar")',
@@ -31,7 +43,7 @@ export const askRouteLabOpenUISpec: LibrarySpec = {
     },
   },
   componentGroups: [
-    { name: "Summary", components: ["Summary", "MetricCard"] },
+    { name: "Summary", components: ["Summary", "MetricCard", "ClassifierStatus", "SevenDayMetrics", "AttentionSummary"] },
     {
       name: "Charts",
       components: ["TrendChart", "TaskGroupChart", "QualityComparison"],
@@ -45,7 +57,8 @@ export const askRouteLabOpenUIPromptOptions: SystemPromptOptions = {
   preamble: "You compose concise RouteLab metric dashboards using OpenUI Lang. RouteLab components read all values from trusted application data.",
   additionalRules: [
     "Return only OpenUI Lang.",
-    "Use 2 to 4 MetricCard components and at least one chart in every response.",
+    "Use at least one chart in every response.",
+    "For a broad operational overview or a question about what needs attention, use Summary overview, ClassifierStatus, SevenDayMetrics, AttentionSummary, and one request TrendChart. Do not substitute all-time MetricCard values for the seven-day block.",
     "Choose metrics relevant to the user's question. For a broad metrics question, include requests, quality, latency, and cost with two complementary charts.",
     "For classifier status, classifier traffic, or classified-request questions, use Summary classifier and classifier_requests. Never use total requests as the classifier-processed count.",
     "For questions asking whether any Task Groups are worse, below average, lagging, or underperforming, use Summary quality and QualityComparison. Do not substitute a generic TaskGroupChart.",
@@ -54,7 +67,7 @@ export const askRouteLabOpenUIPromptOptions: SystemPromptOptions = {
     "Keep dashboards compact: one Summary, at most four MetricCards, and at most two charts.",
   ],
   examples: [
-    'root = Dashboard([summary, requests, quality, trend, groups])\nsummary = Summary("overview")\nrequests = MetricCard("requests")\nquality = MetricCard("quality")\ntrend = TrendChart("requests", "line")\ngroups = TaskGroupChart("quality")',
+    'root = Dashboard([summary, classifier, recent, attention, trend])\nsummary = Summary("overview")\nclassifier = ClassifierStatus()\nrecent = SevenDayMetrics()\nattention = AttentionSummary()\ntrend = TrendChart("requests", "line")',
     'root = Dashboard([summary, cost, trend, groups])\nsummary = Summary("cost")\ncost = MetricCard("cost")\ntrend = TrendChart("cost", "bar")\ngroups = TaskGroupChart("cost")',
     'root = Dashboard([summary, processed, trend, groups])\nsummary = Summary("classifier")\nprocessed = MetricCard("classifier_requests")\ntrend = TrendChart("classifier_requests", "line")\ngroups = TaskGroupChart("classifier_requests")',
     'root = Dashboard([summary, quality, comparison])\nsummary = Summary("quality")\nquality = MetricCard("quality")\ncomparison = QualityComparison()',
@@ -69,6 +82,15 @@ export function fallbackAskRouteLabOpenUI(question: string, hasQuality: boolean)
     'summary = Summary("quality")',
     'quality = MetricCard("quality")',
     "comparison = QualityComparison()",
+  ].join("\n");
+  const operationalOverview = /overview|pay attention|needs? attention|what.?s going on|what is going on/.test(normalized);
+  if (operationalOverview) return [
+    "root = Dashboard([summary, classifier, recent, attention, trend])",
+    'summary = Summary("overview")',
+    "classifier = ClassifierStatus()",
+    "recent = SevenDayMetrics()",
+    "attention = AttentionSummary()",
+    'trend = TrendChart("requests", "line")',
   ].join("\n");
   const classifier = /classifier|classification|classified/.test(normalized);
   const focus: AskRouteLabMetricKey = classifier

@@ -30,6 +30,33 @@
 .ask-openui-metric small{color:#526075;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
 .ask-openui-metric strong{color:#111b33;font-size:21px;line-height:1.1}
 .ask-openui-metric span{color:#526075;font-size:10px;line-height:1.35}
+.ask-openui-operation,.ask-openui-recent,.ask-openui-attention{grid-column:1/-1;display:grid;gap:10px;min-width:0;padding:12px;border:1px solid #aebdce;background:#fffdf8}
+.ask-openui-operation>header,.ask-openui-recent>header,.ask-openui-attention>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ask-openui-operation>header>div,.ask-openui-recent>header{display:grid;gap:2px}
+.ask-openui-operation small,.ask-openui-recent small,.ask-openui-attention small{color:#526075;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.ask-openui-operation b,.ask-openui-recent b,.ask-openui-attention b{color:#17233f;font-size:13px;line-height:1.3}
+.ask-openui-classifier.active{border-color:#79ad87;background:#f4faf2}
+.ask-openui-classifier>header>span{display:flex;align-items:center;gap:6px;color:#276b3c;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.ask-openui-classifier.inactive>header>span{color:#7e4b42}
+.ask-openui-classifier>header>span i{width:8px;height:8px;border-radius:50%;background:#58a66c;box-shadow:0 0 0 4px rgba(88,166,108,.14)}
+.ask-openui-classifier.inactive>header>span i{background:#b87869;box-shadow:0 0 0 4px rgba(184,120,105,.14)}
+.ask-openui-operation-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ask-openui-operation-metrics>div{display:grid;gap:3px;padding:9px;border:1px solid #c4ceda;background:#fff}
+.ask-openui-operation-metrics strong{color:#111b33;font-size:20px;line-height:1}
+.ask-openui-operation>p{margin:0;color:#526075;font-size:10px;line-height:1.4}
+.ask-openui-recent>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ask-openui-recent article{display:grid;gap:3px;min-width:0;padding:9px;border:1px solid #c4ceda;background:#f7f4ec}
+.ask-openui-recent article strong{overflow-wrap:anywhere;color:#111b33;font-size:18px;line-height:1.1}
+.ask-openui-recent article span{color:#647188;font-size:9px}
+.ask-openui-attention>header>div{display:grid;gap:2px;min-width:0}
+.ask-openui-attention>header>span{flex:0 0 auto;padding:4px 6px;border-radius:12px;font-size:9px;font-weight:800;text-transform:uppercase}
+.ask-openui-attention>header>span.due{background:#fae9df;color:#8f3e31}.ask-openui-attention>header>span.clear{background:#e5f2e4;color:#276b3c}
+.ask-openui-attention>div{display:grid;gap:7px}
+.ask-openui-attention article{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:start;gap:8px;padding-top:8px;border-top:1px solid #d7dde5}
+.ask-openui-attention article>i{width:7px;height:7px;margin-top:4px;border-radius:50%;background:#b87869}.ask-openui-attention article.clear>i{background:#58a66c}
+.ask-openui-attention article>div{display:grid;gap:2px;min-width:0}
+.ask-openui-attention article p{margin:0;color:#526075;font-size:10px;line-height:1.35;overflow-wrap:anywhere}
+.ask-openui-attention article>span{color:#647188;font-size:9px;white-space:nowrap}
 .ask-openui-chart{grid-column:1/-1;min-width:0;padding:11px;border:1px solid #b8c4d4;background:#fff}
 .ask-openui-chart>.ask-openui-chart-header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:5px}
 .ask-openui-chart>.ask-openui-chart-header b{color:#1c2940;font-size:13px}
@@ -56,5 +83,5 @@
 .ask-openui-comparison-empty{margin:0;color:#526075;font-size:12px}
 @keyframes ask-chatlab-pulse{50%{opacity:.45;transform:scale(.8)}}
 @media(max-width:650px){.ask-chatlab-launcher{right:14px;bottom:14px}.ask-chatlab{width:100vw;border-left:0}.ask-chatlab>header{padding:18px}.ask-chatlab-messages{padding:15px}.ask-chatlab-suggestions{padding:0 15px 12px}.ask-chatlab>form{padding:12px 15px 15px}.ask-chatlab-messages article{max-width:96%}.ask-chatlab-messages article.generated-ui{max-width:100%}}
-@media(max-width:420px){.ask-openui-dashboard{grid-template-columns:1fr}.ask-openui-summary,.ask-openui-chart{grid-column:1}}
+@media(max-width:420px){.ask-openui-dashboard{grid-template-columns:1fr}.ask-openui-summary,.ask-openui-chart{grid-column:1}.ask-openui-attention article{grid-template-columns:8px minmax(0,1fr)}.ask-openui-attention article>span{grid-column:2;white-space:normal}}
 @media(prefers-reduced-motion:reduce){.ask-chatlab-running i{animation:none}}

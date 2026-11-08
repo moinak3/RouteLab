@@ -17,10 +17,15 @@ import type { AskRouteLabMetricKey, AskRouteLabMetricsData } from "../core/askCh
 import { RouteLabChartTooltip, routeLabChartTheme } from "./charts/RouteLabChartPrimitives";
 
 const emptyMetrics: AskRouteLabMetricsData = {
-  summary: { totalTraces: 0, classifierActive: false, classifiedRequests: 0, classifierMatchedRequests: 0, classifierFallbackRequests: 0, recentTraces: 0, priorTraces: 0, totalCostUsd: 0, averageLatencyMs: 0, scoredTraces: 0, averageQuality: null },
+  summary: { totalTraces: 0, classifierActive: false, classifiedRequests: 0, classifierMatchedRequests: 0, classifierFallbackRequests: 0, classifierP50LatencyMs: null, recentTraces: 0, priorTraces: 0, recentCostUsd: 0, recentAverageLatencyMs: null, recentScoredTraces: 0, recentAverageQuality: null, totalCostUsd: 0, averageLatencyMs: 0, scoredTraces: 0, averageQuality: null },
   weekly: [],
   taskGroups: [],
   qualityComparison: { workspaceAverage: null, scoredTaskGroupCount: 0, belowAverage: [] },
+  attention: {
+    conversationsToReview: 0,
+    classifierCalibration: { needsAttention: true, label: "Classifier calibration needed", detail: "No human calibration evidence is available yet.", reviewedExamples: 0 },
+    judgeCalibration: { needsAttention: true, label: "Judge calibration needed", detail: "No human calibration evidence is available yet.", reviewedExamples: 0 },
+  },
 };
 
 const MetricsContext = createContext<AskRouteLabMetricsData>(emptyMetrics);
@@ -74,7 +79,9 @@ const Summary = defineComponent({
     const change = data.summary.recentTraces - data.summary.priorTraces;
     const text = props.focus === "classifier"
       ? `The classifier is ${data.summary.classifierActive ? "active" : "inactive"}. It has processed ${data.summary.classifiedRequests.toLocaleString()} of ${data.summary.totalTraces.toLocaleString()} workspace traces; ${Math.max(0, data.summary.totalTraces - data.summary.classifiedRequests).toLocaleString()} imported traces have no recorded classifier decision.`
-      : props.focus === "requests" || props.focus === "overview"
+      : props.focus === "overview"
+      ? `${data.summary.recentTraces.toLocaleString()} requests arrived in the latest seven-day window. ${data.attention.conversationsToReview ? `${data.attention.conversationsToReview.toLocaleString()} conversations need human review.` : "No conversations are waiting for human review."}`
+      : props.focus === "requests"
       ? `${data.summary.totalTraces.toLocaleString()} traces are in this workspace. The latest week is ${change === 0 ? "unchanged" : `${Math.abs(change).toLocaleString()} ${change > 0 ? "higher" : "lower"}`} than the previous week.`
       : props.focus === "cost"
         ? `${formatMoney(data.summary.totalCostUsd)} in observed trace cost across ${data.summary.totalTraces.toLocaleString()} traces.`
@@ -84,6 +91,50 @@ const Summary = defineComponent({
             ? "No traces have a quality score from the active eval yet."
             : `Average quality is ${formatPercent(data.summary.averageQuality)} across ${data.summary.scoredTraces.toLocaleString()} scored traces.`;
     return <p className="ask-openui-summary">{text}</p>;
+  },
+});
+
+const ClassifierStatus = defineComponent({
+  name: "ClassifierStatus",
+  description: "Grounded classifier status, processed request count, routing outcomes, and P50 classifier latency.",
+  props: z.object({}),
+  component: () => {
+    const { summary } = useContext(MetricsContext);
+    return <section className={`ask-openui-operation ask-openui-classifier ${summary.classifierActive ? "active" : "inactive"}`}>
+      <header><div><small>Classifier</small><b>Request routing</b></div><span><i aria-hidden="true" />{summary.classifierActive ? "Active" : "Inactive"}</span></header>
+      <div className="ask-openui-operation-metrics"><div><small>Requests processed</small><strong>{summary.classifiedRequests.toLocaleString()}</strong></div><div><small>P50 added latency</small><strong>{summary.classifierP50LatencyMs === null ? "—" : `${Math.round(summary.classifierP50LatencyMs)}ms`}</strong></div></div>
+      <p>{summary.classifiedRequests ? `${summary.classifierMatchedRequests.toLocaleString()} confident matches · ${summary.classifierFallbackRequests.toLocaleString()} default or fallback routes` : "No recorded classifier decisions yet."}</p>
+    </section>;
+  },
+});
+
+const SevenDayMetrics = defineComponent({
+  name: "SevenDayMetrics",
+  description: "Grounded requests, average quality, average latency, and cost for the latest seven-day trace window.",
+  props: z.object({}),
+  component: () => {
+    const { summary } = useContext(MetricsContext);
+    const values = [
+      { label: "Requests", value: summary.recentTraces.toLocaleString(), detail: "Latest 7 days" },
+      { label: "Average quality", value: summary.recentAverageQuality === null ? "Not scored" : formatPercent(summary.recentAverageQuality), detail: `${summary.recentScoredTraces.toLocaleString()} scored` },
+      { label: "Average latency", value: summary.recentAverageLatencyMs === null ? "—" : `${Math.round(summary.recentAverageLatencyMs)}ms`, detail: "Latest 7 days" },
+      { label: "Observed cost", value: formatMoney(summary.recentCostUsd), detail: "Latest 7 days" },
+    ];
+    return <section className="ask-openui-recent"><header><small>Latest seven days</small><b>Traffic and performance</b></header><div>{values.map((item) => <article key={item.label}><small>{item.label}</small><strong>{item.value}</strong><span>{item.detail}</span></article>)}</div></section>;
+  },
+});
+
+const AttentionSummary = defineComponent({
+  name: "AttentionSummary",
+  description: "Pending conversation reviews plus classifier and LLM-judge human calibration readiness.",
+  props: z.object({}),
+  component: () => {
+    const { attention } = useContext(MetricsContext);
+    const items = [
+      { name: "Classifier calibration", ...attention.classifierCalibration },
+      { name: "LLM judge calibration", ...attention.judgeCalibration },
+    ];
+    return <section className="ask-openui-attention"><header><div><small>Needs attention</small><b>{attention.conversationsToReview ? `${attention.conversationsToReview.toLocaleString()} conversations to review` : "No conversations waiting"}</b></div><span className={attention.conversationsToReview ? "due" : "clear"}>{attention.conversationsToReview ? "Review due" : "Queue clear"}</span></header><div>{items.map((item) => <article className={item.needsAttention ? "due" : "clear"} key={item.name}><i aria-hidden="true" /><div><small>{item.name}</small><b>{item.label}</b><p>{item.detail}</p></div><span>{item.reviewedExamples.toLocaleString()} human-reviewed</span></article>)}</div></section>;
   },
 });
 
@@ -159,7 +210,7 @@ const QualityComparison = defineComponent({
   },
 });
 
-const DashboardChild = z.union([MetricCard.ref, Summary.ref, TrendChart.ref, TaskGroupChart.ref, QualityComparison.ref]);
+const DashboardChild = z.union([MetricCard.ref, Summary.ref, ClassifierStatus.ref, SevenDayMetrics.ref, AttentionSummary.ref, TrendChart.ref, TaskGroupChart.ref, QualityComparison.ref]);
 const Dashboard = defineComponent({
   name: "Dashboard",
   description: "Responsive root layout for an Ask RouteLab metrics answer.",
@@ -170,9 +221,9 @@ const Dashboard = defineComponent({
 export const askRouteLabOpenUILibrary = createLibrary({
   id: "routelab-metrics-v1",
   root: "Dashboard",
-  components: [Dashboard, Summary, MetricCard, TrendChart, TaskGroupChart, QualityComparison],
+  components: [Dashboard, Summary, MetricCard, ClassifierStatus, SevenDayMetrics, AttentionSummary, TrendChart, TaskGroupChart, QualityComparison],
   componentGroups: [
-    { name: "Summary", components: ["Summary", "MetricCard"] },
+    { name: "Summary", components: ["Summary", "MetricCard", "ClassifierStatus", "SevenDayMetrics", "AttentionSummary"] },
     { name: "Charts", components: ["TrendChart", "TaskGroupChart", "QualityComparison"], notes: ["Every response must include at least one chart.", "Use TrendChart for change over time, TaskGroupChart for general workload comparisons, and QualityComparison for below-average Task Group questions."] },
     { name: "Layout", components: ["Dashboard"] },
   ],

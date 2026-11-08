@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   parseAskChatLabCommand,
   resolveModel,
@@ -13,9 +13,17 @@ import {
   type AskRouteLabTraceContext,
   type AskSimulationRequest,
   type AskSimulationResult,
+  type AskRouteLabOperationalContext,
 } from "../core/askChatLab";
 import { fallbackAskRouteLabOpenUI, type AskRouteLabOpenUIMessage, type AskRouteLabOpenUIResponse } from "../core/askRouteLabOpenUISpec";
-import type { DistinctTaskBucket, Model, Trace, TraceJudgeResult } from "../types";
+import { classifierExamplesFromAssignments, taskGroupSignatures, type AssignmentValidationWorkflow } from "../core/assignmentValidation";
+import { buildClassifierValidationReport } from "../core/classifierValidation";
+import { fetchAssignmentValidation, loadLocalAssignmentValidation, saveLocalAssignmentValidation } from "../core/assignmentValidationPersistence";
+import { calibrateGoldenDataset } from "../core/goldenDatasets";
+import { JEV_RISK_THRESHOLDS } from "../core/jevSignatureGate";
+import { buildReviewQueue } from "../core/reviewQueue";
+import { currentReviewCycleId, type PersistedReview, type PersistedTaskGroupReview, type ReviewCycle } from "../core/reviewPersistence";
+import type { DistinctTaskBucket, GoldenDataset, Model, Trace, TraceJudgeResult } from "../types";
 import type { Page } from "../types/ui";
 
 type ChatMessage = {
@@ -45,24 +53,36 @@ const score = (value: number) => `${(value * 100).toFixed(1)}%`;
 
 export function AskChatLab({
   workspaceLabel,
+  workspaceId,
   traces,
   traceJudgeResults,
   taskGroups,
   models,
   activeEval,
   classifierActive,
+  goldenDatasets,
+  weeklyReviewBudget,
+  persistedReviews,
+  persistedTaskGroupReviews,
+  currentReviewCycle,
   onNavigate,
   onOpenReview,
   onRunSimulation,
   onOpenSimulation,
 }: {
   workspaceLabel: string;
+  workspaceId: string;
   traces: Trace[];
   traceJudgeResults: TraceJudgeResult[];
   taskGroups: DistinctTaskBucket[];
   models: Model[];
   activeEval?: { id: string; version: number; name: string };
   classifierActive: boolean;
+  goldenDatasets: GoldenDataset[];
+  weeklyReviewBudget: number;
+  persistedReviews: PersistedReview[];
+  persistedTaskGroupReviews: PersistedTaskGroupReview[];
+  currentReviewCycle: ReviewCycle | null;
   onNavigate: (page: Page) => void;
   onOpenReview: () => void;
   onRunSimulation: (request: AskSimulationRequest) => Promise<AskSimulationResult>;
@@ -72,6 +92,7 @@ export function AskChatLab({
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [busyLabel, setBusyLabel] = useState("Understanding your request");
+  const [assignmentValidation, setAssignmentValidation] = useState<AssignmentValidationWorkflow | null>(() => loadLocalAssignmentValidation(workspaceId));
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: "welcome",
     role: "assistant",
@@ -82,13 +103,111 @@ export function AskChatLab({
     traceJudgeResults,
     activeEval ? { id: activeEval.id, version: activeEval.version } : undefined,
   ), [traces, traceJudgeResults, activeEval]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setAssignmentValidation(loadLocalAssignmentValidation(workspaceId));
+    fetchAssignmentValidation(workspaceId, controller.signal).then((workflow) => {
+      if (!workflow) return;
+      saveLocalAssignmentValidation(workspaceId, workflow);
+      setAssignmentValidation(workflow);
+    }).catch(() => undefined);
+    return () => controller.abort();
+  }, [workspaceId]);
+
+  const operationalContext = useMemo<AskRouteLabOperationalContext>(() => {
+    const responseReviews = new Set(persistedReviews.map((review) => review.traceId));
+    const taskGroupReviews = new Set(persistedTaskGroupReviews.map((review) => review.traceId));
+    const cycle = currentReviewCycle?.id === currentReviewCycleId()
+      ? currentReviewCycle.assignments
+      : buildReviewQueue(traces, traceJudgeResults, taskGroups, goldenDatasets, weeklyReviewBudget).reviewItems.map((item) => ({
+        traceId: item.trace.id,
+        requiredTasks: item.requiredTasks,
+      }));
+    const conversationsToReview = cycle.filter((assignment) => assignment.requiredTasks.some((task) => task === "task_group"
+      ? !taskGroupReviews.has(assignment.traceId)
+      : !responseReviews.has(assignment.traceId))).length;
+
+    const signatures = taskGroupSignatures(taskGroups);
+    const classifierCalibration = (() => {
+      if (!assignmentValidation?.sampleTraceIds.length) return {
+        needsAttention: true,
+        label: "Start human calibration",
+        detail: "Create a blind held-out set and compare the classifier with independent human labels.",
+        reviewedExamples: 0,
+      };
+      const reviewed = assignmentValidation.labels.length;
+      const target = assignmentValidation.sampleTraceIds.length;
+      if (reviewed < target) return {
+        needsAttention: true,
+        label: "Human review is incomplete",
+        detail: `${reviewed.toLocaleString()} of ${target.toLocaleString()} held-out requests are labeled.`,
+        reviewedExamples: reviewed,
+      };
+      if (assignmentValidation.jevAssignments.length < target || assignmentValidation.llmAssignments.length < target) return {
+        needsAttention: true,
+        label: "Run automated comparisons",
+        detail: "Human labels are complete; compare the same requests with the classifier and strong LLM.",
+        reviewedExamples: reviewed,
+      };
+      const thresholds = Object.fromEntries(signatures.map((signature) => [signature.id, JEV_RISK_THRESHOLDS[signature.risk_level]]));
+      const examples = classifierExamplesFromAssignments(assignmentValidation, traces, assignmentValidation.jevAssignments, thresholds);
+      const report = buildClassifierValidationReport(examples, signatures, {
+        datasetLabel: "Workspace held-out assignment set",
+        classifierModel: assignmentValidation.jevAssignments[0]?.model ?? "classifier",
+        signatureCatalogVersion: assignmentValidation.catalogVersion,
+        testSplit: "Blind human-reviewed set",
+        thresholdTuningSplit: "Targeted corrections stay separate",
+      });
+      const ageDays = Math.floor((Date.now() - Date.parse(assignmentValidation.updatedAt)) / 86_400_000);
+      const due = report.errors.length > 0 || ageDays >= 8;
+      return {
+        needsAttention: due,
+        label: report.errors.length ? "Classifier follow-up needed" : ageDays >= 8 ? "Weekly check is due" : "Classifier calibrated",
+        detail: report.errors.length
+          ? `${report.errors.length.toLocaleString()} reviewed assignment${report.errors.length === 1 ? " differs" : "s differ"} from human truth.`
+          : ageDays >= 8
+            ? `The latest completed round is ${ageDays.toLocaleString()} days old.`
+            : `The latest ${reviewed.toLocaleString()}-request round has no classifier errors.`,
+        reviewedExamples: reviewed,
+      };
+    })();
+
+    const activeResults = activeEval ? traceJudgeResults.filter((result) => (
+      (result.eval_id === activeEval.id && result.eval_version === activeEval.version)
+      || (!result.eval_id && result.eval_version === undefined)
+    )) : traceJudgeResults;
+    const calibrations = goldenDatasets.map((dataset) => calibrateGoldenDataset(dataset, traces, activeResults));
+    const judge = [...calibrations].sort((left, right) => right.matched_rows - left.matched_rows)[0];
+    const judgeCalibration = !judge || judge.matched_rows === 0 ? {
+      needsAttention: true,
+      label: "Add human calibration labels",
+      detail: "No comparable human and LLM-judge decisions are available for the active eval.",
+      reviewedExamples: 0,
+    } : judge.matched_rows < 10 || judge.coverage_pct < 100 || judge.disagreements.length > 0 || judge.avg_score_delta >= .15 ? {
+      needsAttention: true,
+      label: "Judge follow-up needed",
+      detail: judge.disagreements.length
+        ? `${judge.disagreements.length.toLocaleString()} human and judge verdict${judge.disagreements.length === 1 ? " differs" : "s differ"}.`
+        : judge.coverage_pct < 100
+          ? `${judge.coverage_pct.toFixed(1)}% of the selected human set has an active-eval result.`
+          : `Only ${judge.matched_rows.toLocaleString()} comparable human labels are available.`,
+      reviewedExamples: judge.matched_rows,
+    } : {
+      needsAttention: false,
+      label: "Judge calibrated",
+      detail: `${judge.agreement_rate.toFixed(1)}% agreement across ${judge.matched_rows.toLocaleString()} comparable examples.`,
+      reviewedExamples: judge.matched_rows,
+    };
+    return { conversationsToReview, classifierCalibration, judgeCalibration };
+  }, [activeEval, assignmentValidation, currentReviewCycle, goldenDatasets, persistedReviews, persistedTaskGroupReviews, taskGroups, traceJudgeResults, traces, weeklyReviewBudget]);
   const metricDashboard = useMemo(() => workspaceMetricDashboard(
     traces,
     taskGroups,
     traceJudgeResults,
     activeEval ? { id: activeEval.id, version: activeEval.version } : undefined,
     classifierActive,
-  ), [traces, taskGroups, traceJudgeResults, activeEval, classifierActive]);
+    operationalContext,
+  ), [traces, taskGroups, traceJudgeResults, activeEval, classifierActive, operationalContext]);
   const coverageSummary = useMemo(() => workspaceCoverageSummary(
     traces,
     taskGroups,
@@ -242,7 +361,7 @@ export function AskChatLab({
           ? `up ${metricSummary.recent - metricSummary.prior}`
           : `down ${metricSummary.prior - metricSummary.recent}`;
       await finishInteraction(value, planned, {
-        text: `Here is a grounded view of the metrics you asked about. The latest seven-day trace count is ${direction} from the preceding window.`,
+        text: `The classifier is ${classifierActive ? "active" : "inactive"} and has processed ${metricDashboard.summary.classifiedRequests.toLocaleString()} requests. The latest seven-day window has ${metricDashboard.summary.recentTraces.toLocaleString()} requests (${direction} from the preceding window), and ${metricDashboard.attention.conversationsToReview.toLocaleString()} conversations need human review.`,
         generatedUI,
         action: { label: "Open Overview", onClick: () => { onNavigate("Overview"); setOpen(false); } },
       });

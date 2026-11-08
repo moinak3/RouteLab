@@ -40,8 +40,13 @@ export type AskRouteLabMetricsData = {
     classifiedRequests: number;
     classifierMatchedRequests: number;
     classifierFallbackRequests: number;
+    classifierP50LatencyMs: number | null;
     recentTraces: number;
     priorTraces: number;
+    recentCostUsd: number;
+    recentAverageLatencyMs: number | null;
+    recentScoredTraces: number;
+    recentAverageQuality: number | null;
     totalCostUsd: number;
     averageLatencyMs: number;
     scoredTraces: number;
@@ -73,7 +78,32 @@ export type AskRouteLabMetricsData = {
       gapFromAverage: number;
     }>;
   };
+  attention: {
+    conversationsToReview: number;
+    classifierCalibration: AskRouteLabCalibrationStatus;
+    judgeCalibration: AskRouteLabCalibrationStatus;
+  };
 };
+
+export type AskRouteLabCalibrationStatus = {
+  needsAttention: boolean;
+  label: string;
+  detail: string;
+  reviewedExamples: number;
+};
+
+export type AskRouteLabOperationalContext = {
+  conversationsToReview?: number;
+  classifierCalibration?: AskRouteLabCalibrationStatus;
+  judgeCalibration?: AskRouteLabCalibrationStatus;
+};
+
+const defaultCalibrationStatus = (label: string): AskRouteLabCalibrationStatus => ({
+  needsAttention: true,
+  label,
+  detail: "No human calibration evidence is available yet.",
+  reviewedExamples: 0,
+});
 
 const navigationDestinations = new Set(["task_groups", "response_quality", "review", "classifier", "simulations"]);
 
@@ -156,7 +186,7 @@ export function parseAskChatLabCommand(input: string): AskChatLabCommand {
   if (!normalized) return { kind: "help" };
   if (/\b(task group|task groups|workload|workloads)\b/.test(normalized) && /\b(worse|below|underperform|underperforming|lowest|lagging)\b/.test(normalized) && /\b(average|quality|score|perform|performing|performance)\b/.test(normalized)) return { kind: "task_group_quality_comparison" };
   if (/\b(classifier|classification)\b/.test(normalized) && /\b(live|active|status|metric|metrics|how many|count|processed|classified|request|requests|traffic|latency|chart|graph)\b/.test(normalized)) return { kind: "classifier_metrics" };
-  if (/\b(metric|metrics|what s new|what is new|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
+  if (/\b(metric|metrics|what s new|what is new|overview|attention|pay attention|performance|health|snapshot|cost|spend|latency|quality|score|traffic|request|requests|chart|graph)\b/.test(normalized)) return { kind: "metrics" };
   if (/\b(unsupported|not supported|support for natively|without support|outside coverage|coverage gap|unknown|uncovered)\b/.test(normalized)) return { kind: "coverage" };
 
   if (/\b(open|show|take me|go to)\b/.test(normalized)) {
@@ -227,6 +257,10 @@ export function workspaceMetricSummary(traces: Trace[], results: TraceJudgeResul
     const timestamp = Date.parse(trace.timestamp) || 0;
     return timestamp > priorStart && timestamp <= recentStart;
   }).length;
+  const recentTraces = traces.filter((trace) => (Date.parse(trace.timestamp) || 0) > recentStart);
+  const recentIds = new Set(recentTraces.map((trace) => trace.id));
+  const recentResults = matchingResults.filter((result) => recentIds.has(result.trace_id));
+  const recentLatencies = recentTraces.flatMap((trace) => trace.latency_ms && trace.latency_ms > 0 ? [trace.latency_ms] : []);
   return {
     total: traces.length,
     recent,
@@ -235,14 +269,20 @@ export function workspaceMetricSummary(traces: Trace[], results: TraceJudgeResul
     averageLatencyMs: average(traces.map((trace) => trace.latency_ms ?? 0)),
     scored: matchingResults.length,
     averageScore: average(matchingResults.map((result) => result.score)),
+    recentCost: recentTraces.reduce((sum, trace) => sum + (trace.cost_usd ?? 0), 0),
+    recentAverageLatencyMs: recentLatencies.length ? average(recentLatencies) : null,
+    recentScored: recentResults.length,
+    recentAverageScore: recentResults.length ? average(recentResults.map((result) => result.score)) : null,
   };
 }
 
-const percentile95 = (values: number[]) => {
+const percentile = (values: number[], fraction: number) => {
   if (!values.length) return null;
   const ordered = [...values].sort((a, b) => a - b);
-  return ordered[Math.min(ordered.length - 1, Math.ceil(ordered.length * .95) - 1)];
+  return ordered[Math.min(ordered.length - 1, Math.ceil(ordered.length * fraction) - 1)];
 };
+
+const percentile95 = (values: number[]) => percentile(values, .95);
 
 export function workspaceMetricDashboard(
   traces: Trace[],
@@ -250,6 +290,7 @@ export function workspaceMetricDashboard(
   results: TraceJudgeResult[],
   activeEval?: { id: string; version: number },
   classifierActive = false,
+  operational: AskRouteLabOperationalContext = {},
 ): AskRouteLabMetricsData {
   const summary = workspaceMetricSummary(traces, results, activeEval);
   const traceIds = new Set(traces.map((trace) => trace.id));
@@ -301,8 +342,13 @@ export function workspaceMetricDashboard(
       classifiedRequests: classifierDecisions.length,
       classifierMatchedRequests: classifierDecisions.filter((decision) => decision.status === "matched").length,
       classifierFallbackRequests: classifierDecisions.filter((decision) => decision.routing_action === "fallback_model").length,
+      classifierP50LatencyMs: percentile(classifierDecisions.map((decision) => decision.latency_ms).filter((value) => value > 0), .5),
       recentTraces: summary.recent,
       priorTraces: summary.prior,
+      recentCostUsd: summary.recentCost,
+      recentAverageLatencyMs: summary.recentAverageLatencyMs,
+      recentScoredTraces: summary.recentScored,
+      recentAverageQuality: summary.recentAverageScore,
       totalCostUsd: summary.cost,
       averageLatencyMs: summary.averageLatencyMs,
       scoredTraces: summary.scored,
@@ -322,6 +368,11 @@ export function workspaceMetricDashboard(
           gapFromAverage: group.quality - workspaceAverage,
         }))
         .sort((a, b) => a.quality - b.quality),
+    },
+    attention: {
+      conversationsToReview: operational.conversationsToReview ?? 0,
+      classifierCalibration: operational.classifierCalibration ?? defaultCalibrationStatus("Classifier calibration needed"),
+      judgeCalibration: operational.judgeCalibration ?? defaultCalibrationStatus("Judge calibration needed"),
     },
   };
 }
