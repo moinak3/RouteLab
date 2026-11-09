@@ -252,7 +252,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
 
       <section className="home-section home-video" id="ask-routelab-video" aria-labelledby="ask-routelab-video-title">
         <div className="home-video-copy">
-          <p className="eyebrow">74-second agent tour</p>
+          <p className="eyebrow">Route Lab Copilot</p>
           <h2 id="ask-routelab-video-title">Meet the agent that turns routing questions into action.</h2>
           <p>Ask RouteLab answers specific workspace questions with custom metrics and charts you can pin to Overview, then helps you launch simulations and publish measured Task Group overrides.</p>
           <dl>
