@@ -250,7 +250,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
         </div>
       </section>
 
-      <section className="home-section home-video home-video-reverse" id="ask-routelab-video" aria-labelledby="ask-routelab-video-title">
+      <section className="home-section home-video" id="ask-routelab-video" aria-labelledby="ask-routelab-video-title">
         <div className="home-video-copy">
           <p className="eyebrow">60-second agent tour</p>
           <h2 id="ask-routelab-video-title">Meet the agent that turns routing questions into action.</h2>
