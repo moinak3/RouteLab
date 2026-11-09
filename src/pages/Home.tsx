@@ -237,7 +237,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
             <div><dt>Format</dt><dd>Product explainer</dd></div>
           </dl>
         </div>
-        <div className="home-video-player">
+        <div className="home-video-player" data-label="ROUTELAB / PRODUCT OVERVIEW">
           <video
             controls
             playsInline
@@ -247,6 +247,29 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
             aria-label="RouteLab 90-second product explainer"
           />
           <p>Includes narration, music, product screenshots, and on-screen captions.</p>
+        </div>
+      </section>
+
+      <section className="home-section home-video home-video-reverse" id="ask-routelab-video" aria-labelledby="ask-routelab-video-title">
+        <div className="home-video-copy">
+          <p className="eyebrow">60-second agent tour</p>
+          <h2 id="ask-routelab-video-title">Meet the agent that turns routing questions into action.</h2>
+          <p>Ask RouteLab catches you up on classifier health, metrics, review queues, and calibration, then helps you launch simulations and publish measured Task Group overrides.</p>
+          <dl>
+            <div><dt>Runtime</dt><dd>1:00</dd></div>
+            <div><dt>Format</dt><dd>Agent workflow</dd></div>
+          </dl>
+        </div>
+        <div className="home-video-player" data-label="ASK ROUTELAB / AGENT WORKFLOW">
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            poster="/marketing/ask-routelab-60s-v3-poster.jpg"
+            src="/marketing/ask-routelab-60s-v3.mp4"
+            aria-label="Ask RouteLab 60-second agent workflow"
+          />
+          <p>See generated charts, a targeted model simulation, and a measured routing-policy update.</p>
         </div>
       </section>
 
