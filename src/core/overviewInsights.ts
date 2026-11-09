@@ -4,6 +4,7 @@ export type OverviewInsight = {
   title: string;
   description: string;
   openui: string;
+  position: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -20,8 +21,13 @@ export function isOverviewInsight(value: unknown): value is OverviewInsight {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const insight = value as Partial<OverviewInsight>;
   return [insight.id, insight.question, insight.title, insight.description, insight.openui, insight.createdAt, insight.updatedAt]
-    .every((field) => typeof field === "string");
+    .every((field) => typeof field === "string") && (insight.position === undefined || typeof insight.position === "number");
 }
+
+const normalizePositions = (insights: OverviewInsight[]) => insights.map((insight, index) => ({
+  ...insight,
+  position: Number.isFinite(insight.position) ? insight.position : index,
+})).sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
 
 export function overviewInsightTitle(question: string) {
   const normalized = question.trim().replace(/[?.!]+$/g, "");
@@ -33,7 +39,7 @@ export function overviewInsightTitle(question: string) {
 export function loadLocalOverviewInsights(workspaceId: string): OverviewInsight[] {
   try {
     const parsed = JSON.parse(storage()?.getItem(storageKey(workspaceId)) ?? "[]") as unknown;
-    return Array.isArray(parsed) ? parsed.filter(isOverviewInsight) : [];
+    return Array.isArray(parsed) ? normalizePositions(parsed.filter(isOverviewInsight)) : [];
   } catch {
     return [];
   }
@@ -60,7 +66,7 @@ export async function fetchOverviewInsights(workspaceId: string, signal?: AbortS
   try {
     const response = await fetch(`/api/overview-insights?workspace=${encodeURIComponent(workspaceId)}`, { cache: "no-store", signal });
     const payload = await responseJson<{ insights: OverviewInsight[] }>(response);
-    const insights = Array.isArray(payload.insights) ? payload.insights.filter(isOverviewInsight) : [];
+    const insights = Array.isArray(payload.insights) ? normalizePositions(payload.insights.filter(isOverviewInsight)) : [];
     saveLocalOverviewInsights(workspaceId, insights);
     return insights;
   } catch (error) {
@@ -78,15 +84,37 @@ export async function persistOverviewInsight(workspaceId: string, input: SaveOve
     });
     const payload = await responseJson<{ insight: OverviewInsight }>(response);
     const existing = loadLocalOverviewInsights(workspaceId);
-    saveLocalOverviewInsights(workspaceId, [payload.insight, ...existing.filter((item) => item.id !== payload.insight.id)]);
+    saveLocalOverviewInsights(workspaceId, normalizePositions([...existing.filter((item) => item.id !== payload.insight.id), payload.insight]));
     return payload.insight;
   } catch {
     const now = new Date().toISOString();
     const existing = loadLocalOverviewInsights(workspaceId);
     const prior = existing.find((item) => item.id === input.id);
-    const insight: OverviewInsight = { ...input, createdAt: prior?.createdAt ?? now, updatedAt: now };
-    saveLocalOverviewInsights(workspaceId, [insight, ...existing.filter((item) => item.id !== insight.id)]);
+    const insight: OverviewInsight = { ...input, position: prior?.position ?? existing.length, createdAt: prior?.createdAt ?? now, updatedAt: now };
+    saveLocalOverviewInsights(workspaceId, normalizePositions([...existing.filter((item) => item.id !== insight.id), insight]));
     return insight;
+  }
+}
+
+export async function reorderOverviewInsights(workspaceId: string, orderedIds: string[]): Promise<OverviewInsight[]> {
+  const localById = new Map(loadLocalOverviewInsights(workspaceId).map((insight) => [insight.id, insight]));
+  const local = orderedIds.flatMap((id, position) => {
+    const insight = localById.get(id);
+    return insight ? [{ ...insight, position }] : [];
+  });
+  saveLocalOverviewInsights(workspaceId, local);
+  try {
+    const response = await fetch(`/api/overview-insights?workspace=${encodeURIComponent(workspaceId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedIds }),
+    });
+    const payload = await responseJson<{ insights: OverviewInsight[] }>(response);
+    const insights = normalizePositions(payload.insights.filter(isOverviewInsight));
+    saveLocalOverviewInsights(workspaceId, insights);
+    return insights;
+  } catch {
+    return local;
   }
 }
 

@@ -13,6 +13,7 @@ describe("Overview insights", () => {
       title: "Task Groups below average",
       description: "Three Task Groups need attention.",
       openui: "root = Dashboard([chart])\nchart = QualityComparison()",
+      position: 0,
       createdAt: "2026-11-09T00:00:00.000Z",
       updatedAt: "2026-11-09T00:00:00.000Z",
     })).toBe(true);

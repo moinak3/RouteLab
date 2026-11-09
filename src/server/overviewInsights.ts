@@ -3,6 +3,7 @@ import {
   listOverviewInsights,
   OverviewInsightStoreUnavailableError,
   removeOverviewInsight,
+  reorderOverviewInsights,
   saveOverviewInsight,
 } from "./overviewInsightStore.js";
 
@@ -22,6 +23,15 @@ export default async function overviewInsightsHandler(req: any, res: any) {
       if (!id) return sendJson(res, 400, { error: "An Overview insight id is required." });
       await removeOverviewInsight(databaseUrl(), workspaceId(req), id);
       return sendJson(res, 200, { deleted: true });
+    }
+    if (req.method === "PATCH") {
+      const orderedIds = Array.isArray(req.body?.orderedIds)
+        ? req.body.orderedIds.map((id: unknown) => text(id, 160)).filter(Boolean).slice(0, 12)
+        : [];
+      if (!orderedIds.length || new Set(orderedIds).size !== orderedIds.length) {
+        return sendJson(res, 400, { error: "A unique ordered list of Overview insight ids is required." });
+      }
+      return sendJson(res, 200, { insights: await reorderOverviewInsights(databaseUrl(), workspaceId(req), orderedIds) });
     }
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed." });
 
