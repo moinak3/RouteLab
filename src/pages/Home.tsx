@@ -259,15 +259,15 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
             <div><dt>Runtime</dt><dd>1:00</dd></div>
             <div><dt>Format</dt><dd>Agent workflow</dd></div>
           </dl>
-          <a className="home-button-secondary home-video-direct-link" href="/marketing/ask-routelab-60s-v4.mp4" target="_blank" rel="noreferrer">Watch the Ask RouteLab video</a>
+          <a className="home-button-secondary home-video-direct-link" href="/marketing/ask-routelab-60s-v5.mp4" target="_blank" rel="noreferrer">Watch the Ask RouteLab video</a>
         </div>
         <div className="home-video-player" data-label="ASK ROUTELAB / AGENT WORKFLOW">
           <video
             controls
             playsInline
             preload="metadata"
-            poster="/marketing/ask-routelab-60s-v4-poster.jpg"
-            src="/marketing/ask-routelab-60s-v4.mp4"
+            poster="/marketing/ask-routelab-60s-v5-poster.jpg"
+            src="/marketing/ask-routelab-60s-v5.mp4"
             aria-label="Ask RouteLab 60-second agent workflow"
           />
           <p>See custom charts pinned to Overview, a targeted model simulation, and a measured routing-policy update.</p>
