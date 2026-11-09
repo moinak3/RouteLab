@@ -252,23 +252,23 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
 
       <section className="home-section home-video" id="ask-routelab-video" aria-labelledby="ask-routelab-video-title">
         <div className="home-video-copy">
-          <p className="eyebrow">60-second agent tour</p>
+          <p className="eyebrow">77-second agent tour</p>
           <h2 id="ask-routelab-video-title">Meet the agent that turns routing questions into action.</h2>
           <p>Ask RouteLab answers specific workspace questions with custom metrics and charts you can pin to Overview, then helps you launch simulations and publish measured Task Group overrides.</p>
           <dl>
-            <div><dt>Runtime</dt><dd>1:00</dd></div>
+            <div><dt>Runtime</dt><dd>1:17</dd></div>
             <div><dt>Format</dt><dd>Agent workflow</dd></div>
           </dl>
-          <a className="home-button-secondary home-video-direct-link" href="/marketing/ask-routelab-60s-v5.mp4" target="_blank" rel="noreferrer">Watch the Ask RouteLab video</a>
+          <a className="home-button-secondary home-video-direct-link" href="/marketing/ask-routelab-77s-v6.mp4" target="_blank" rel="noreferrer">Watch the Ask RouteLab video</a>
         </div>
         <div className="home-video-player" data-label="ASK ROUTELAB / AGENT WORKFLOW">
           <video
             controls
             playsInline
             preload="metadata"
-            poster="/marketing/ask-routelab-60s-v5-poster.jpg"
-            src="/marketing/ask-routelab-60s-v5.mp4"
-            aria-label="Ask RouteLab 60-second agent workflow"
+            poster="/marketing/ask-routelab-77s-v6-poster.jpg"
+            src="/marketing/ask-routelab-77s-v6.mp4"
+            aria-label="Ask RouteLab 77-second agent workflow"
           />
           <p>See custom charts pinned to Overview, a targeted model simulation, and a measured routing-policy update.</p>
         </div>
