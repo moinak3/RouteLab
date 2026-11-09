@@ -24,6 +24,7 @@ import { calibrateGoldenDataset } from "../core/goldenDatasets";
 import { JEV_RISK_THRESHOLDS } from "../core/jevSignatureGate";
 import { buildReviewQueue } from "../core/reviewQueue";
 import { currentReviewCycleId, type PersistedReview, type PersistedTaskGroupReview, type ReviewCycle } from "../core/reviewPersistence";
+import { fetchOverviewInsights, overviewInsightTitle, persistOverviewInsight } from "../core/overviewInsights";
 import type { DistinctTaskBucket, GoldenDataset, Model, Trace, TraceJudgeResult } from "../types";
 import type { Page } from "../types/ui";
 
@@ -34,6 +35,7 @@ type ChatMessage = {
   facts?: string[];
   generatedUI?: AskRouteLabOpenUIMessage;
   action?: { label: string; onClick: () => void };
+  overviewInsight?: { question: string; title: string; description: string };
   suggestions?: string[];
 };
 
@@ -52,6 +54,7 @@ const AskRouteLabOpenUI = lazy(() => import("./AskRouteLabOpenUI").then((module)
 
 const money = (value: number) => `$${value.toFixed(value < 1 ? 3 : 2)}`;
 const score = (value: number) => `${(value * 100).toFixed(1)}%`;
+const broadOverviewQuestion = (value: string) => /^(catch me up|give me an overview|overview|what(?:'s| is) going on)/i.test(value.trim());
 
 export function AskChatLab({
   workspaceLabel,
@@ -94,6 +97,8 @@ export function AskChatLab({
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [busyLabel, setBusyLabel] = useState("Understanding your request");
+  const [pinnedInsightIds, setPinnedInsightIds] = useState<Set<string>>(new Set());
+  const [pinningInsightIds, setPinningInsightIds] = useState<Set<string>>(new Set());
   const [assignmentValidation, setAssignmentValidation] = useState<AssignmentValidationWorkflow | null>(() => loadLocalAssignmentValidation(workspaceId));
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: "welcome",
@@ -113,6 +118,13 @@ export function AskChatLab({
       saveLocalAssignmentValidation(workspaceId, workflow);
       setAssignmentValidation(workflow);
     }).catch(() => undefined);
+    return () => controller.abort();
+  }, [workspaceId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchOverviewInsights(workspaceId, controller.signal)
+      .then((insights) => setPinnedInsightIds(new Set(insights.map((insight) => insight.id))))
+      .catch(() => undefined);
     return () => controller.abort();
   }, [workspaceId]);
 
@@ -314,10 +326,33 @@ export function AskChatLab({
     message: Omit<ChatMessage, "id" | "role">,
     status: "completed" | "failed" = "completed",
   ) => {
-    const completedMessage = { ...message, suggestions: message.suggestions ?? askRouteLabFollowUps(planned.command.kind) };
+    const overviewInsight = message.generatedUI && !broadOverviewQuestion(question)
+      ? { question, title: overviewInsightTitle(question), description: message.text }
+      : undefined;
+    const completedMessage = { ...message, overviewInsight, suggestions: message.suggestions ?? askRouteLabFollowUps(planned.command.kind) };
     addAssistant(completedMessage);
     await recordInteraction({ question, planned, message: completedMessage, status });
     setRunning(false);
+  };
+
+  const addToOverview = async (message: ChatMessage) => {
+    if (!message.generatedUI || !message.overviewInsight) return;
+    const insightId = `ask_${message.id}`;
+    setPinningInsightIds((current) => new Set(current).add(insightId));
+    try {
+      await persistOverviewInsight(workspaceId, {
+        id: insightId,
+        ...message.overviewInsight,
+        openui: message.generatedUI.openui,
+      });
+      setPinnedInsightIds((current) => new Set(current).add(insightId));
+    } finally {
+      setPinningInsightIds((current) => {
+        const next = new Set(current);
+        next.delete(insightId);
+        return next;
+      });
+    }
   };
 
   const execute = async (rawInput: string) => {
@@ -473,7 +508,12 @@ export function AskChatLab({
       <section className="ask-chatlab" role="dialog" aria-modal="true" aria-label="Ask RouteLab workspace agent">
         <header><div><p className="eyebrow">OpenAI-powered workspace agent</p><h2>Ask RouteLab</h2><span>{workspaceLabel} · verified RouteLab operations</span></div><button type="button" aria-label="Close Ask RouteLab" onClick={() => setOpen(false)}>×</button></header>
         <div className="ask-chatlab-messages" aria-live="polite">
-          {messages.map((message) => <article className={`${message.role}${message.generatedUI ? " generated-ui" : ""}`} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.generatedUI ? <Suspense fallback={<div className="ask-chatlab-running"><i />Loading OpenUI dashboard</div>}><AskRouteLabOpenUI response={message.generatedUI.openui} data={message.generatedUI.metrics} /></Suspense> : null}{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}{message.suggestions?.length ? <div className="ask-chatlab-followups"><small>Try next</small><div>{message.suggestions.slice(0, 2).map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div></div> : null}</article>)}
+          {messages.map((message) => {
+            const insightId = `ask_${message.id}`;
+            const pinned = pinnedInsightIds.has(insightId);
+            const pinning = pinningInsightIds.has(insightId);
+            return <article className={`${message.role}${message.generatedUI ? " generated-ui" : ""}`} key={message.id}><small>{message.role === "user" ? "You" : "Ask RouteLab"}</small><p>{message.text}</p>{message.generatedUI ? <Suspense fallback={<div className="ask-chatlab-running"><i />Loading OpenUI dashboard</div>}><AskRouteLabOpenUI response={message.generatedUI.openui} data={message.generatedUI.metrics} /></Suspense> : null}{message.facts?.length ? <ul>{message.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}{message.action || message.overviewInsight ? <div className="ask-chatlab-actions">{message.overviewInsight ? <button type="button" className="ask-chatlab-pin" disabled={pinning} onClick={() => pinned ? (onNavigate("Overview"), setOpen(false)) : void addToOverview(message)}>{pinning ? "Adding..." : pinned ? "View on Overview" : "Add to Overview"}</button> : null}{message.action ? <button type="button" onClick={message.action.onClick}>{message.action.label}</button> : null}</div> : null}{message.suggestions?.length ? <div className="ask-chatlab-followups"><small>Try next</small><div>{message.suggestions.slice(0, 2).map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div></div> : null}</article>;
+          })}
           {running && <div className="ask-chatlab-running"><i />{busyLabel}</div>}
         </div>
         {messages.length === 1 && <div className="ask-chatlab-suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void execute(suggestion)}>{suggestion}</button>)}</div>}

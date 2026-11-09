@@ -2,6 +2,114 @@
   margin-top:16px;
 }
 
+.overview-saved-insights{
+  display:grid;
+  gap:18px;
+  margin-top:16px;
+}
+
+.overview-saved-insights .panelhead>div>p:last-child{
+  max-width:680px;
+  margin:6px 0 0;
+  color:#5d6b7e;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.overview-saved-insights-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+
+.overview-saved-insight{
+  display:grid;
+  align-content:start;
+  gap:14px;
+  min-width:0;
+  padding:18px;
+  border:1px solid var(--dossier-rule);
+  background:rgba(255,255,255,.5);
+  box-shadow:3px 3px 0 rgba(33,77,134,.06);
+}
+
+.overview-saved-insight:only-child{
+  grid-column:1/-1;
+}
+
+.overview-saved-insight>header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.overview-saved-insight>header>div{
+  display:grid;
+  gap:5px;
+  min-width:0;
+}
+
+.overview-saved-insight>header small{
+  color:#287241;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+
+.overview-saved-insight>header h3{
+  margin:0;
+  color:var(--dossier-ink);
+  font-family:var(--font-editorial);
+  font-size:21px;
+  font-weight:600;
+  line-height:1.2;
+}
+
+.overview-saved-insight>header p{
+  display:-webkit-box;
+  overflow:hidden;
+  margin:0;
+  color:#526075;
+  font-size:12px;
+  line-height:1.45;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+}
+
+.overview-saved-insight>header button{
+  flex:0 0 auto;
+  padding:7px 9px;
+  border-color:#a8b6c8;
+  background:#fffdf8;
+  color:#344259;
+  font-size:11px;
+}
+
+.overview-saved-insight>.ask-openui-renderer{
+  margin:0;
+}
+
+.overview-insight-loading{
+  min-height:180px;
+  display:grid;
+  place-items:center;
+  color:#647188;
+  font-size:12px;
+}
+
+.overview-saved-insight>footer{
+  padding-top:10px;
+  border-top:1px solid var(--dossier-rule-soft);
+  color:#647188;
+  font-size:10px;
+  letter-spacing:.03em;
+}
+
+@media(max-width:1050px){.overview-saved-insights-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.overview-saved-insight{padding:14px}.overview-saved-insight>header{display:grid}.overview-saved-insight>header button{justify-self:start}}
+
 .task-performance-panel{
   display:grid;
   gap:18px;

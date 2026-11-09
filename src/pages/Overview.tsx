@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { percentile, type dashboardMetrics } from "../core/analysis";
 import { monthlyBuckets } from "../core/time";
 import type { DistinctTaskBucket, Trace, TraceJudgeResult } from "../types";
@@ -15,6 +15,16 @@ import { shouldShowWorkspaceOnboarding } from "../core/workspaceOnboarding";
 import { TaskGroupPerformance } from "../components/TaskGroupPerformance";
 import { loadSimulationRuns } from "../core/simulationHistory";
 import { ModelCostChart, RoutingMixChart } from "../components/OverviewCharts";
+import { workspaceMetricDashboard } from "../core/askChatLab";
+import {
+  deleteOverviewInsight,
+  fetchOverviewInsights,
+  loadLocalOverviewInsights,
+  OVERVIEW_INSIGHTS_CHANGED_EVENT,
+  type OverviewInsight,
+} from "../core/overviewInsights";
+
+const AskRouteLabOpenUI = lazy(() => import("../components/AskRouteLabOpenUI").then((module) => ({ default: module.AskRouteLabOpenUI })));
 
 type StatIconName = "calls" | "spend" | "tokens" | "latency" | "quality";
 
@@ -54,7 +64,7 @@ const policyDate = (value?: string | null) => value && Number.isFinite(Date.pars
   : "Not available";
 const ratio = (value: number, total: number) => total ? value / total * 100 : 0;
 
-export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResults, evaluationEvidenceCount = 0, workflowCount, onNavigate, onReviewQueue, personalWorkspace = false, workspaceId }: { metrics: ReturnType<typeof dashboardMetrics>; distinctTaskBuckets: DistinctTaskBucket[]; traces: Trace[]; traceJudgeResults: TraceJudgeResult[]; evaluationEvidenceCount?: number; workflowCount: number; onNavigate: (page: Page) => void; onReviewQueue: (filter: ReviewQueueFilter, task?: "all" | "task_group" | "response_quality" | "both") => void; personalWorkspace?: boolean; workspaceId: string }) {
+export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResults, activeEval, evaluationEvidenceCount = 0, workflowCount, onNavigate, onReviewQueue, personalWorkspace = false, workspaceId }: { metrics: ReturnType<typeof dashboardMetrics>; distinctTaskBuckets: DistinctTaskBucket[]; traces: Trace[]; traceJudgeResults: TraceJudgeResult[]; activeEval?: { id: string; version: number }; evaluationEvidenceCount?: number; workflowCount: number; onNavigate: (page: Page) => void; onReviewQueue: (filter: ReviewQueueFilter, task?: "all" | "task_group" | "response_quality" | "both") => void; personalWorkspace?: boolean; workspaceId: string }) {
   const [segmentType,setSegmentType]=useState<"all"|"model"|"task">("all");
   const [segmentValue,setSegmentValue]=useState("all");
   const modelCostItems=Object.entries(metrics.byModel).sort((a,b)=>b[1].cost-a[1].cost).map(([model,item])=>({model,cost:item.cost}));
@@ -67,6 +77,8 @@ export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResul
   const [publishedHistory,setPublishedHistory]=useState<PublishedPolicyHistory|null>(null);
   const [activeBundle,setActiveBundle]=useState<RoutingPolicyBundle|null>(null);
   const [publishedState,setPublishedState]=useState<"loading"|"ready"|"unavailable">("loading");
+  const [overviewInsights,setOverviewInsights]=useState<OverviewInsight[]>(()=>loadLocalOverviewInsights(workspaceId));
+  const [removingInsightIds,setRemovingInsightIds]=useState<Set<string>>(new Set());
   useEffect(()=>{
     const controller=new AbortController();
     let active=true;
@@ -89,6 +101,17 @@ export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResul
     };
     void load();
     return()=>{active=false;controller.abort()};
+  },[workspaceId]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    setOverviewInsights(loadLocalOverviewInsights(workspaceId));
+    fetchOverviewInsights(workspaceId,controller.signal).then(setOverviewInsights).catch(()=>undefined);
+    const handleChange=(event:Event)=>{
+      const detail=(event as CustomEvent<{workspaceId?:string;insights?:OverviewInsight[]}>).detail;
+      if(detail?.workspaceId===workspaceId&&Array.isArray(detail.insights))setOverviewInsights(detail.insights);
+    };
+    window.addEventListener(OVERVIEW_INSIGHTS_CHANGED_EVENT,handleChange);
+    return()=>{controller.abort();window.removeEventListener(OVERVIEW_INSIGHTS_CHANGED_EVENT,handleChange)};
   },[workspaceId]);
   const activeSummary=publishedHistory?.versions.find(version=>version.active);
   const showWorkspaceOnboarding=shouldShowWorkspaceOnboarding(personalWorkspace,publishedState,Boolean(activeSummary));
@@ -171,8 +194,21 @@ export function Overview({ metrics, distinctTaskBuckets, traces, traceJudgeResul
   const overrideTrafficPct=ratio(liveRouting.override,liveRouting.processed);
   const defaultTrafficPct=ratio(liveRouting.default,liveRouting.processed);
   const taskGroupOverridePct=ratio(overrideCount,taskGroupCount);
+  const activeEvalId=activeEval?.id;
+  const activeEvalVersion=activeEval?.version;
+  const overviewInsightMetrics=useMemo(()=>workspaceMetricDashboard(traces,distinctTaskBuckets,traceJudgeResults,activeEvalId&&activeEvalVersion!==undefined?{id:activeEvalId,version:activeEvalVersion}:undefined,classifierActive),[traces,distinctTaskBuckets,traceJudgeResults,activeEvalId,activeEvalVersion,classifierActive]);
+  const removeInsight=async(insightId:string)=>{
+    setRemovingInsightIds(current=>new Set(current).add(insightId));
+    try{
+      await deleteOverviewInsight(workspaceId,insightId);
+      setOverviewInsights(current=>current.filter(insight=>insight.id!==insightId));
+    }finally{
+      setRemovingInsightIds(current=>{const next=new Set(current);next.delete(insightId);return next});
+    }
+  };
   return <>{showWorkspaceOnboarding && <WorkspaceOnboarding traceCount={traces.length} taskGroupCount={distinctTaskBuckets.length} evaluationEvidenceCount={evaluationEvidenceCount} hasSimulationDecision={Object.keys(routingPolicy.overrides).length > 0} hasPublishedPolicy={false} onNavigate={onNavigate} />}<section className="panel overview-policy-panel"><div className="overview-policy-head"><div><p className="eyebrow">Routing control plane</p><h2>{policyStatusLabel}</h2><p>{activeSummary?`Policy v${activeSummary.version} · activated ${policyDate(activeSummary.activatedAt)} · expires ${policyDate(activeSummary.expiresAt)}`:"Publish a signed routing policy to activate classification and Task Group overrides."}</p></div><span className={`overview-policy-status ${classifierActive?"active":"inactive"}`}>{classifierState}</span></div><div className="overview-operations-grid"><article className="overview-operation-card overview-classifier-card"><div className="overview-operation-card-head"><div><small>Classifier</small><h3>Request routing</h3></div><span className={`overview-live-state ${classifierActive?"live":"inactive"}`}><i aria-hidden="true"/>{classifierState}</span></div><div className="overview-classifier-metrics"><div><small>Requests processed</small><strong>{liveRouting.processed.toLocaleString()}</strong></div><div><small>P50 added latency</small><strong>{liveRouting.processed?`${classifierP50Latency.toFixed(0)}ms`:"—"}</strong></div></div><div className="overview-routing-mix-head"><small>Classifier routing status</small><b>{liveRouting.processed?`${pct(overrideTrafficPct)} overrides · ${pct(defaultTrafficPct)} default`:"Waiting for classified traffic"}</b></div><RoutingMixChart overrides={liveRouting.override} fallback={liveRouting.default} fallbackLabel={`Default · ${defaultStrategyName}`} /><div className="overview-routing-legend"><span><i className="override"/>Overrides <b>{liveRouting.override.toLocaleString()} · {pct(overrideTrafficPct)}</b></span><span><i className="default"/>Default · {defaultStrategyName} <b>{liveRouting.default.toLocaleString()} · {pct(defaultTrafficPct)}</b></span></div><button type="button" className="overview-policy-cta" onClick={()=>onNavigate("Simulations")}>Open routing policy</button></article><article className="overview-operation-card overview-task-group-card"><div className="overview-operation-card-head"><div><small>Task Groups</small><h3>Workload map</h3></div></div><strong className="overview-operation-value">{taskGroupCount.toLocaleString()}</strong><p>Task Groups identified</p><div className="overview-task-group-stats"><div><small>With model overrides</small><b>{pct(taskGroupOverridePct)}</b><span>{overrideCount.toLocaleString()} of {taskGroupCount.toLocaleString()}</span></div><div><small>Simulations run</small><b>{completedSimulationCount.toLocaleString()}</b><span>completed runs saved</span></div></div></article><article className="overview-operation-card overview-attention compact"><div className="overview-operation-card-head"><div><small>Needs attention</small><h3>{attentionItems.length?`${attentionItems.length} follow-up${attentionItems.length===1?"":"s"}`:"All clear"}</h3></div><button type="button" onClick={()=>onReviewQueue("representative")}>Review</button></div>{attentionItems.length?<div>{attentionItems.slice(0,2).map(item=><button type="button" onClick={item.action} key={item.label}><span>{item.label}</span><b aria-hidden="true">›</b></button>)}{attentionItems.length>2&&<small className="overview-attention-more">+{attentionItems.length-2} more in the review queue</small>}</div>:<p className="overview-attention-empty">No unknown classifications, quality failures, or policy changes need attention.</p>}</article></div><div className={`overview-draft-state ${draftUpdatedAfterDeployment?"changed":""}`}><span>{hasWorkspacePolicy?`${defaultTaskGroupCount.toLocaleString()} Task Groups use ${defaultStrategyName}`:"No active routing policy"}</span><small>{draftUpdatedAfterDeployment?"Saved draft changed after the active policy was published":`Saved draft v${routingPolicy.version} · ${routingPolicyStatus.state==="saved"?"cloud":routingPolicyStatus.state}`}</small></div></section>
     <section className="overview-kpis" aria-label="Observed routing metrics"><article className="panel"><span className="stat-icon calls"><StatIcon name="calls" /></span><small>Observed requests</small><strong>{metrics.totalRequests.toLocaleString()}</strong><p>{workflowCount.toLocaleString()} workflow trees in the loaded traffic</p></article><article className="panel"><span className="stat-icon quality"><StatIcon name="quality" /></span><small>Average Quality score</small><strong>{traceJudgeResults.length?pct(averageQualityScore*100):"No scores"}</strong><p>{traceJudgeResults.length?`${traceJudgeResults.length.toLocaleString()} scored traces`:"No evaluator has been run in this workspace"}</p></article><article className="panel"><span className="stat-icon latency"><StatIcon name="latency" /></span><small>P95 latency</small><strong>{metrics.p95Latency.toFixed(0)}ms</strong><p>Average {metrics.averageLatency.toFixed(0)}ms across loaded traces</p></article><article className="panel"><span className="stat-icon spend"><StatIcon name="spend" /></span><small>Spend per 1,000 calls</small><strong>{money(spendPerThousand)}</strong><p>{money(metrics.totalCost)} total observed spend</p></article></section>
+    {overviewInsights.length?<section className="panel overview-saved-insights"><div className="panelhead"><div><p className="eyebrow">Saved from Ask RouteLab</p><h2>Your live workspace insights</h2><p>These generated views stay connected to the latest traces and eval results.</p></div><span>{overviewInsights.length} saved</span></div><div className="overview-saved-insights-grid">{overviewInsights.map(insight=><article className="overview-saved-insight" key={insight.id}><header><div><small>Live workspace data</small><h3>{insight.title}</h3><p>{insight.description}</p></div><button type="button" aria-label={`Remove ${insight.title} from Overview`} disabled={removingInsightIds.has(insight.id)} onClick={()=>void removeInsight(insight.id)}>{removingInsightIds.has(insight.id)?"Removing...":"Remove"}</button></header><Suspense fallback={<div className="overview-insight-loading">Refreshing workspace insight...</div>}><AskRouteLabOpenUI response={insight.openui} data={overviewInsightMetrics}/></Suspense><footer>Added from Ask RouteLab · refreshes with current workspace data</footer></article>)}</div></section>:null}
     <section className="panel trend-panel"><div className="panelhead"><div><p className="eyebrow">Six-month traffic trend</p><h2>Monthly LLM usage, spend, latency and quality</h2></div><div className="trend-filters"><select aria-label="Segment charts by" value={segmentType} onChange={event=>setSegmentType(event.target.value as "all"|"model"|"task")}><option value="all">All traffic</option><option value="model">Segment by model</option><option value="task">Segment by Task Group</option></select>{segmentType!=="all"&&<select aria-label={`Select ${segmentType}`} value={segmentValue} onChange={event=>setSegmentValue(event.target.value)}><option value="all">All</option>{segmentOptions.map(option=><option value={option} key={option}>{segmentType==="task"?distinctTaskBuckets.find(bucket=>bucket.bucket_id===option)?.bucket_name:option}</option>)}</select>}</div></div><div className="trend-grid"><LineChart title="LLM calls" series={chartSeries} metric="calls" format={value=>value.toLocaleString()} icon={<span className="stat-icon calls"><StatIcon name="calls" /></span>} /><LineChart title="Spend" series={chartSeries} metric="spend" format={money} icon={<span className="stat-icon spend"><StatIcon name="spend" /></span>} /><LineChart title="Total tokens" series={chartSeries} metric="tokens" format={value=>value.toLocaleString()} icon={<span className="stat-icon tokens"><StatIcon name="tokens" /></span>} /><LineChart title="Average latency" series={chartSeries} metric="latency" format={value=>`${value.toFixed(0)}ms`} summaryValue={averageLatency(scopedTraces)} icon={<span className="stat-icon latency"><StatIcon name="latency" /></span>} /><LineChart title="Agent quality score" series={qualityChartSeries} metric="quality" format={value=>pct(value*100)} icon={<span className="stat-icon quality"><StatIcon name="quality" /></span>} /></div></section>
     <TaskGroupPerformance traces={traces} taskGroups={distinctTaskBuckets} traceJudgeResults={traceJudgeResults} />
     <section className="grid two"><article className="panel"><div className="panelhead"><div><p className="eyebrow">Spend analysis</p><h2>Cost by model</h2></div><span>Current traffic</span></div><ModelCostChart items={modelCostItems} /></article>

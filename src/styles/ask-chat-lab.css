@@ -16,6 +16,11 @@
 .ask-chatlab-messages article ul{display:grid;gap:4px;margin:2px 0 0;padding-left:18px;color:#526075;font-size:13px;line-height:1.45}
 .ask-chatlab-messages article li::marker{color:#36944e}
 .ask-chatlab-messages article button{width:max-content;margin-top:3px;border-color:#4c8f5d;border-radius:1px;background:#e7f2e5;color:#173923}
+.ask-chatlab-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:3px}
+.ask-chatlab-messages article .ask-chatlab-actions button{margin:0}
+.ask-chatlab-messages article .ask-chatlab-actions .ask-chatlab-pin{border-color:#173923;background:#5ce079;color:#10251a;box-shadow:2px 2px 0 #173923;font-weight:700}
+.ask-chatlab-messages article .ask-chatlab-actions .ask-chatlab-pin:hover,.ask-chatlab-messages article .ask-chatlab-actions .ask-chatlab-pin:focus-visible{background:#6eef88}
+.ask-chatlab-messages article .ask-chatlab-actions .ask-chatlab-pin:disabled{cursor:wait;opacity:.7}
 .ask-chatlab-followups{display:grid;gap:6px;margin-top:5px;padding-top:10px;border-top:1px solid #d7dee7}
 .ask-chatlab-followups>div{display:flex;flex-wrap:wrap;gap:7px}
 .ask-chatlab-messages article .ask-chatlab-followups button{max-width:100%;margin:0;border-color:#a8b6c8;background:#fffdf8;color:#344259;font-size:12px;line-height:1.35;white-space:normal;text-align:left}
