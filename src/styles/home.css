@@ -27,7 +27,7 @@
 .home-hero-copy .eyebrow,.home-page .eyebrow{margin:0 0 16px;color:#8faaa0;font:700 12px var(--font-sans);letter-spacing:0;text-transform:uppercase}
 .home-hero-copy h1{max-width:790px;margin:0;color:#fff;font-size:64px;line-height:.98;letter-spacing:0}
 .home-hero-copy>p:not(.eyebrow):not(.home-hero-boundary){max-width:710px;margin:26px 0 0;color:#bdcbc4;font-size:18px;line-height:1.58}
-.home-cta-row{display:flex;align-items:center;gap:12px;margin-top:30px}
+.home-cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:30px}
 .home-button-secondary{display:inline-flex;align-items:center;justify-content:center;padding:0 17px;border:1px solid rgba(202,221,211,.24);border-radius:8px;background:rgba(255,255,255,.035);color:#e4eee9;font-size:13px;font-weight:700;text-decoration:none}
 .home-button-secondary:hover{border-color:rgba(88,240,132,.4);background:rgba(88,240,132,.07)}
 .home-hero-boundary{max-width:650px;margin:22px 0 0;color:#758980;font-size:13px;line-height:1.5}
@@ -55,6 +55,7 @@
 .home-video-copy dl div{display:grid;gap:5px}.home-video-copy dt{color:#7f948a;font-size:11px;font-weight:700;text-transform:uppercase}.home-video-copy dd{margin:0;color:var(--home-bright);font-size:13px;font-weight:700}
 .home-video-player{min-width:0}.home-video-player video{display:block;width:100%;aspect-ratio:16/9;border:1px solid var(--home-line);border-radius:10px;background:#05090c;box-shadow:0 28px 70px rgba(0,0,0,.28)}
 .home-video-player p{margin:12px 0 0;color:#758980;font-size:12px;line-height:1.45}
+.home-video-direct-link{margin-top:24px}
 .home-video-reverse .home-video-copy{order:2}
 .home-video-reverse .home-video-player{order:1}
 .home-allocation-comparison{padding-top:82px}

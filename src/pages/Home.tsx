@@ -212,7 +212,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
           <p className="eyebrow">Model routing for AI agents</p>
           <h1>Choose the right model for each task your agent takes on.</h1>
           <p>RouteLab uses your production traces and human-calibrated evals to choose the right model for each recurring task.</p>
-          <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a><a className="home-button-secondary" href="#video">Watch the 90-sec overview</a></div>
+          <div className="home-cta-row"><button type="button" className="primary" onClick={openPasswordPrompt}>Get Started</button><a className="home-button-secondary" href="#how-it-works">See how it works</a><a className="home-button-secondary" href="#video">Watch the 90-sec overview</a><a className="home-button-secondary" href="#ask-routelab-video">See RouteLab Copilot in action</a></div>
         </div>
         <aside className="home-why-now-card" id="why-now" aria-label="Why model allocation matters now">
           <div className="home-why-now-head"><span>Why now</span><b>One agent now performs many kinds of work.</b></div>
@@ -259,6 +259,7 @@ export function Home({ onGetStarted, promptForPassword = false }: { onGetStarted
             <div><dt>Runtime</dt><dd>1:00</dd></div>
             <div><dt>Format</dt><dd>Agent workflow</dd></div>
           </dl>
+          <a className="home-button-secondary home-video-direct-link" href="/marketing/ask-routelab-60s-v3.mp4" target="_blank" rel="noreferrer">Watch the Ask RouteLab video</a>
         </div>
         <div className="home-video-player" data-label="ASK ROUTELAB / AGENT WORKFLOW">
           <video
